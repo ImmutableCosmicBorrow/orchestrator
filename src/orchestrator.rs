@@ -1,7 +1,6 @@
 use common_game::components::forge::Forge;
-use common_game::protocols::messages::{
-    OrchestratorToExplorer, OrchestratorToPlanet, PlanetToOrchestrator,
-};
+use common_game::protocols::orchestrator_explorer::OrchestratorToExplorer;
+use common_game::protocols::orchestrator_planet::{OrchestratorToPlanet, PlanetToOrchestrator};
 use crossbeam_channel::{Receiver, Sender};
 use std::collections::HashMap;
 
@@ -57,25 +56,25 @@ impl Orchestrator {
                 None
             }
 
-            PlanetToOrchestrator::IncomingExplorerResponse { planet_id, res } => {
+            PlanetToOrchestrator::IncomingExplorerResponse { planet_id, res, explorer_id } => {
                 //TODO: Change when the new common crate version will be released
                 match res {
-                    Ok(_) => println!("Planet {} received an incoming explorer", planet_id),
+                    Ok(_) => println!("Planet {} received incoming explorer {}", planet_id, explorer_id),
                     Err(s) => println!(
-                        "Error with incoming explorer in planet {}: {}",
-                        planet_id, s
+                        "Error with incoming explorer {} in planet {}: {}",
+                        explorer_id, planet_id, s,
                     ),
                 }
                 None
             }
 
-            PlanetToOrchestrator::OutgoingExplorerResponse { planet_id, res } => {
+            PlanetToOrchestrator::OutgoingExplorerResponse { planet_id, res, explorer_id } => {
                 //TODO: Change when the new common crate version will be released
                 match res {
-                    Ok(_) => println!("An explorer left planet {}", planet_id),
+                    Ok(_) => println!("Explorer {} left planet {}", explorer_id, planet_id),
                     Err(s) => println!(
-                        "Error with outgoing explorer in planet {}: {}",
-                        planet_id, s
+                        "Error with outgoing explorer {} in planet {}: {}",
+                        explorer_id, planet_id, s
                     ),
                 }
                 None
