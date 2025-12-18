@@ -3,6 +3,7 @@ use common_game::protocols::orchestrator_explorer::OrchestratorToExplorer;
 use common_game::protocols::orchestrator_planet::{OrchestratorToPlanet, PlanetToOrchestrator};
 use crossbeam_channel::{Receiver, Sender};
 use std::collections::HashMap;
+use common_game::utils::ID;
 
 pub(crate) struct Orchestrator {
     planets_senders: HashMap<u32, Sender<OrchestratorToPlanet>>,
@@ -15,6 +16,26 @@ pub(crate) struct Orchestrator {
 impl Orchestrator {
     pub fn new() -> Self {
         todo!()
+    }
+
+    /// Sends an OrchestratorToPlanet to the correspondent planet_id. Returns nothing if successful, a String error otherwise
+    fn to_planet(&self, planet_id : ID, msg : OrchestratorToPlanet) -> Result<(), String>{
+        self
+            .planets_senders
+            .get(&planet_id)
+            .ok_or(format!("Planet {} not found", planet_id))?
+            .send(msg)
+            .map_err(|err| format!("Failed to send to Planet {}: {}", planet_id, err))
+    }
+
+    /// Sends an OrchestratorToExplorer to the correspondent explorer_id. Returns nothing if successful, a String error otherwise
+    fn to_explorer(&self, explorer_id : ID, msg : OrchestratorToExplorer) -> Result<(), String>{
+        self
+            .explorer_senders
+            .get(&explorer_id)
+            .ok_or(format!("Explorer {} not found", explorer_id))?
+            .send(msg)
+            .map_err(|err| format!("Failed to send to Explorer {}: {}", explorer_id, err))
     }
 
     ///This function handles the incoming messages from a planet
