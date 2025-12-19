@@ -75,8 +75,8 @@ impl PlanetNode<Alive> {
 
 /// Implementations for dead planet nodes
 impl PlanetNode<Dead> {
-    /// Revive the dead planet, transitioning its state back to alive 
-    /// 
+    /// Revive the dead planet, transitioning its state back to alive
+    ///
     /// Here in case we decide that we let the user revive planets
     /// needs to fetch neighbors from initialization file (not implemented)
     /// remove `allow(dead_code)` if we decide to use it
