@@ -1,15 +1,18 @@
 use std::collections::HashMap;
-use std::hash::Hash;
 
 use common_game::protocols::orchestrator_planet::{OrchestratorToPlanet, PlanetToOrchestrator};
 use crossbeam_channel::unbounded;
 use crossbeam_channel::{Receiver, Sender};
 
+type SenderMap = HashMap<u32, Sender<OrchestratorToPlanet>>;
+type ReceiverMap = HashMap<u32, Receiver<OrchestratorToPlanet>>;
+
+#[allow(dead_code)]
 pub fn create_planets_channels(
     n_planets: u32,
 ) -> (
-    HashMap<u32, Sender<OrchestratorToPlanet>>,
-    HashMap<u32, Receiver<OrchestratorToPlanet>>,
+    SenderMap,
+    ReceiverMap,
     Receiver<PlanetToOrchestrator>,
     Sender<PlanetToOrchestrator>,
 ) {
