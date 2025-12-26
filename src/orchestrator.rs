@@ -1,5 +1,6 @@
 #![allow(dead_code)]
 
+use crate::galaxy_setup::galaxy_loader;
 use crate::planet::{Alive, PlanetNode};
 use common_game::components::forge::Forge;
 use common_game::protocols::orchestrator_explorer::{
@@ -8,6 +9,7 @@ use common_game::protocols::orchestrator_explorer::{
 use common_game::protocols::orchestrator_planet::{OrchestratorToPlanet, PlanetToOrchestrator};
 use common_game::protocols::planet_explorer::{ExplorerToPlanet, PlanetToExplorer};
 use common_game::utils::ID;
+use crossbeam_channel::unbounded;
 use crossbeam_channel::{Receiver, Sender};
 use std::collections::HashMap;
 
@@ -28,8 +30,28 @@ struct PlanetExplorerChannels {
 }
 
 impl<T> Orchestrator<T> {
-    pub fn new() -> Self {
-        todo!()
+    pub fn new(file_path: &std::path::Path) -> Self {
+        let (galaxy, planets_receiver, planets_senders) = galaxy_loader(file_path);
+        let (explorers_receiver, explorer_senders) =
+            (unbounded::<OrchestratorToExplorer>().1, HashMap::new());
+        let forge = Forge::new().expect("Couldn't create forge!");
+        let explorer_bag = HashMap::new();
+
+        let planet_explorer_channels = PlanetExplorerChannels {
+            planet_to_explorer_senders: HashMap::new(),
+            explorer_to_planet_senders: HashMap::new(),
+        };
+
+        Self {
+            planets_senders,
+            explorer_senders,
+            planets_receiver,
+            explorers_receiver,
+            forge,
+            explorer_bag,
+            galaxy,
+            planet_explorer_channels,
+        }
     }
 
     /// Sends an `OrchestratorToPlanet` to the correspondent `planet_id`. Returns nothing if successful, a String error otherwise
