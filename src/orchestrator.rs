@@ -10,15 +10,19 @@ use common_game::protocols::planet_explorer::{ExplorerToPlanet, PlanetToExplorer
 use common_game::utils::ID;
 use crossbeam_channel::{Receiver, Sender};
 use std::collections::HashMap;
+use std::fmt::format;
+use std::sync::{Arc, Mutex};
+
+mod conversations;
 
 pub(crate) struct Orchestrator<T> {
-    planets_senders: HashMap<ID, Sender<OrchestratorToPlanet>>,
-    explorer_senders: HashMap<ID, Sender<OrchestratorToExplorer>>,
+    planets_senders: Arc<Mutex<HashMap<ID, Sender<OrchestratorToPlanet>>>>,
+    explorer_senders: Arc<Mutex<HashMap<ID, Sender<OrchestratorToExplorer>>>>,
     planets_receiver: Receiver<PlanetToOrchestrator>,
     explorers_receiver: Receiver<OrchestratorToExplorer>,
     forge: Forge,
     explorer_bag: HashMap<ID, T>,
-    galaxy: HashMap<ID, std::rc::Rc<PlanetNode<Alive>>>,
+    galaxy: Arc<Mutex<HashMap<ID, Arc<PlanetNode<Alive>>>>>,
     planet_explorer_channels: PlanetExplorerChannels,
 }
 
@@ -35,6 +39,8 @@ impl<T> Orchestrator<T> {
     /// Sends an `OrchestratorToPlanet` to the correspondent `planet_id`. Returns nothing if successful, a String error otherwise
     fn to_planet(&self, planet_id: ID, msg: OrchestratorToPlanet) -> Result<(), String> {
         self.planets_senders
+            .lock()
+            .unwrap()
             .get(&planet_id)
             .ok_or(format!("Planet {planet_id} not found"))?
             .send(msg)
@@ -44,6 +50,8 @@ impl<T> Orchestrator<T> {
     /// Sends an `OrchestratorToExplorer` to the correspondent `explorer_id`. Returns nothing if successful, a String error otherwise
     fn to_explorer(&self, explorer_id: ID, msg: OrchestratorToExplorer) -> Result<(), String> {
         self.explorer_senders
+            .lock()
+            .unwrap()
             .get(&explorer_id)
             .ok_or(format!("Explorer {explorer_id} not found"))?
             .send(msg)
@@ -64,7 +72,7 @@ impl<T> Orchestrator<T> {
 
             PlanetToOrchestrator::KillPlanetResult { planet_id } => {
                 //TODO: erase planet from map
-                self.planets_senders.remove(&planet_id);
+                self.planets_senders.lock().unwrap().remove(&planet_id);
                 println!("Planet {planet_id} has been killed");
                 None
             }
@@ -132,9 +140,9 @@ impl<T> Orchestrator<T> {
             }
         }
     }
-    ///This function handles the incoming messages from an Explorer
-    ///Returns an optional tuple with the `explorer_id` and the message to send to the planet as a response
-    fn handle_explorer_message(
+    //This function handles the incoming messages from an Explorer
+    //Returns an optional tuple with the `explorer_id` and the message to send to the planet as a response
+    /*fn handle_explorer_message(
         &mut self,
         message: ExplorerToOrchestrator<T>,
     ) -> Option<(ID, OrchestratorToExplorer)> {
@@ -179,6 +187,8 @@ impl<T> Orchestrator<T> {
             } => {
                 let neighbors = self
                     .galaxy
+                    .lock()
+                    .unwrap()
                     .get(&current_planet_id)
                     .expect("Selected Planet not in galaxy")
                     .get_neighbors();
@@ -247,10 +257,14 @@ impl<T> Orchestrator<T> {
             } => {
                 let dst_planet = self
                     .galaxy
+                    .lock()
+                    .unwrap()
                     .get(&current_planet_id)
                     .expect("Selected Planet not in galaxy");
                 let is_neighbor = self
                     .galaxy
+                    .lock()
+                    .unwrap()
                     .get(&current_planet_id)
                     .expect("Selected Planet not in galaxy")
                     .has_neighbor(dst_planet);
@@ -285,4 +299,5 @@ impl<T> Orchestrator<T> {
             }
         }
     }
+}*/
 }
