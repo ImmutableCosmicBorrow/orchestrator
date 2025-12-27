@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 use std::path::Path;
-use std::rc::Rc;
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use common_game::protocols::orchestrator_planet::{OrchestratorToPlanet, PlanetToOrchestrator};
@@ -14,6 +14,7 @@ use immutable_cosmic_borrow::{Ai, create_planet};
 use crate::planet::{Alive, PlanetNode};
 
 type OrchPlanSenderMap = HashMap<ID, Sender<OrchestratorToPlanet>>;
+pub(crate) type PlanetMap = Arc<Mutex<HashMap<ID, Arc<Mutex<PlanetNode<Alive>>>>>>;
 
 // TODO: add a parameter to customize planet creation with other groups planets
 fn create_planet_with_channels(
@@ -21,7 +22,7 @@ fn create_planet_with_channels(
     planet_id: ID,
     tx_orch_out: Sender<PlanetToOrchestrator>,
     rx_expl_in: Receiver<ExplorerToPlanet>,
-) -> Rc<PlanetNode<Alive>> {
+) -> PlanetNode<Alive> {
     let (tx_orch_in, rx_orch_in) = unbounded::<OrchestratorToPlanet>();
     sender_map.insert(planet_id, tx_orch_in);
 
@@ -35,22 +36,15 @@ fn create_planet_with_channels(
 
     let planet = create_planet(ai, planet_id, (rx_orch_in, tx_orch_out), rx_expl_in);
 
-    Rc::new(PlanetNode::<Alive>::new(
-        planet.expect("Failed to create planet"),
-    ))
+    PlanetNode::<Alive>::new(planet.expect("Failed to create planet"))
 }
 
 #[allow(dead_code)]
 pub fn galaxy_loader(
     file_path: &Path,
-) -> (
-    HashMap<ID, std::rc::Rc<PlanetNode<Alive>>>,
-    Receiver<PlanetToOrchestrator>,
-    OrchPlanSenderMap,
-) {
+) -> (PlanetMap, Receiver<PlanetToOrchestrator>, OrchPlanSenderMap) {
     use std::fs::File;
     use std::io::{BufRead, BufReader};
-    use std::rc::Rc;
 
     // Ensure the parent directory exists, create it if it doesn't
     if let Some(parent) = file_path.parent().filter(|p| !p.exists()) {
@@ -63,7 +57,7 @@ pub fn galaxy_loader(
     // First pass: create all planet nodes
     let file = File::open(file_path).expect("Failed to open galaxy file");
     let reader = BufReader::new(file);
-    let mut out: HashMap<ID, Rc<PlanetNode<Alive>>> = HashMap::new();
+    let mut out: HashMap<ID, Arc<Mutex<PlanetNode<Alive>>>> = HashMap::new();
 
     // Store edges for second pass
     let mut edges: Vec<(ID, Vec<ID>)> = Vec::new();
@@ -90,23 +84,23 @@ pub fn galaxy_loader(
 
         // Create planet node if not already present
         out.entry(id).or_insert_with(|| {
-            create_planet_with_channels(
+            Arc::new(Mutex::new(create_planet_with_channels(
                 &mut orch_to_plan_send,
                 id,
                 tx_orch_out.clone(),
                 rx_expl_in.clone(),
-            )
+            )))
         });
 
         // Also ensure all neighbors exist as nodes
         for &neighbor_id in &neighbors {
             out.entry(neighbor_id).or_insert_with(|| {
-                create_planet_with_channels(
+                Arc::new(Mutex::new(create_planet_with_channels(
                     &mut orch_to_plan_send,
                     neighbor_id,
                     tx_orch_out.clone(),
                     rx_expl_in.clone(),
-                )
+                )))
             });
         }
     }
@@ -115,11 +109,11 @@ pub fn galaxy_loader(
     for (id, neighbors) in edges {
         let node = out.get(&id).expect("Node missing");
         for neighbor_id in neighbors {
-            let neighbor: &Rc<PlanetNode<Alive>> =
+            let neighbor: &Arc<Mutex<PlanetNode<Alive>>> =
                 out.get(&neighbor_id).expect("Neighbor node missing");
-            node.add_neighbor(Rc::downgrade(neighbor));
+            node.lock().unwrap().add_neighbor(Arc::downgrade(neighbor));
         }
     }
 
-    (out, rx_orch_out, orch_to_plan_send)
+    (Arc::new(Mutex::new(out)), rx_orch_out, orch_to_plan_send)
 }

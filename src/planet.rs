@@ -5,7 +5,7 @@ use common_game::components::planet::Planet;
 use common_game::utils::ID;
 use std::cell::RefCell;
 use std::marker::PhantomData;
-use std::rc::{Rc, Weak};
+use std::sync::{Arc, Mutex, Weak};
 
 /// State markers for type-safe planet lifecycle management
 pub(crate) struct Alive;
@@ -20,7 +20,7 @@ impl State for Dead {}
 /// A planet node in the galaxy graph
 pub(crate) struct PlanetNode<S: State> {
     planet: Planet,
-    neighbors: RefCell<Vec<Weak<PlanetNode<S>>>>,
+    neighbors: RefCell<Vec<Weak<Mutex<PlanetNode<S>>>>>,
     _state: PhantomData<S>,
 }
 
@@ -45,16 +45,16 @@ impl PlanetNode<Alive> {
     }
 
     /// Add a neighbor to the planet
-    pub fn add_neighbor(&self, neighbor: Weak<PlanetNode<Alive>>) {
+    pub fn add_neighbor(&self, neighbor: Weak<Mutex<PlanetNode<Alive>>>) {
         self.neighbors.borrow_mut().push(neighbor);
     }
 
     /// Check if a specific planet is a neighbor
-    pub fn has_neighbor(&self, neighbor: &Rc<PlanetNode<Alive>>) -> bool {
+    pub fn has_neighbor(&self, neighbor: &Arc<Mutex<PlanetNode<Alive>>>) -> bool {
         self.neighbors
             .borrow()
             .iter()
-            .any(|weak| weak.ptr_eq(&Rc::downgrade(neighbor)))
+            .any(|weak| weak.ptr_eq(&Arc::downgrade(neighbor)))
     }
 
     /// Get all neighbors as vector of IDs
@@ -62,8 +62,8 @@ impl PlanetNode<Alive> {
         self.neighbors
             .borrow()
             .iter()
-            .filter_map(std::rc::Weak::upgrade)
-            .map(|neighbor| neighbor.planet().state().id())
+            .filter_map(std::sync::Weak::upgrade)
+            .map(|neighbor| neighbor.lock().unwrap().planet().state().id())
             .collect()
     }
 

@@ -1,7 +1,6 @@
 #![allow(dead_code)]
 
-use crate::galaxy_setup::galaxy_loader;
-use crate::planet::{Alive, PlanetNode};
+use crate::galaxy_setup::{PlanetMap, galaxy_loader};
 use common_game::components::forge::Forge;
 use common_game::protocols::orchestrator_explorer::{
     ExplorerToOrchestrator, OrchestratorToExplorer,
@@ -21,7 +20,7 @@ pub(crate) struct Orchestrator<T: Debug> {
     explorers_receiver: Receiver<OrchestratorToExplorer>,
     forge: Forge,
     explorer_bag: HashMap<ID, T>,
-    galaxy: HashMap<ID, std::rc::Rc<PlanetNode<Alive>>>,
+    galaxy: PlanetMap,
     planet_explorer_channels: PlanetExplorerChannels,
 }
 
@@ -121,7 +120,7 @@ impl<T: Debug> Orchestrator<T> {
                 match res {
                     Ok(()) => {
                         println!("Planet {planet_id} received incoming explorer {explorer_id}");
-                    },
+                    }
                     Err(s) => println!(
                         "Error with incoming explorer {explorer_id} in planet {planet_id}: {s}",
                     ),
@@ -165,7 +164,8 @@ impl<T: Debug> Orchestrator<T> {
             ExplorerToOrchestrator::CombineResourceResponse {
                 explorer_id,
                 generated,
-            } | ExplorerToOrchestrator::GenerateResourceResponse {
+            }
+            | ExplorerToOrchestrator::GenerateResourceResponse {
                 explorer_id,
                 generated,
             } => {
@@ -186,10 +186,12 @@ impl<T: Debug> Orchestrator<T> {
                 explorer_id,
                 current_planet_id,
             } => {
-                let neighbors = self
-                    .galaxy
+                let galaxy_guard = self.galaxy.lock().expect("Failed to lock galaxy mutex");
+                let neighbors = galaxy_guard
                     .get(&current_planet_id)
                     .expect("Selected Planet not in galaxy")
+                    .lock()
+                    .unwrap()
                     .get_neighbors();
                 Some((
                     explorer_id,
