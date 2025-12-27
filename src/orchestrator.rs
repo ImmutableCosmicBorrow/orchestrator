@@ -12,8 +12,9 @@ use common_game::utils::ID;
 use crossbeam_channel::unbounded;
 use crossbeam_channel::{Receiver, Sender};
 use std::collections::HashMap;
+use std::fmt::Debug;
 
-pub(crate) struct Orchestrator<T> {
+pub(crate) struct Orchestrator<T: Debug> {
     planets_senders: HashMap<ID, Sender<OrchestratorToPlanet>>,
     explorer_senders: HashMap<ID, Sender<OrchestratorToExplorer>>,
     planets_receiver: Receiver<PlanetToOrchestrator>,
@@ -29,7 +30,7 @@ struct PlanetExplorerChannels {
     explorer_to_planet_senders: HashMap<ID, Sender<ExplorerToPlanet>>,
 }
 
-impl<T> Orchestrator<T> {
+impl<T: Debug> Orchestrator<T> {
     pub fn new(file_path: &std::path::Path) -> Self {
         let (galaxy, planets_receiver, planets_senders) = galaxy_loader(file_path);
         let (explorers_receiver, explorer_senders) =
@@ -119,8 +120,8 @@ impl<T> Orchestrator<T> {
                 //TODO: Change when the new common crate version will be released
                 match res {
                     Ok(()) => {
-                        println!("Planet {planet_id} received incoming explorer {explorer_id}")
-                    }
+                        println!("Planet {planet_id} received incoming explorer {explorer_id}");
+                    },
                     Err(s) => println!(
                         "Error with incoming explorer {explorer_id} in planet {planet_id}: {s}",
                     ),
@@ -164,21 +165,7 @@ impl<T> Orchestrator<T> {
             ExplorerToOrchestrator::CombineResourceResponse {
                 explorer_id,
                 generated,
-            } => {
-                match generated {
-                    Ok(()) => {
-                        println!(
-                            "Explorer {explorer_id} successfully crafted the indicated complex resource"
-                        )
-                    }
-                    Err(s) => {
-                        println!("Error with explorer {explorer_id}, couldn't craft resource: {s}")
-                    }
-                }
-                None
-            }
-
-            ExplorerToOrchestrator::GenerateResourceResponse {
+            } | ExplorerToOrchestrator::GenerateResourceResponse {
                 explorer_id,
                 generated,
             } => {
@@ -186,10 +173,10 @@ impl<T> Orchestrator<T> {
                     Ok(()) => {
                         println!(
                             "Explorer {explorer_id} successfully crafted the indicated complex resource"
-                        )
+                        );
                     }
                     Err(s) => {
-                        println!("Error with explorer {explorer_id}, couldn't craft resource: {s}")
+                        println!("Error with explorer {explorer_id}, couldn't craft resource: {s}");
                     }
                 }
                 None
@@ -214,7 +201,7 @@ impl<T> Orchestrator<T> {
                 explorer_id,
                 bag_content,
             } => {
-                //TODO: SEND BAG DATA TO THE UI
+                println!("Explorer {explorer_id} bag content:  {bag_content:?}");
                 None
             }
 
@@ -267,37 +254,10 @@ impl<T> Orchestrator<T> {
                 current_planet_id,
                 dst_planet_id,
             } => {
-                let dst_planet = self
-                    .galaxy
-                    .get(&current_planet_id)
-                    .expect("Selected Planet not in galaxy");
-                let is_neighbor = self
-                    .galaxy
-                    .get(&current_planet_id)
-                    .expect("Selected Planet not in galaxy")
-                    .has_neighbor(dst_planet);
-                //TODO: HOW TO ASSIGN NEW SENDER? WE SHOULD PROBABLY KEEP THE VALID CHANNELS TO AND FROM EVERY ENTITY
-                if is_neighbor {
-                    Some((
-                        explorer_id,
-                        OrchestratorToExplorer::MoveToPlanet {
-                            sender_to_new_planet: Some(
-                                self.planet_explorer_channels
-                                    .explorer_to_planet_senders
-                                    .get(&dst_planet_id)
-                                    .expect("No registered sender for this planet")
-                                    .clone(),
-                            ),
-                        },
-                    ))
-                } else {
-                    Some((
-                        explorer_id,
-                        OrchestratorToExplorer::MoveToPlanet {
-                            sender_to_new_planet: None,
-                        },
-                    ))
-                }
+                println!(
+                    "Explorer {explorer_id} is requesting to travel from planet {current_planet_id} to planet {dst_planet_id}"
+                );
+                None
             }
 
             //TODO: MAYBE WE WANT TO SEND A ORCH_TO_PLANET_OUTGOING OUT OF THIS?
