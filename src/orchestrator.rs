@@ -1,6 +1,6 @@
 #![allow(dead_code)]
 
-use crate::planet::{Alive, PlanetNode};
+use crate::galaxy_setup::{PlanetMap, galaxy_loader};
 use common_game::components::forge::Forge;
 use common_game::protocols::orchestrator_explorer::{
     ExplorerToOrchestrator, OrchestratorToExplorer,
@@ -8,21 +8,19 @@ use common_game::protocols::orchestrator_explorer::{
 use common_game::protocols::orchestrator_planet::{OrchestratorToPlanet, PlanetToOrchestrator};
 use common_game::protocols::planet_explorer::{ExplorerToPlanet, PlanetToExplorer};
 use common_game::utils::ID;
+use crossbeam_channel::unbounded;
 use crossbeam_channel::{Receiver, Sender};
 use std::collections::HashMap;
-use std::fmt::format;
-use std::sync::{Arc, Mutex};
+use std::fmt::Debug;
 
-mod conversations;
-
-pub(crate) struct Orchestrator<T> {
-    planets_senders: Arc<Mutex<HashMap<ID, Sender<OrchestratorToPlanet>>>>,
-    explorer_senders: Arc<Mutex<HashMap<ID, Sender<OrchestratorToExplorer>>>>,
+pub(crate) struct Orchestrator<T: Debug> {
+    planets_senders: HashMap<ID, Sender<OrchestratorToPlanet>>,
+    explorer_senders: HashMap<ID, Sender<OrchestratorToExplorer>>,
     planets_receiver: Receiver<PlanetToOrchestrator>,
     explorers_receiver: Receiver<OrchestratorToExplorer>,
     forge: Forge,
     explorer_bag: HashMap<ID, T>,
-    galaxy: Arc<Mutex<HashMap<ID, Arc<PlanetNode<Alive>>>>>,
+    galaxy: PlanetMap,
     planet_explorer_channels: PlanetExplorerChannels,
 }
 
@@ -31,16 +29,34 @@ struct PlanetExplorerChannels {
     explorer_to_planet_senders: HashMap<ID, Sender<ExplorerToPlanet>>,
 }
 
-impl<T> Orchestrator<T> {
-    pub fn new() -> Self {
-        todo!()
+impl<T: Debug> Orchestrator<T> {
+    pub fn new(file_path: &std::path::Path) -> Self {
+        let (galaxy, planets_receiver, planets_senders) = galaxy_loader(file_path);
+        let (explorers_receiver, explorer_senders) =
+            (unbounded::<OrchestratorToExplorer>().1, HashMap::new());
+        let forge = Forge::new().expect("Couldn't create forge!");
+        let explorer_bag = HashMap::new();
+
+        let planet_explorer_channels = PlanetExplorerChannels {
+            planet_to_explorer_senders: HashMap::new(),
+            explorer_to_planet_senders: HashMap::new(),
+        };
+
+        Self {
+            planets_senders,
+            explorer_senders,
+            planets_receiver,
+            explorers_receiver,
+            forge,
+            explorer_bag,
+            galaxy,
+            planet_explorer_channels,
+        }
     }
 
     /// Sends an `OrchestratorToPlanet` to the correspondent `planet_id`. Returns nothing if successful, a String error otherwise
     fn to_planet(&self, planet_id: ID, msg: OrchestratorToPlanet) -> Result<(), String> {
         self.planets_senders
-            .lock()
-            .unwrap()
             .get(&planet_id)
             .ok_or(format!("Planet {planet_id} not found"))?
             .send(msg)
@@ -50,8 +66,6 @@ impl<T> Orchestrator<T> {
     /// Sends an `OrchestratorToExplorer` to the correspondent `explorer_id`. Returns nothing if successful, a String error otherwise
     fn to_explorer(&self, explorer_id: ID, msg: OrchestratorToExplorer) -> Result<(), String> {
         self.explorer_senders
-            .lock()
-            .unwrap()
             .get(&explorer_id)
             .ok_or(format!("Explorer {explorer_id} not found"))?
             .send(msg)
@@ -72,7 +86,7 @@ impl<T> Orchestrator<T> {
 
             PlanetToOrchestrator::KillPlanetResult { planet_id } => {
                 //TODO: erase planet from map
-                self.planets_senders.lock().unwrap().remove(&planet_id);
+                self.planets_senders.remove(&planet_id);
                 println!("Planet {planet_id} has been killed");
                 None
             }
@@ -105,7 +119,7 @@ impl<T> Orchestrator<T> {
                 //TODO: Change when the new common crate version will be released
                 match res {
                     Ok(()) => {
-                        println!("Planet {planet_id} received incoming explorer {explorer_id}")
+                        println!("Planet {planet_id} received incoming explorer {explorer_id}");
                     }
                     Err(s) => println!(
                         "Error with incoming explorer {explorer_id} in planet {planet_id}: {s}",
@@ -140,9 +154,9 @@ impl<T> Orchestrator<T> {
             }
         }
     }
-    //This function handles the incoming messages from an Explorer
-    //Returns an optional tuple with the `explorer_id` and the message to send to the planet as a response
-    /*fn handle_explorer_message(
+    ///This function handles the incoming messages from an Explorer
+    ///Returns an optional tuple with the `explorer_id` and the message to send to the planet as a response
+    fn handle_explorer_message(
         &mut self,
         message: ExplorerToOrchestrator<T>,
     ) -> Option<(ID, OrchestratorToExplorer)> {
@@ -150,21 +164,8 @@ impl<T> Orchestrator<T> {
             ExplorerToOrchestrator::CombineResourceResponse {
                 explorer_id,
                 generated,
-            } => {
-                match generated {
-                    Ok(()) => {
-                        println!(
-                            "Explorer {explorer_id} successfully crafted the indicated complex resource"
-                        )
-                    }
-                    Err(s) => {
-                        println!("Error with explorer {explorer_id}, couldn't craft resource: {s}")
-                    }
-                }
-                None
             }
-
-            ExplorerToOrchestrator::GenerateResourceResponse {
+            | ExplorerToOrchestrator::GenerateResourceResponse {
                 explorer_id,
                 generated,
             } => {
@@ -172,10 +173,10 @@ impl<T> Orchestrator<T> {
                     Ok(()) => {
                         println!(
                             "Explorer {explorer_id} successfully crafted the indicated complex resource"
-                        )
+                        );
                     }
                     Err(s) => {
-                        println!("Error with explorer {explorer_id}, couldn't craft resource: {s}")
+                        println!("Error with explorer {explorer_id}, couldn't craft resource: {s}");
                     }
                 }
                 None
@@ -185,12 +186,12 @@ impl<T> Orchestrator<T> {
                 explorer_id,
                 current_planet_id,
             } => {
-                let neighbors = self
-                    .galaxy
-                    .lock()
-                    .unwrap()
+                let galaxy_guard = self.galaxy.lock().expect("Failed to lock galaxy mutex");
+                let neighbors = galaxy_guard
                     .get(&current_planet_id)
                     .expect("Selected Planet not in galaxy")
+                    .lock()
+                    .unwrap()
                     .get_neighbors();
                 Some((
                     explorer_id,
@@ -202,7 +203,7 @@ impl<T> Orchestrator<T> {
                 explorer_id,
                 bag_content,
             } => {
-                //TODO: SEND BAG DATA TO THE UI
+                println!("Explorer {explorer_id} bag content:  {bag_content:?}");
                 None
             }
 
@@ -255,41 +256,10 @@ impl<T> Orchestrator<T> {
                 current_planet_id,
                 dst_planet_id,
             } => {
-                let dst_planet = self
-                    .galaxy
-                    .lock()
-                    .unwrap()
-                    .get(&current_planet_id)
-                    .expect("Selected Planet not in galaxy");
-                let is_neighbor = self
-                    .galaxy
-                    .lock()
-                    .unwrap()
-                    .get(&current_planet_id)
-                    .expect("Selected Planet not in galaxy")
-                    .has_neighbor(dst_planet);
-                //TODO: HOW TO ASSIGN NEW SENDER? WE SHOULD PROBABLY KEEP THE VALID CHANNELS TO AND FROM EVERY ENTITY
-                if is_neighbor {
-                    Some((
-                        explorer_id,
-                        OrchestratorToExplorer::MoveToPlanet {
-                            sender_to_new_planet: Some(
-                                self.planet_explorer_channels
-                                    .explorer_to_planet_senders
-                                    .get(&dst_planet_id)
-                                    .expect("No registered sender for this planet")
-                                    .clone(),
-                            ),
-                        },
-                    ))
-                } else {
-                    Some((
-                        explorer_id,
-                        OrchestratorToExplorer::MoveToPlanet {
-                            sender_to_new_planet: None,
-                        },
-                    ))
-                }
+                println!(
+                    "Explorer {explorer_id} is requesting to travel from planet {current_planet_id} to planet {dst_planet_id}"
+                );
+                None
             }
 
             //TODO: MAYBE WE WANT TO SEND A ORCH_TO_PLANET_OUTGOING OUT OF THIS?
@@ -299,5 +269,4 @@ impl<T> Orchestrator<T> {
             }
         }
     }
-}*/
 }
