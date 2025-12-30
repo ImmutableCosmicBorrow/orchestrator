@@ -1,6 +1,9 @@
 #![allow(dead_code)]
 
+mod conversations;
+
 use crate::galaxy_setup::{PlanetMap, galaxy_loader};
+use crate::orchestrator::conversations::{ExplorersBagRef, SendersToExplorer, SendersToPlanet};
 use common_game::components::forge::Forge;
 use common_game::protocols::orchestrator_explorer::{
     ExplorerToOrchestrator, OrchestratorToExplorer,
@@ -12,21 +15,25 @@ use crossbeam_channel::unbounded;
 use crossbeam_channel::{Receiver, Sender};
 use std::collections::HashMap;
 use std::fmt::Debug;
+use std::sync::{Arc, Mutex};
+
+#[derive(Debug)]
+pub(crate) struct ExplorerBag;
+
+pub(crate) struct PlanetExplorerChannels {
+    planet_to_explorer_senders: Arc<Mutex<HashMap<ID, Sender<PlanetToExplorer>>>>,
+    explorer_to_planet_senders: Arc<Mutex<HashMap<ID, Sender<ExplorerToPlanet>>>>,
+}
 
 pub(crate) struct Orchestrator<T: Debug> {
-    planets_senders: HashMap<ID, Sender<OrchestratorToPlanet>>,
-    explorer_senders: HashMap<ID, Sender<OrchestratorToExplorer>>,
+    planets_senders: SendersToPlanet,
+    explorer_senders: SendersToExplorer,
     planets_receiver: Receiver<PlanetToOrchestrator>,
     explorers_receiver: Receiver<OrchestratorToExplorer>,
     forge: Forge,
-    explorer_bag: HashMap<ID, T>,
+    explorer_bag: ExplorersBagRef<T>,
     galaxy: PlanetMap,
     planet_explorer_channels: PlanetExplorerChannels,
-}
-
-struct PlanetExplorerChannels {
-    planet_to_explorer_senders: HashMap<ID, Sender<PlanetToExplorer>>,
-    explorer_to_planet_senders: HashMap<ID, Sender<ExplorerToPlanet>>,
 }
 
 impl<T: Debug> Orchestrator<T> {
@@ -38,17 +45,17 @@ impl<T: Debug> Orchestrator<T> {
         let explorer_bag = HashMap::new();
 
         let planet_explorer_channels = PlanetExplorerChannels {
-            planet_to_explorer_senders: HashMap::new(),
-            explorer_to_planet_senders: HashMap::new(),
+            planet_to_explorer_senders: Arc::new(Mutex::new(HashMap::new())),
+            explorer_to_planet_senders: Arc::new(Mutex::new(HashMap::new())),
         };
 
         Self {
-            planets_senders,
-            explorer_senders,
+            planets_senders: Arc::new(Mutex::new(planets_senders)),
+            explorer_senders: Arc::new(Mutex::new(explorer_senders)),
             planets_receiver,
             explorers_receiver,
             forge,
-            explorer_bag,
+            explorer_bag: Arc::new(explorer_bag),
             galaxy,
             planet_explorer_channels,
         }
@@ -57,6 +64,8 @@ impl<T: Debug> Orchestrator<T> {
     /// Sends an `OrchestratorToPlanet` to the correspondent `planet_id`. Returns nothing if successful, a String error otherwise
     fn to_planet(&self, planet_id: ID, msg: OrchestratorToPlanet) -> Result<(), String> {
         self.planets_senders
+            .lock()
+            .unwrap()
             .get(&planet_id)
             .ok_or(format!("Planet {planet_id} not found"))?
             .send(msg)
@@ -66,6 +75,8 @@ impl<T: Debug> Orchestrator<T> {
     /// Sends an `OrchestratorToExplorer` to the correspondent `explorer_id`. Returns nothing if successful, a String error otherwise
     fn to_explorer(&self, explorer_id: ID, msg: OrchestratorToExplorer) -> Result<(), String> {
         self.explorer_senders
+            .lock()
+            .unwrap()
             .get(&explorer_id)
             .ok_or(format!("Explorer {explorer_id} not found"))?
             .send(msg)
@@ -86,7 +97,7 @@ impl<T: Debug> Orchestrator<T> {
 
             PlanetToOrchestrator::KillPlanetResult { planet_id } => {
                 //TODO: erase planet from map
-                self.planets_senders.remove(&planet_id);
+                self.planets_senders.lock().unwrap().remove(&planet_id);
                 println!("Planet {planet_id} has been killed");
                 None
             }

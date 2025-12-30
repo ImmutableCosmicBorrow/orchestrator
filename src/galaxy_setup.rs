@@ -13,7 +13,7 @@ use immutable_cosmic_borrow::{Ai, create_planet};
 
 use crate::planet::{Alive, PlanetNode};
 
-type OrchPlanSenderMap = HashMap<ID, Sender<OrchestratorToPlanet>>;
+pub(crate) type OrchPlanSenderMap = HashMap<ID, Sender<OrchestratorToPlanet>>;
 pub(crate) type PlanetMap = Arc<Mutex<HashMap<ID, Arc<Mutex<PlanetNode<Alive>>>>>>;
 
 // TODO: add a parameter to customize planet creation with other groups planets

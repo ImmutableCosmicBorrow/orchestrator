@@ -1,8 +1,10 @@
-use std::marker::PhantomData;
-use common_game::protocols::orchestrator_explorer::{ExplorerToOrchestrator, ExplorerToOrchestratorKind, OrchestratorToExplorer};
+use common_game::protocols::orchestrator_explorer::{
+    ExplorerToOrchestrator, ExplorerToOrchestratorKind, OrchestratorToExplorer,
+};
 use common_game::protocols::orchestrator_planet::{OrchestratorToPlanet, PlanetToOrchestratorKind};
 use common_game::utils::ID;
 use crossbeam_channel::Sender;
+use std::marker::PhantomData;
 
 //TODO: ADD TRAIT
 //TODO: ADD TIMEOUTS
@@ -35,7 +37,6 @@ struct MoveToPlanetConversation<S> {
 }
 
 impl MoveToPlanetConversation<GotTravelRequest> {
-
     fn new() -> Self {
         todo!()
     }
