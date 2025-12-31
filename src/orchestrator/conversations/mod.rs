@@ -35,14 +35,73 @@ enum PossibleExpectedKinds {
 enum PossibleMessage<T> {
     PlanetToOrch(PlanetToOrchestrator),
     ExplorerToOrch(ExplorerToOrchestrator<T>),
-    OrchToPlanet(OrchestratorToPlanet),
-    OrchToExplorer(OrchestratorToExplorer),
+}
+
+enum ExpectedMessageKind {
+    PlanetToOrchestrator(PlanetToOrchestratorKind),
+    ExplorerToOrchestrator(ExplorerToOrchestratorKind),
 }
 
 pub(crate) trait ConversationWithPlanet {
-    fn to_planet(&self) -> Result<(), String>;
+    fn to_planet(&self, msg: OrchestratorToPlanet, planet_id: ID) -> Result<(), String>;
+}
+
+pub(crate) trait ConversationWithExplorer {
+    fn to_explorer(&self, msg: OrchestratorToExplorer, explorer_id: ID) -> Result<(), String>;
 }
 
 pub(crate) type SendersToPlanet = Arc<Mutex<OrchPlanSenderMap>>;
 pub(crate) type SendersToExplorer = Arc<Mutex<HashMap<ID, Sender<OrchestratorToExplorer>>>>;
 pub(crate) type ExplorersBagRef<T> = Arc<HashMap<ID, T>>;
+pub(crate) struct ToPlanetStruct {
+    planets_senders: SendersToPlanet,
+    planet_id: ID,
+}
+
+impl ToPlanetStruct {
+    pub(crate) fn new(planets_senders: SendersToPlanet, planet_id: ID) -> Self {
+        Self {
+            planets_senders,
+            planet_id,
+        }
+    }
+
+    pub(crate) fn to_planet(&self, msg: OrchestratorToPlanet) -> Result<(), String> {
+        let sender = {
+            let lock = self.planets_senders.lock().unwrap();
+            lock.get(&self.planet_id).cloned() // Clone the Sender handle
+        };
+
+        if let Some(s) = sender {
+            s.send(msg)
+                .map_err(|e| format!("Failed to send message to planet {}: {e}", self.planet_id))
+        } else {
+            Err("Sender not Found!".to_string())
+        }
+    }
+}
+
+pub(crate) struct ToExplorerStruct {
+    explorers_senders: SendersToExplorer,
+    explorer_id: ID,
+}
+
+impl ToExplorerStruct {
+    pub(crate) fn to_explorer(&self, msg: OrchestratorToExplorer) -> Result<(), String> {
+        let sender = {
+            let lock = self.explorers_senders.lock().unwrap();
+            lock.get(&self.explorer_id).cloned() // Clone the Sender handle
+        };
+
+        if let Some(s) = sender {
+            s.send(msg).map_err(|e| {
+                format!(
+                    "Failed to send message to explorer {}: {e}",
+                    self.explorer_id
+                )
+            })
+        } else {
+            Err("Sender not Found!".to_string())
+        }
+    }
+}
