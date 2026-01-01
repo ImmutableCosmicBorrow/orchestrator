@@ -17,7 +17,7 @@ pub(crate) struct Orchestrator<T: Debug> {
     planets_senders: HashMap<ID, Sender<OrchestratorToPlanet>>,
     explorer_senders: HashMap<ID, Sender<OrchestratorToExplorer>>,
     planets_receiver: Receiver<PlanetToOrchestrator>,
-    explorers_receiver: Receiver<OrchestratorToExplorer>,
+    explorers_receiver: Receiver<ExplorerToOrchestrator<T>>,
     forge: Forge,
     explorer_bag: HashMap<ID, T>,
     galaxy: PlanetMap,
@@ -25,25 +25,49 @@ pub(crate) struct Orchestrator<T: Debug> {
 }
 
 struct PlanetExplorerChannels {
-    planet_to_explorer_senders: HashMap<ID, Sender<PlanetToExplorer>>,
-    explorer_to_planet_senders: HashMap<ID, Sender<ExplorerToPlanet>>,
+    planet_to_explorer_senders: HashMap<ID, Sender<PlanetToExplorer>>, //here ID is explorer_id
+    explorer_to_planet_senders: HashMap<ID, Sender<ExplorerToPlanet>>, //here ID is planet_id
+}
+
+impl PlanetExplorerChannels {
+    pub fn new() -> Self {
+        Self {
+            planet_to_explorer_senders: HashMap::new(),
+            explorer_to_planet_senders: HashMap::new(),
+        }
+    }
+
+    pub fn add_plan_to_expl_sender(&mut self, explorer_id: ID, sender: Sender<PlanetToExplorer>) {
+        self.planet_to_explorer_senders.insert(explorer_id, sender);
+    }
+
+    pub fn add_expl_to_plan_sender(&mut self, planet_id: ID, sender: Sender<ExplorerToPlanet>) {
+        self.explorer_to_planet_senders.insert(planet_id, sender);
+    }
+
+    pub fn get_plan_to_expl_sender(&self, explorer_id: &ID) -> Option<&Sender<PlanetToExplorer>> {
+        self.planet_to_explorer_senders.get(explorer_id)
+    }
+
+    pub fn get_expl_to_plan_sender(&self, planet_id: &ID) -> Option<&Sender<ExplorerToPlanet>> {
+        self.explorer_to_planet_senders.get(planet_id)
+    }
 }
 
 impl<T: Debug> Orchestrator<T> {
     pub fn new(file_path: &std::path::Path) -> Self {
-        let (galaxy, planets_receiver, planets_senders) = galaxy_loader(file_path);
+        let mut planet_explorer_channels = PlanetExplorerChannels::new();
+
+        let (galaxy, planets_receiver, orch_to_plan_senders, expl_to_plan_senders) =
+            galaxy_loader(file_path);
         let (explorers_receiver, explorer_senders) =
-            (unbounded::<OrchestratorToExplorer>().1, HashMap::new());
+            (unbounded::<ExplorerToOrchestrator<T>>().1, HashMap::new()); //TODO: save ExplorerToOrchestrator sender to pass it to new explorers 
         let forge = Forge::new().expect("Couldn't create forge!");
         let explorer_bag = HashMap::new();
-
-        let planet_explorer_channels = PlanetExplorerChannels {
-            planet_to_explorer_senders: HashMap::new(),
-            explorer_to_planet_senders: HashMap::new(),
-        };
+        planet_explorer_channels.explorer_to_planet_senders = expl_to_plan_senders;
 
         Self {
-            planets_senders,
+            planets_senders: orch_to_plan_senders,
             explorer_senders,
             planets_receiver,
             explorers_receiver,
@@ -268,5 +292,34 @@ impl<T: Debug> Orchestrator<T> {
                 None
             }
         }
+    }
+
+    fn add_explorer(&mut self, explorer_id: ID, planet_id: ID) {
+        //to add a new explorer for the first time inside the game
+        let (tx_expl_out, rx_expl_out) = unbounded::<PlanetToExplorer>();
+        self.planet_explorer_channels
+            .add_plan_to_expl_sender(planet_id, tx_expl_out.clone());
+
+        let mut explorer: dummy_explorer::Explorer<T> = dummy_explorer::Explorer::new();
+        //TODO: set explorer - orchestrator channels
+        explorer.set_planet_channels(
+            rx_expl_out,
+            self.planet_explorer_channels
+                .get_expl_to_plan_sender(&planet_id)
+                .expect("Failed to get explorer to planet sender")
+                .clone(),
+        );
+
+        let msg = OrchestratorToPlanet::IncomingExplorerRequest {
+            explorer_id,
+            new_sender: tx_expl_out.clone(),
+        };
+        self.to_planet(planet_id, msg).expect(
+            format!(
+                "Failed to send IncomingExplorerRequest to planet {}",
+                planet_id
+            )
+            .as_str(),
+        );
     }
 }

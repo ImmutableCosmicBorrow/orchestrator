@@ -3,7 +3,21 @@ name = "orchestrator"
 version = "0.1.0"
 edition = "2024"
 
+#[patch.crates-io]
+#common-game = { git = "https://github.com/unitn-ap-2025/common"}
+
 [dependencies]
-common-game = { git = "https://github.com/unitn-ap-2025/common" }
-immutable_cosmic_borrow = { git = "https://github.com/ImmutableCosmicBorrow/planet", rev = "43032f40d6e22e08cc11b238f4ff1520f68a0b6e" }
+common-game = { git = "https://www.github.com/unitn-ap-2025/common.git", rev = "f10376f9" }
+luna4 = {git = "https://github.com/luna4-ap2025/Planet_Luna4"}
+rustrelli = {git = "https://github.com/Rustrelli/rustrelli"}
+enterprise = {git = "https://github.com/Thompspsps/Enterprise_planet/"}
+
 crossbeam-channel = "0.5.15"
+
+dummy_explorer = {git = "https://github.com/ImmutableCosmicBorrow/dummy_explorer/"}
+
+[patch.crates-io]
+common-game = { git = "https://www.github.com/unitn-ap-2025/common.git", rev = "f10376f9" }
+
+[patch.'https://github.com/unitn-ap-2025/common']
+common-game = { git = "https://www.github.com/unitn-ap-2025/common.git", rev = "f10376f9" }
