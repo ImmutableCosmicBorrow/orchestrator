@@ -1,7 +1,7 @@
 use crate::galaxy_setup::PlanetMap;
 use crate::orchestrator::conversations::{
-    Conversation, ErrorState, ErrorType, PossibleExpectedKinds, PossibleMessage, ToExplorerError,
-    ToExplorerStruct, ToPlanetError, ToPlanetStruct,
+    CommonErrorTypes, Conversation, ErrorState, ErrorType, PossibleExpectedKinds, PossibleMessage,
+    ToExplorerError, ToExplorerStruct, ToPlanetError, ToPlanetStruct,
 };
 use crate::orchestrator::{ExplorerBag, PlanetExplorerChannels};
 
@@ -21,12 +21,9 @@ use crossbeam_channel::Sender;
 //TODO: Look for DashMap
 
 pub(crate) enum MoveToPlanetErrors {
-    ExplorerSenderNotFound(ID),
     MessageToExplorerFailed(ID),
     IncomingMessageFailed(ID),
     OutgoingMessageFailed(ID),
-    PlanetSenderNotFound(ID),
-    WrongMessage,
     DstPlanetFailed { planet_id: ID, explorer_id: ID },
     CurrPlanetFailed { planet_id: ID, explorer_id: ID },
     NewSenderToPlanetNotFound(ID),
@@ -35,18 +32,11 @@ pub(crate) enum MoveToPlanetErrors {
 impl ErrorType for MoveToPlanetErrors {
     fn stringify(&self) -> String {
         match self {
-            MoveToPlanetErrors::ExplorerSenderNotFound(id) => {
-                format!("sender to explorer {id} not found")
-            }
             MoveToPlanetErrors::IncomingMessageFailed(id) => {
                 format!("Failed to send Incoming message to destination planet {id}")
             }
             MoveToPlanetErrors::OutgoingMessageFailed(id) => {
                 format!("Failed to send Outgoing message to current planet {id}")
-            }
-            MoveToPlanetErrors::WrongMessage => "Wrong Message Received".to_string(),
-            MoveToPlanetErrors::PlanetSenderNotFound(id) => {
-                format!("sender to planet {id} not found")
             }
             MoveToPlanetErrors::MessageToExplorerFailed(id) => {
                 format!("Failed to send message to explorer {id}")
@@ -177,15 +167,15 @@ impl Conversation<ExplorerBag> for MoveToPlanetConversation<WaitingTravelRequest
                         }
 
                         Err(err) => {
-                            let error = match err {
+                            let error: Box<dyn ErrorType> = match err {
                                 ToPlanetError::SenderNotFound(id) => {
-                                    MoveToPlanetErrors::PlanetSenderNotFound(id)
+                                    Box::new(CommonErrorTypes::PlanetSenderNotFound(id))
                                 }
                                 ToPlanetError::SendingMessageFailure(id) => {
-                                    MoveToPlanetErrors::IncomingMessageFailed(id)
+                                    Box::new(MoveToPlanetErrors::IncomingMessageFailed(id))
                                 }
                             };
-                            let error_state = ErrorState::new(Box::new(error));
+                            let error_state = ErrorState::new(error);
                             let next_state =
                                 MoveToPlanetConversation::<ErrorState>::new(self.id, error_state);
                             Some(Box::new(next_state))
@@ -194,7 +184,7 @@ impl Conversation<ExplorerBag> for MoveToPlanetConversation<WaitingTravelRequest
                 }
                 //The sender to explorer is not found, going to error state
                 let error_state = ErrorState::new(Box::new(
-                    MoveToPlanetErrors::ExplorerSenderNotFound(explorer_id),
+                    CommonErrorTypes::ExplorerSenderNotFound(explorer_id),
                 ));
                 let next_state = MoveToPlanetConversation::<ErrorState>::new(self.id, error_state);
                 return Some(Box::new(next_state));
@@ -208,15 +198,15 @@ impl Conversation<ExplorerBag> for MoveToPlanetConversation<WaitingTravelRequest
                     MoveToPlanetConversation::<WaitMoveToPlanetResponse>::new(self.id),
                 )),
                 Err(err) => {
-                    let error = match err {
+                    let error: Box<dyn ErrorType> = match err {
                         ToExplorerError::SenderNotFound(id) => {
-                            MoveToPlanetErrors::ExplorerSenderNotFound(id)
+                            Box::new(CommonErrorTypes::ExplorerSenderNotFound(id))
                         }
                         ToExplorerError::SendingMessageFailure(id) => {
-                            MoveToPlanetErrors::IncomingMessageFailed(id)
+                            Box::new(MoveToPlanetErrors::IncomingMessageFailed(id))
                         }
                     };
-                    let error_state = ErrorState::new(Box::new(error));
+                    let error_state = ErrorState::new(error);
                     let next_state =
                         MoveToPlanetConversation::<ErrorState>::new(self.id, error_state);
                     Some(Box::new(next_state))
@@ -224,7 +214,7 @@ impl Conversation<ExplorerBag> for MoveToPlanetConversation<WaitingTravelRequest
             };
         }
         //Wrong Message, close conversation
-        let error_state = ErrorState::new(Box::new(MoveToPlanetErrors::WrongMessage));
+        let error_state = ErrorState::new(Box::new(CommonErrorTypes::WrongMessage));
         let next_state = MoveToPlanetConversation::<ErrorState>::new(self.id, error_state);
         Some(Box::new(next_state))
     }
@@ -317,15 +307,15 @@ impl Conversation<ExplorerBag> for MoveToPlanetConversation<WaitingIncomingRespo
                             Some(Box::new(next_state))
                         }
                         Err(err) => {
-                            let error = match err {
+                            let error: Box<dyn ErrorType> = match err {
                                 ToPlanetError::SendingMessageFailure(id) => {
-                                    MoveToPlanetErrors::OutgoingMessageFailed(id)
+                                    Box::new(MoveToPlanetErrors::OutgoingMessageFailed(id))
                                 }
                                 ToPlanetError::SenderNotFound(id) => {
-                                    MoveToPlanetErrors::PlanetSenderNotFound(id)
+                                    Box::new(CommonErrorTypes::PlanetSenderNotFound(id))
                                 }
                             };
-                            let error_state = ErrorState::new(Box::new(error));
+                            let error_state = ErrorState::new(error);
                             let new_state =
                                 MoveToPlanetConversation::<ErrorState>::new(self.id, error_state);
                             Some(Box::new(new_state))
@@ -346,7 +336,7 @@ impl Conversation<ExplorerBag> for MoveToPlanetConversation<WaitingIncomingRespo
             };
         }
         //Wrong message, closing Conversation
-        let error_state = ErrorState::new(Box::new(MoveToPlanetErrors::WrongMessage));
+        let error_state = ErrorState::new(Box::new(CommonErrorTypes::WrongMessage));
         let next_state = MoveToPlanetConversation::<ErrorState>::new(self.id, error_state);
         Some(Box::new(next_state))
     }
@@ -400,15 +390,15 @@ impl Conversation<ExplorerBag> for MoveToPlanetConversation<WaitingOutgoingRespo
                                 Some(Box::new(next_state))
                             }
                             Err(err) => {
-                                let error = match err {
+                                let error: Box<dyn ErrorType> = match err {
                                     ToExplorerError::SendingMessageFailure(id) => {
-                                        MoveToPlanetErrors::MessageToExplorerFailed(id)
+                                        Box::new(MoveToPlanetErrors::MessageToExplorerFailed(id))
                                     }
                                     ToExplorerError::SenderNotFound(id) => {
-                                        MoveToPlanetErrors::ExplorerSenderNotFound(id)
+                                        Box::new(CommonErrorTypes::ExplorerSenderNotFound(id))
                                     }
                                 };
-                                let error_state = ErrorState::new(Box::new(error));
+                                let error_state = ErrorState::new(error);
                                 let new_state = MoveToPlanetConversation::<ErrorState>::new(
                                     self.id,
                                     error_state,
@@ -439,7 +429,7 @@ impl Conversation<ExplorerBag> for MoveToPlanetConversation<WaitingOutgoingRespo
             };
         }
         //Wrong message, closing Conversation
-        let error_state = ErrorState::new(Box::new(MoveToPlanetErrors::WrongMessage));
+        let error_state = ErrorState::new(Box::new(CommonErrorTypes::WrongMessage));
         let next_state = MoveToPlanetConversation::<ErrorState>::new(self.id, error_state);
         Some(Box::new(next_state))
     }
@@ -490,7 +480,7 @@ impl Conversation<ExplorerBag> for MoveToPlanetConversation<WaitMoveToPlanetResp
         }
 
         //Wrong message, closing Conversation
-        let error_state = ErrorState::new(Box::new(MoveToPlanetErrors::WrongMessage));
+        let error_state = ErrorState::new(Box::new(CommonErrorTypes::WrongMessage));
         let next_state = MoveToPlanetConversation::<ErrorState>::new(self.id, error_state);
         Some(Box::new(next_state))
     }

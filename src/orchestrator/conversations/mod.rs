@@ -41,14 +41,6 @@ enum ExpectedMessageKind {
     ExplorerToOrchestrator(ExplorerToOrchestratorKind),
 }
 
-pub(crate) trait ConversationWithPlanet {
-    fn to_planet(&self, msg: OrchestratorToPlanet, planet_id: ID) -> Result<(), String>;
-}
-
-pub(crate) trait ConversationWithExplorer {
-    fn to_explorer(&self, msg: OrchestratorToExplorer, explorer_id: ID) -> Result<(), String>;
-}
-
 pub(crate) type SendersToPlanet = Arc<Mutex<OrchPlanSenderMap>>;
 pub(crate) type SendersToExplorer = Arc<Mutex<HashMap<ID, Sender<OrchestratorToExplorer>>>>;
 pub(crate) type ExplorersBagRef<T> = Arc<HashMap<ID, T>>;
@@ -122,6 +114,26 @@ impl ToExplorerStruct {
 
 trait ErrorType {
     fn stringify(&self) -> String;
+}
+
+enum CommonErrorTypes {
+    WrongMessage,
+    PlanetSenderNotFound(ID),
+    ExplorerSenderNotFound(ID),
+}
+
+impl ErrorType for CommonErrorTypes {
+    fn stringify(&self) -> String {
+        match self {
+            CommonErrorTypes::WrongMessage => "Wrong Message Received".to_string(),
+            CommonErrorTypes::PlanetSenderNotFound(id) => {
+                format!("sender to planet {id} not found")
+            }
+            CommonErrorTypes::ExplorerSenderNotFound(id) => {
+                format!("sender to explorer {id} not found")
+            }
+        }
+    }
 }
 
 struct ErrorState {

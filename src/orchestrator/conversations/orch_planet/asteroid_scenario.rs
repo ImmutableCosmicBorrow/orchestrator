@@ -3,7 +3,8 @@ use crate::orchestrator::conversations::orch_planet::kill_planet::{
     KillPlanetConversation, SendPlanetKill,
 };
 use crate::orchestrator::conversations::{
-    Conversation, PossibleExpectedKinds, PossibleMessage, SendersToPlanet,
+    CommonErrorTypes, Conversation, ErrorState, PossibleExpectedKinds, PossibleMessage,
+    SendersToPlanet,
 };
 use common_game::components::forge::Forge;
 use common_game::protocols::orchestrator_planet::{
@@ -53,10 +54,7 @@ impl Conversation<ExplorerBag> for AsteroidConversation<WaitingAsteroidAck> {
     fn transition(
         self: Box<Self>,
         msg_wrapped: Option<PossibleMessage<ExplorerBag>>,
-    ) -> Result<
-        Option<Box<dyn Conversation<ExplorerBag>>>,
-        (Option<Box<dyn Conversation<ExplorerBag>>>, String),
-    > {
+    ) -> Option<Box<dyn Conversation<ExplorerBag>>> {
         if let Some(PossibleMessage::PlanetToOrch(PlanetToOrchestrator::AsteroidAck {
             planet_id,
             rocket,
@@ -66,7 +64,7 @@ impl Conversation<ExplorerBag> for AsteroidConversation<WaitingAsteroidAck> {
                 println!(
                     "Planet {planet_id} received an asteroid and defends with the rocket {r:?}"
                 );
-                return Ok(None);
+                return None;
             }
 
             println!("Planet {planet_id} received an asteroid and will be killed");
@@ -75,13 +73,12 @@ impl Conversation<ExplorerBag> for AsteroidConversation<WaitingAsteroidAck> {
                 self.id,
                 SendPlanetKill::new(self.state.to_planet_id, self.state.planets_senders.clone()),
             );
-            return Ok(Some(Box::new(new_state)));
+            return Some(Box::new(new_state));
         }
 
-        Err((
-            Some(self),
-            "Wrong message arrived, keeping same state".to_string(),
-        ))
+        let error_state = ErrorState::new(Box::new(CommonErrorTypes::WrongMessage));
+        let next_state = AsteroidConversation::<ErrorState>::new(self.id, error_state);
+        Some(Box::new(next_state))
     }
 }
 
@@ -122,10 +119,7 @@ impl Conversation<ExplorerBag> for AsteroidConversation<SendingAsteroid> {
     fn transition(
         self: Box<Self>,
         _msg_wrapped: Option<PossibleMessage<ExplorerBag>>,
-    ) -> Result<
-        Option<Box<dyn Conversation<ExplorerBag>>>,
-        (Option<Box<dyn Conversation<ExplorerBag>>>, String),
-    > {
+    ) -> Option<Box<dyn Conversation<ExplorerBag>>> {
         //to release immediately the lock on the hashmap
         let sender = {
             let lock = self.state.planets_senders.lock().unwrap();
@@ -143,7 +137,7 @@ impl Conversation<ExplorerBag> for AsteroidConversation<SendingAsteroid> {
                             planets_senders: self.state.planets_senders.clone(),
                         },
                     );
-                    Ok(Some(Box::new(next_state)))
+                    Some(Box::new(next_state))
                 }
                 Err(_) => Err((Some(self), "Channel Disconnected".to_string())),
             }
