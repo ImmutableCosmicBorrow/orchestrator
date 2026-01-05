@@ -13,9 +13,11 @@ use std::collections::HashMap;
 use std::fmt::Debug;
 use std::marker::PhantomData;
 use std::sync::{Arc, Mutex};
-
 mod orch_explorer;
 mod orch_planet;
+
+
+
 
 trait Conversation<T: Debug> {
     fn get_id(&self) -> ID;
@@ -23,7 +25,7 @@ trait Conversation<T: Debug> {
     fn transition(
         self: Box<Self>,
         msg_wrapped: Option<PossibleMessage<T>>,
-    ) -> Result<Option<Box<dyn Conversation<T>>>, (Option<Box<dyn Conversation<T>>>, String)>;
+    ) -> Option<Box<dyn Conversation<T>>>;
 }
 
 #[derive(Debug, Clone)]
@@ -58,6 +60,8 @@ pub(crate) struct ToPlanetStruct {
     planet_id: ID,
 }
 
+
+
 impl ToPlanetStruct {
     pub(crate) fn new(planets_senders: SendersToPlanet, planet_id: ID) -> Self {
         Self {
@@ -66,7 +70,7 @@ impl ToPlanetStruct {
         }
     }
 
-    pub(crate) fn to_planet(&self, msg: OrchestratorToPlanet) -> Result<(), String> {
+    pub(crate) fn to_planet(&self, msg: OrchestratorToPlanet) -> Result<(), ToPlanetError> {
         let sender = {
             let lock = self.planets_senders.lock().unwrap();
             lock.get(&self.planet_id).cloned() // Clone the Sender handle
@@ -74,11 +78,38 @@ impl ToPlanetStruct {
 
         if let Some(s) = sender {
             s.send(msg)
-                .map_err(|e| format!("Failed to send message to planet {}: {e}", self.planet_id))
+                .map_err(|e| {
+                    ToPlanetError::SendingMessageFailure  (self.planet_id)
+                }
+                )
         } else {
-            Err("Sender not Found!".to_string())
+            Err(
+                ToPlanetError::SenderNotFound
+                    (self.planet_id),
+                    
+                
+            )
         }
     }
+}
+
+enum ToPlanetError {
+    SendingMessageFailure (ID) ,
+    SenderNotFound (ID) ,
+}
+
+impl ToPlanetError {
+    fn get_id(&self) -> ID {
+        match self { 
+            Self::SendingMessageFailure (id) => *id,
+            Self::SenderNotFound (id) => *id,
+        }
+    }
+}
+
+enum ToExplorerError {
+    SendingMessageFailure(ID),
+    SenderNotFound(ID),
 }
 
 pub(crate) struct ToExplorerStruct {
@@ -103,5 +134,20 @@ impl ToExplorerStruct {
         } else {
             Err("Sender not Found!".to_string())
         }
+    }
+}
+
+
+trait ErrorType {
+    fn stringify(&self) -> String;
+}
+
+struct ErrorState {
+    error: Box<dyn ErrorType>,
+}
+
+impl ErrorState {
+    fn new(error: Box<dyn ErrorType>) -> Self {
+        Self { error }
     }
 }

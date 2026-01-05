@@ -1,8 +1,6 @@
+use std::error::Error;
 use crate::galaxy_setup::PlanetMap;
-use crate::orchestrator::conversations::{
-    Conversation, PossibleExpectedKinds, PossibleMessage, SendersToExplorer, SendersToPlanet,
-    ToExplorerStruct, ToPlanetStruct,
-};
+use crate::orchestrator::conversations::{Conversation, ErrorState, ErrorType, PossibleExpectedKinds, PossibleMessage, SendersToExplorer, SendersToPlanet, ToExplorerStruct, ToPlanetError, ToPlanetStruct};
 use crate::orchestrator::{ExplorerBag, PlanetExplorerChannels};
 
 use crate::orchestrator::conversations::PossibleExpectedKinds::ExplorerToOrchKind;
@@ -18,6 +16,26 @@ use common_game::utils::ID;
 use crossbeam_channel::Sender;
 
 //TODO: Look for DashMap
+//TODO: Setup an Error State with a variable holding an object of trait ErrorType
+
+pub(crate) enum MoveToPlanetErrors {
+    ExplorerSenderNotFound (ID),
+    IncomingMessageFailed  (ID),
+    OutgoingMessageFailed  (ID),
+    PlanetSenderNotFound   (ID),
+
+
+}
+
+impl ErrorType for MoveToPlanetErrors {
+    fn stringify(&self) -> String {
+        match self {
+            MoveToPlanetErrors::ExplorerSenderNotFound { id } => format!("sender to explorer {id} not found"),
+            MoveToPlanetErrors::IncomingMessageFailed (e) => format!("Failed to send Incoming message to destination planet {}", e.get_id()),
+            MoveToPlanetErrors::OutgoingMessageFailed (e) => format!("Failed to send Outgoing message to current planet {}", e.get_id()),
+        }
+    }
+}
 
 struct WaitingTravelRequest {
     galaxy: PlanetMap,
@@ -47,10 +65,7 @@ impl Conversation<ExplorerBag> for MoveToPlanetConversation<WaitingTravelRequest
     fn transition(
         self: Box<Self>,
         msg_wrapped: Option<PossibleMessage<ExplorerBag>>,
-    ) -> Result<
-        Option<Box<dyn Conversation<ExplorerBag>>>,
-        (Option<Box<dyn Conversation<ExplorerBag>>>, String),
-    > {
+    ) -> Option<Box<(dyn Conversation<ExplorerBag> + 'static)>> {
         if let Some(PossibleMessage::ExplorerToOrch(
             ExplorerToOrchestrator::TravelToPlanetRequest {
                 explorer_id,
@@ -62,32 +77,32 @@ impl Conversation<ExplorerBag> for MoveToPlanetConversation<WaitingTravelRequest
             if self.check_neighbors() {
                 if let Some(sender) = self.get_new_explorer_sender(explorer_id) {
                     //returns new state if senidn message goes well or same state if channel fails
-                    return self
-                        .state
-                        .dst_planet_struct
-                        .to_planet(OrchestratorToPlanet::IncomingExplorerRequest {
-                            explorer_id,
-                            new_sender: sender,
-                        })
-                        .map(|_| {
+                    return match self.state.dst_planet_struct.to_planet(OrchestratorToPlanet::IncomingExplorerRequest {
+                        explorer_id,
+                        new_sender: sender,
+                    }) {
+                        Ok(_) => {
                             Some(
-                                Box::new(MoveToPlanetConversation::<WaitingIncomingResponse>::new(
-                                    self.id,
-                                    WaitingIncomingResponse {
-                                        curr_planet_struct: self.state.curr_planet_struct,
-                                        explorer_struct: self.state.explorer_struct,
-                                    },
-                                ))
-                                    as Box<dyn Conversation<ExplorerBag>>,
-                            )
-                        })
-                        .map_err(|e| {
-                            (
-                                Some(self as Box<dyn Conversation<ExplorerBag>>),
-                                e.to_string(),
-                            )
-                        });
-                }
+                            Box::new(MoveToPlanetConversation::<WaitingIncomingResponse>::new(
+                                self.id,
+                                WaitingIncomingResponse {
+                                    curr_planet_struct: self.state.curr_planet_struct,
+                                    explorer_struct: self.state.explorer_struct,
+                                },
+                            ))
+                                as Box<dyn Conversation<ExplorerBag>>,
+                        )}
+                        Err(err) => {
+                            let error = match err {
+                                ToPlanetError::SenderNotFound(id) => MoveToPlanetErrors::PlanetSenderNotFound(id),
+                                ToPlanetError::SendingMessageFailure(id) => MoveToPlanetErrors::IncomingMessageFailed(id)
+                            };
+                            let error_state = ErrorState::new(Box::new(error));
+                            let next_state = MoveToPlanetConversation::<ErrorState>::new(self.id, error_state);
+                            Some(next_state as Box<dyn Conversation<ExplorerBag>>)
+                        }
+                    }
+
                 return Err((None, format!("sender to explorer {explorer_id} not found")));
             }
 
@@ -288,6 +303,32 @@ impl MoveToPlanetConversation<WaitingOutgoingResponse> {
                 PlanetToOrchestratorKind::IncomingExplorerResponse,
             )),
             state,
+        }
+    }
+}
+
+//Error
+impl Conversation<ExplorerBag> for MoveToPlanetConversation<ErrorState> {
+    fn get_id(&self) -> ID {
+        self.id
+    }
+
+    fn get_expected_kind(&self) -> Option<PossibleExpectedKinds> {
+        self.expected_message.clone()
+    }
+
+    fn transition(self: Box<Self>, _msg_wrapped: Option<PossibleMessage<ExplorerBag>>) -> Option<Box<dyn Conversation<ExplorerBag>>> {
+        println!("Move To Planet reached an error {}, closing conversation!", self.state.error.stringify());
+        None
+    }
+}
+
+impl MoveToPlanetConversation<ErrorState> {
+    fn new(id: ID, state: ErrorState) -> Self {
+        Self {
+            id,
+            state,
+            expected_message: None,
         }
     }
 }
