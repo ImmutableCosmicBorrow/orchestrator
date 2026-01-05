@@ -6,7 +6,7 @@ use crossbeam_channel::{Receiver, Sender};
 use std::collections::HashMap;
 use std::path::Path;
 use std::sync::{Arc, Mutex};
-
+use common_game::logging::{ActorType, Channel, EventType, LogEvent, Participant, Payload};
 use crate::planet::{Alive, PlanetNode};
 
 type OrchPlanSenderMap = HashMap<ID, Sender<OrchestratorToPlanet>>;
@@ -52,6 +52,20 @@ fn create_planet_with_channels(
         6 => crate::planet_factory::create_houston_we_have_a_borrow_planet(),
         _ => unreachable!(),
     };
+
+    // Emit log event
+    let mut payload = Payload::new();
+    payload.insert("event".into(), "Planet creation".into());
+    payload.insert("planet_id".into(), planet_id.to_string());
+    payload.insert("success".into(), planet.is_ok().to_string());
+
+    let mut channel = Channel::Info;
+    if let Err(ref error) = planet {
+        payload.insert("error".into(), error.into());
+        channel = Channel::Error;
+    }
+
+    LogEvent::system(EventType::InternalOrchestratorAction, channel, payload).emit();
 
     PlanetNode::<Alive>::new(planet.expect("Failed to create planet"))
 }
@@ -135,6 +149,13 @@ pub fn galaxy_loader(
             node.lock().unwrap().add_neighbor(Arc::downgrade(neighbor));
         }
     }
+
+    // Emit log event
+    let mut payload = Payload::new();
+    payload.insert("event".into(), "Galaxy loaded".into());
+    payload.insert("file_path".into(), file_path.display().to_string());
+
+    LogEvent::system(EventType::InternalOrchestratorAction, Channel::Debug, payload).emit();
 
     (
         Arc::new(Mutex::new(out)),

@@ -12,6 +12,7 @@ use crossbeam_channel::unbounded;
 use crossbeam_channel::{Receiver, Sender};
 use std::collections::HashMap;
 use std::fmt::Debug;
+use common_game::logging::{ActorType, Channel, EventType, LogEvent, Participant, Payload};
 
 pub(crate) struct Orchestrator<T: Debug> {
     planets_senders: HashMap<ID, Sender<OrchestratorToPlanet>>,
@@ -80,20 +81,62 @@ impl<T: Debug> Orchestrator<T> {
 
     /// Sends an `OrchestratorToPlanet` to the correspondent `planet_id`. Returns nothing if successful, a String error otherwise
     fn to_planet(&self, planet_id: ID, msg: OrchestratorToPlanet) -> Result<(), String> {
-        self.planets_senders
+        let mut payload = Payload::new();
+        payload.insert("message".into(), format!("{msg:?}"));
+
+        let result = self.planets_senders
             .get(&planet_id)
             .ok_or(format!("Planet {planet_id} not found"))?
             .send(msg)
-            .map_err(|err| format!("Failed to send to Planet {planet_id}: {err}"))
+            .map_err(|err| format!("Failed to send to Planet {planet_id}: {err}"));
+
+        payload.insert("success".into(), result.is_ok().to_string());
+
+        let mut channel = Channel::Trace;
+        if let Err(ref error) = result {
+            payload.insert("error".into(), error.to_string());
+            channel = Channel::Error;
+        }
+
+        LogEvent::new(
+            Some(Participant::new(ActorType::Orchestrator, 0u32)),
+            Some(Participant::new(ActorType::Planet, planet_id)),
+            EventType::MessageOrchestratorToPlanet,
+            channel,
+            payload,
+        ).emit();
+
+        result
     }
 
     /// Sends an `OrchestratorToExplorer` to the correspondent `explorer_id`. Returns nothing if successful, a String error otherwise
     fn to_explorer(&self, explorer_id: ID, msg: OrchestratorToExplorer) -> Result<(), String> {
-        self.explorer_senders
+        let mut payload = Payload::new();
+        payload.insert("message".into(), format!("{msg:?}"));
+
+        let result = self.explorer_senders
             .get(&explorer_id)
             .ok_or(format!("Explorer {explorer_id} not found"))?
             .send(msg)
-            .map_err(|err| format!("Failed to send to Explorer {explorer_id}: {err}"))
+            .map_err(|err| format!("Failed to send to Explorer {explorer_id}: {err}"));
+
+        payload.insert("success".into(), result.is_ok().to_string());
+
+        let mut channel = Channel::Trace;
+        if let Err(ref error) = result {
+            payload.insert("error".into(), error.to_string());
+            channel = Channel::Error;
+        }
+
+        LogEvent::new(
+            Some(Participant::new(ActorType::Orchestrator, 0u32)),
+            Some(Participant::new(ActorType::Explorer, explorer_id)),
+            EventType::MessageOrchestratorToExplorer,
+            channel,
+            payload,
+        ).emit();
+
+        result
     }
 
     ///This function handles the incoming messages from a planet
@@ -104,24 +147,40 @@ impl<T: Debug> Orchestrator<T> {
     ) -> Option<(ID, OrchestratorToPlanet)> {
         match message {
             PlanetToOrchestrator::Stopped { planet_id } => {
-                println!("Planet {planet_id} AI is currently stopped");
+                let mut payload = Payload::new();
+                payload.insert("event".into(), "Planet is stopped".into());
+                payload.insert("planet_id".into(), planet_id.to_string());
+
+                LogEvent::system(EventType::InternalOrchestratorAction, Channel::Warning, payload).emit();
                 None
             }
 
             PlanetToOrchestrator::KillPlanetResult { planet_id } => {
                 //TODO: erase planet from map
                 self.planets_senders.remove(&planet_id);
-                println!("Planet {planet_id} has been killed");
+
+                let mut payload = Payload::new();
+                payload.insert("event".to_string(), "Planet has been correctly killed".into());
+                payload.insert("planet_id".into(), planet_id.to_string());
+
+                LogEvent::system(EventType::InternalOrchestratorAction, Channel::Info, payload).emit();
                 None
             }
 
             PlanetToOrchestrator::StartPlanetAIResult { planet_id } => {
-                println!("Planet {planet_id} has been correctly started");
+                let mut payload = Payload::new();
+                payload.insert("event".into(), "Planet has been correctly started".into());
+                payload.insert("planet_id".into(), planet_id.to_string());
+                LogEvent::system(EventType::InternalOrchestratorAction, Channel::Info, payload).emit();
                 None
             }
 
             PlanetToOrchestrator::StopPlanetAIResult { planet_id } => {
-                println!("Planet {planet_id} has been correctly stopped");
+                let mut payload = Payload::new();
+                payload.insert("event".into(), "Planet has been correctly stopped".into());
+                payload.insert("planet_id".into(), planet_id.to_string());
+
+                LogEvent::system(EventType::InternalOrchestratorAction, Channel::Info, payload).emit();
                 None
             }
 
@@ -195,12 +254,18 @@ impl<T: Debug> Orchestrator<T> {
             } => {
                 match generated {
                     Ok(()) => {
-                        println!(
-                            "Explorer {explorer_id} successfully crafted the indicated complex resource"
-                        );
+                        let mut payload = Payload::new();
+                        payload.insert("event".into(), "Explorer successfully crafted the requested complex resource".into());
+                        payload.insert("explorer_id".into(), explorer_id.to_string());
+                        LogEvent::system(EventType::InternalOrchestratorAction, Channel::Debug, payload).emit();
                     }
                     Err(s) => {
-                        println!("Error with explorer {explorer_id}, couldn't craft resource: {s}");
+                        let mut payload = Payload::new();
+                        payload.insert("event".into(), "Explorer could not craft resource".to_string());
+                        payload.insert("explorer_id".into(), explorer_id.to_string());
+                        payload.insert("resource".into(), s.to_string());
+
+                        LogEvent::system(EventType::InternalOrchestratorAction, Channel::Debug, payload).emit();
                     }
                 }
                 None
@@ -227,7 +292,12 @@ impl<T: Debug> Orchestrator<T> {
                 explorer_id,
                 bag_content,
             } => {
-                println!("Explorer {explorer_id} bag content:  {bag_content:?}");
+                let mut payload = Payload::new();
+                payload.insert("event".into(), "Explorer's bag content".into());
+                payload.insert("explorer_id".to_string(), explorer_id.to_string());
+                payload.insert("bag_content".to_string(), format!("{bag_content:?}"));
+
+                LogEvent::system(EventType::InternalOrchestratorAction, Channel::Debug, payload).emit();
                 None
             }
 
@@ -235,7 +305,12 @@ impl<T: Debug> Orchestrator<T> {
                 explorer_id,
                 combination_list,
             } => {
-                println!("Explorer {explorer_id} can currently craft:  {combination_list:?}");
+                let mut payload = Payload::new();
+                payload.insert("event".into(), "Explorer's supported combinations".into());
+                payload.insert("explorer_id".into(), explorer_id.to_string());
+                payload.insert("combination_list".into(), format!("{combination_list:?}"));
+
+                LogEvent::system(EventType::InternalOrchestratorAction, Channel::Debug, payload).emit();
                 None
             }
 
@@ -243,7 +318,12 @@ impl<T: Debug> Orchestrator<T> {
                 explorer_id,
                 supported_resources,
             } => {
-                println!("Explorer {explorer_id} can currently craft:  {supported_resources:?}");
+                let mut payload = Payload::new();
+                payload.insert("event".into(), "Explorer's supported resources'".into());
+                payload.insert("explorer_id".into(), explorer_id.to_string());
+                payload.insert("supported_resources".into(), format!("{supported_resources:?}"));
+
+                LogEvent::system(EventType::InternalOrchestratorAction, Channel::Debug, payload).emit();
                 None
             }
 
@@ -251,27 +331,48 @@ impl<T: Debug> Orchestrator<T> {
                 explorer_id,
                 planet_id,
             } => {
-                println!("Explorer {explorer_id} is currently in planet:  {planet_id}");
+                let mut payload = Payload::new();
+                payload.insert("event".into(), "Explorer position".to_string());
+                payload.insert("explorer_id".into(), explorer_id.to_string());
+                payload.insert("current_planet_id".into(), planet_id.to_string());
+
+                LogEvent::system(EventType::InternalOrchestratorAction,Channel::Debug, payload).emit();
                 None
             }
 
             ExplorerToOrchestrator::StartExplorerAIResult { explorer_id } => {
-                println!("Explorer {explorer_id} has been successfully started");
+                let mut payload = Payload::new();
+                payload.insert("event".into(), "Explorer has been successfully started".into());
+                payload.insert("explorer_id".into(), explorer_id.to_string());
+
+                LogEvent::system(EventType::InternalOrchestratorAction, Channel::Info, payload).emit();
                 None
             }
 
             ExplorerToOrchestrator::StopExplorerAIResult { explorer_id } => {
-                println!("Explorer {explorer_id} has been successfully stopped");
+                let mut payload = Payload::new();
+                payload.insert("event".into(), "Explorer has been successfully stopped".into());
+                payload.insert("explorer_id".into(), explorer_id.to_string());
+
+                LogEvent::system(EventType::InternalOrchestratorAction, Channel::Info, payload).emit();
                 None
             }
 
             ExplorerToOrchestrator::ResetExplorerAIResult { explorer_id } => {
-                println!("Explorer {explorer_id} has been successfully reset");
+                let mut payload = Payload::new();
+                payload.insert("event".into(), "Explorer has been successfully reset".into());
+                payload.insert("explorer_id".into(), explorer_id.to_string());
+
+                LogEvent::system(EventType::InternalOrchestratorAction, Channel::Debug, payload).emit();
                 None
             }
 
             ExplorerToOrchestrator::KillExplorerResult { explorer_id } => {
-                println!("Explorer {explorer_id} has been successfully killed");
+                let mut payload = Payload::new();
+                payload.insert("event".into(), "Explorer has been successfully killed".into());
+                payload.insert("explorer_id".into(), explorer_id.to_string());
+
+                LogEvent::system(EventType::InternalOrchestratorAction, Channel::Info, payload).emit();
                 None
             }
 
@@ -280,15 +381,23 @@ impl<T: Debug> Orchestrator<T> {
                 current_planet_id,
                 dst_planet_id,
             } => {
-                println!(
-                    "Explorer {explorer_id} is requesting to travel from planet {current_planet_id} to planet {dst_planet_id}"
-                );
+                let mut payload = Payload::new();
+                payload.insert("event".into(), "Explorer wants to move".into());
+                payload.insert("explorer_id".into(), explorer_id.to_string());
+                payload.insert("current_planet_id".into(), current_planet_id.to_string());
+                payload.insert("destination_planet_id".into(), dst_planet_id.to_string());
+
+                LogEvent::system(EventType::InternalOrchestratorAction, Channel::Debug, payload).emit();
                 None
             }
 
             //TODO: MAYBE WE WANT TO SEND A ORCH_TO_PLANET_OUTGOING OUT OF THIS?
             ExplorerToOrchestrator::MovedToPlanetResult { explorer_id } => {
-                println!("Explorer {explorer_id} moved to planet");
+                let mut payload = Payload::new();
+                payload.insert("event".to_string(), "Explorer moved to Planet".into());
+                payload.insert("explorer_id".into(), explorer_id.to_string());
+
+                LogEvent::system(EventType::InternalOrchestratorAction, Channel::Info, payload).emit();
                 None
             }
         }
@@ -321,5 +430,13 @@ impl<T: Debug> Orchestrator<T> {
             )
             .as_str(),
         );
+
+        // Emit log event
+        let mut payload = Payload::new();
+        payload.insert("event".to_string(), "Explorer creation".to_string());
+        payload.insert("explorer_id".to_string(), explorer_id.to_string());
+        payload.insert("into_planet_id".to_string(), planet_id.to_string());
+
+        LogEvent::system(EventType::InternalOrchestratorAction, Channel::Info, payload).emit();
     }
 }
