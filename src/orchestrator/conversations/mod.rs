@@ -16,9 +16,6 @@ use std::sync::{Arc, Mutex};
 mod orch_explorer;
 mod orch_planet;
 
-
-
-
 trait Conversation<T: Debug> {
     fn get_id(&self) -> ID;
     fn get_expected_kind(&self) -> Option<PossibleExpectedKinds>;
@@ -60,8 +57,6 @@ pub(crate) struct ToPlanetStruct {
     planet_id: ID,
 }
 
-
-
 impl ToPlanetStruct {
     pub(crate) fn new(planets_senders: SendersToPlanet, planet_id: ID) -> Self {
         Self {
@@ -78,31 +73,23 @@ impl ToPlanetStruct {
 
         if let Some(s) = sender {
             s.send(msg)
-                .map_err(|e| {
-                    ToPlanetError::SendingMessageFailure  (self.planet_id)
-                }
-                )
+                .map_err(|_| ToPlanetError::SendingMessageFailure(self.planet_id))
         } else {
-            Err(
-                ToPlanetError::SenderNotFound
-                    (self.planet_id),
-                    
-                
-            )
+            Err(ToPlanetError::SenderNotFound(self.planet_id))
         }
     }
 }
 
 enum ToPlanetError {
-    SendingMessageFailure (ID) ,
-    SenderNotFound (ID) ,
+    SendingMessageFailure(ID),
+    SenderNotFound(ID),
 }
 
 impl ToPlanetError {
     fn get_id(&self) -> ID {
-        match self { 
-            Self::SendingMessageFailure (id) => *id,
-            Self::SenderNotFound (id) => *id,
+        match self {
+            Self::SendingMessageFailure(id) => *id,
+            Self::SenderNotFound(id) => *id,
         }
     }
 }
@@ -118,25 +105,20 @@ pub(crate) struct ToExplorerStruct {
 }
 
 impl ToExplorerStruct {
-    pub(crate) fn to_explorer(&self, msg: OrchestratorToExplorer) -> Result<(), String> {
+    pub(crate) fn to_explorer(&self, msg: OrchestratorToExplorer) -> Result<(), ToExplorerError> {
         let sender = {
             let lock = self.explorers_senders.lock().unwrap();
             lock.get(&self.explorer_id).cloned() // Clone the Sender handle
         };
 
         if let Some(s) = sender {
-            s.send(msg).map_err(|e| {
-                format!(
-                    "Failed to send message to explorer {}: {e}",
-                    self.explorer_id
-                )
-            })
+            s.send(msg)
+                .map_err(|_| ToExplorerError::SendingMessageFailure(self.explorer_id))
         } else {
-            Err("Sender not Found!".to_string())
+            Err(ToExplorerError::SenderNotFound(self.explorer_id))
         }
     }
 }
-
 
 trait ErrorType {
     fn stringify(&self) -> String;
