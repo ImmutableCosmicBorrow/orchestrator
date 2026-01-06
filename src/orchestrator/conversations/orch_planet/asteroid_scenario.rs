@@ -29,11 +29,14 @@ struct SendingAsteroid {
     to_planet_struct: ToPlanetStruct,
     ///Atomic Reference to the forge to create [Asteroid]
     forge: Arc<Forge>,
+    ///Struct to send messages to explorer, used by subsequent states
     explorers_senders: SendersToExplorer,
+    ///Reference to the list of explorers locations, used by subsequent states
     explorers_location_ref: ExplorersLocationRef,
 }
 
 impl SendingAsteroid {
+    ///Constructor for [SendingAsteroid] state struct
     fn new(
         to_planet_struct: ToPlanetStruct,
         forge: Arc<Forge>,
@@ -54,12 +57,16 @@ impl SendingAsteroid {
 /// In the [WaitingAsteroidAck] state, the conversation expects a [PlanetToOrchestrator::AsteroidAck] message to decide
 /// whether to kill the planet using the [KillPlanetConversation] or closing the conversations if the planet defends himself
 struct WaitingAsteroidAck {
+    ///A struct containing fields to send messages to a planet, used if a planet cannot defend and has to be killed
     to_planet_struct: ToPlanetStruct,
+    ///Struct to send messages to explorer, used by subsequent states
     explorers_senders: SendersToExplorer,
+    ///Reference to the list of explorers locations, used by subsequent states
     explorers_location_ref: ExplorersLocationRef,
 }
 
 impl WaitingAsteroidAck {
+    ///The constructor for [WaitingAsteroidAck] state struct
     fn new(
         to_planet_struct: ToPlanetStruct,
         explorers_senders: SendersToExplorer,
@@ -73,16 +80,17 @@ impl WaitingAsteroidAck {
     }
 }
 
-///Actual FSM struct, takes [State] to get the FSM state
+///This is the generic FSM struct, it takes the generic type State to ensure only methods of that state can be called
 struct AsteroidConversation<State> {
     ///Conversation ID
     id: ID,
-    ///Optional expected message of the conversation
+    ///Optional expected message to trigger the conversation
     expected_message: Option<PossibleExpectedKinds>,
     ///State of the FSM
     state: State,
 }
 
+//SENDING ASTEROID IMPLEMENTATION
 impl Conversation<ExplorerBag> for AsteroidConversation<SendingAsteroid> {
     fn get_id(&self) -> ID {
         self.id
@@ -92,6 +100,15 @@ impl Conversation<ExplorerBag> for AsteroidConversation<SendingAsteroid> {
         self.expected_message.clone()
     }
 
+    ///Transition Funtion for [SendingAsteroid] state:
+    ///
+    /// Returns:
+    ///
+    /// [ErrorState] with [CommonErrorTypes::MessageToPlanetFailed] if the message has not been correctly sent to the planet
+    ///
+    /// [ErrorState] with [CommonErrorTypes::PlanetSenderNotFound] if the sender to the planet is not in the [SendersToPlanet] list
+    ///
+    /// [AsteroidConversation<WaitingAsteroidAck>] if the asteroid has been correctly sent, going to the next state  
     fn transition(
         self: Box<Self>,
         _msg_wrapped: Option<PossibleMessage<ExplorerBag>>,
@@ -136,6 +153,7 @@ impl AsteroidConversation<SendingAsteroid> {
     }
 }
 
+//WAITING ACK IMPLEMENTATION
 impl Conversation<ExplorerBag> for AsteroidConversation<WaitingAsteroidAck> {
     fn get_id(&self) -> ID {
         self.id
@@ -145,6 +163,15 @@ impl Conversation<ExplorerBag> for AsteroidConversation<WaitingAsteroidAck> {
         self.expected_message.clone()
     }
 
+    ///Transition Function for [SendingAsteroid] state:
+    ///
+    /// Returns:
+    ///
+    /// [ErrorState] with [CommonErrorTypes::WrongMessage] if the trigger message is different from the expected one [PlanetToOrchestrator::AsteroidAck]
+    ///
+    /// [None] if the planet defends itself with a rocket, ending the conversation
+    ///
+    /// [KillPlanetConversation<SendPlanetKill>] if the planet cannot defend himself and has to be killed with a [KillPlanetConversation]  
     fn transition(
         self: Box<Self>,
         msg_wrapped: Option<PossibleMessage<ExplorerBag>>,

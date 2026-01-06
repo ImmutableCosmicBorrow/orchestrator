@@ -1,65 +1,24 @@
-use crate::galaxy_setup::PlanetMap;
-use crate::orchestrator::conversations::{
-    CommonErrorTypes, Conversation, ErrorState, ErrorType, PossibleExpectedKinds, PossibleMessage,
-    ToExplorerError, ToExplorerStruct, ToPlanetError, ToPlanetStruct,
-};
-use crate::orchestrator::{ExplorerBag, ExplorersLocationRef, PlanetExplorerChannels};
+mod errors;
+mod wait_incoming_response;
+mod wait_move_response;
+mod wait_outgoing_response;
+mod wait_travel_request;
 
-use crate::orchestrator::conversations::PossibleExpectedKinds::ExplorerToOrchKind;
-use common_game::protocols::orchestrator_explorer::ExplorerToOrchestratorKind::MovedToPlanetResult;
-use common_game::protocols::orchestrator_explorer::OrchestratorToExplorer::MoveToPlanet;
-use common_game::protocols::orchestrator_explorer::{
-    ExplorerToOrchestrator, ExplorerToOrchestratorKind,
-};
-use common_game::protocols::orchestrator_planet::{
-    OrchestratorToPlanet, PlanetToOrchestrator, PlanetToOrchestratorKind,
-};
-use common_game::protocols::planet_explorer::{ExplorerToPlanet, PlanetToExplorer};
+use crate::galaxy_setup::PlanetMap;
+use crate::orchestrator::conversations::{PossibleExpectedKinds, ToExplorerStruct, ToPlanetStruct};
+use crate::orchestrator::{ExplorersLocationRef, PlanetExplorerChannels};
+
 use common_game::utils::ID;
-use crossbeam_channel::Sender;
 
 //TODO: Look for DashMap
-
-pub(crate) enum MoveToPlanetErrors {
-    IncomingMessageFailed(ID),
-    OutgoingMessageFailed(ID),
-    DstPlanetFailed { planet_id: ID, explorer_id: ID },
-    CurrPlanetFailed { planet_id: ID, explorer_id: ID },
-    NewSenderToPlanetNotFound(ID),
-    ExplorerLocationNotFound(ID),
-}
-
-impl ErrorType for MoveToPlanetErrors {
-    fn stringify(&self) -> String {
-        match self {
-            MoveToPlanetErrors::IncomingMessageFailed(id) => {
-                format!("Failed to send Incoming message to destination planet {id}")
-            }
-            MoveToPlanetErrors::OutgoingMessageFailed(id) => {
-                format!("Failed to send Outgoing message to current planet {id}")
-            }
-            MoveToPlanetErrors::DstPlanetFailed {
-                planet_id,
-                explorer_id,
-            } => format!(
-                "Destination planet {planet_id} failed to acquire incoming explorer {explorer_id}"
-            ),
-            MoveToPlanetErrors::CurrPlanetFailed {
-                planet_id,
-                explorer_id,
-            } => format!(
-                "Current planet {planet_id} failed to let go of outgoing explorer {explorer_id}"
-            ),
-            MoveToPlanetErrors::NewSenderToPlanetNotFound(id) => format!(
-                "sender to dest planet {id} not found, planets already changed explorer channels but explorer did not"
-            ),
-            MoveToPlanetErrors::ExplorerLocationNotFound(id) => format!("The location for explorer {id} is not found in the list"),
-        }
-    }
+struct MoveToPlanetConversation<State> {
+    id: ID,
+    state: State,
+    expected_message: Option<PossibleExpectedKinds>,
 }
 
 //States
-struct WaitingTravelRequest {
+pub(crate) struct WaitingTravelRequest {
     galaxy: PlanetMap,
     planet_explorer_channels: PlanetExplorerChannels,
     curr_planet_struct: ToPlanetStruct,
@@ -68,12 +27,12 @@ struct WaitingTravelRequest {
     explorers_location_ref: ExplorersLocationRef,
 }
 
-struct WaitingIncomingResponse {
+pub(crate) struct WaitingIncomingResponse {
     curr_planet_struct: ToPlanetStruct,
     explorer_struct: ToExplorerStruct,
     dst_planet_id: ID,
     planet_explorer_channels: PlanetExplorerChannels,
-    explorers_location_ref: ExplorersLocationRef
+    explorers_location_ref: ExplorersLocationRef,
 }
 
 impl WaitingIncomingResponse {
@@ -82,23 +41,23 @@ impl WaitingIncomingResponse {
         explorer_struct: ToExplorerStruct,
         dst_planet_id: ID,
         planet_explorer_channels: PlanetExplorerChannels,
-        explorers_location_ref: ExplorersLocationRef
+        explorers_location_ref: ExplorersLocationRef,
     ) -> Self {
         Self {
             curr_planet_struct,
             explorer_struct,
             planet_explorer_channels,
             dst_planet_id,
-            explorers_location_ref
+            explorers_location_ref,
         }
     }
 }
 
-struct WaitingOutgoingResponse {
+pub(crate) struct WaitingOutgoingResponse {
     explorer_struct: ToExplorerStruct,
     planet_explorer_channels: PlanetExplorerChannels,
     dst_planet_id: ID,
-    explorers_location_ref: ExplorersLocationRef
+    explorers_location_ref: ExplorersLocationRef,
 }
 
 impl WaitingOutgoingResponse {
@@ -106,422 +65,32 @@ impl WaitingOutgoingResponse {
         explorer_struct: ToExplorerStruct,
         planet_explorer_channels: PlanetExplorerChannels,
         dst_planet_id: ID,
-        explorers_location_ref: ExplorersLocationRef
+        explorers_location_ref: ExplorersLocationRef,
     ) -> Self {
         Self {
             explorer_struct,
             planet_explorer_channels,
             dst_planet_id,
-            explorers_location_ref
+            explorers_location_ref,
         }
     }
 }
 
-struct WaitMoveToPlanetResponse {
+pub(crate) struct WaitMoveToPlanetResponse {
     explorers_location_ref: ExplorersLocationRef,
     is_explorer_moving: bool,
     dst_planet_id: ID,
 }
 impl WaitMoveToPlanetResponse {
-    pub(crate) fn new(explorers_location_ref: ExplorersLocationRef, is_explorer_moving: bool, dst_planet_id: ID) -> Self {
+    pub(crate) fn new(
+        explorers_location_ref: ExplorersLocationRef,
+        is_explorer_moving: bool,
+        dst_planet_id: ID,
+    ) -> Self {
         Self {
             explorers_location_ref,
             is_explorer_moving,
             dst_planet_id,
         }
-    }
-}
-
-struct MoveToPlanetConversation<State> {
-    id: ID,
-    state: State,
-    expected_message: Option<PossibleExpectedKinds>,
-}
-
-impl Conversation<ExplorerBag> for MoveToPlanetConversation<WaitingTravelRequest> {
-    fn get_id(&self) -> ID {
-        self.id
-    }
-
-    fn get_expected_kind(&self) -> Option<PossibleExpectedKinds> {
-        self.expected_message.clone()
-    }
-
-    fn transition(
-        self: Box<Self>,
-        msg_wrapped: Option<PossibleMessage<ExplorerBag>>,
-    ) -> Option<Box<dyn Conversation<ExplorerBag>>> {
-        if let Some(PossibleMessage::ExplorerToOrch(
-            ExplorerToOrchestrator::TravelToPlanetRequest {
-                explorer_id,
-                current_planet_id: _current_planet_id,
-                dst_planet_id: _dst_planet_id,
-            },
-        )) = msg_wrapped
-        {
-            if self.check_neighbors() {
-                if let Some(sender) = self.get_new_explorer_sender(explorer_id) {
-                    //returns new state if send message goes well or same state if channel fails
-                    return match self.state.dst_planet_struct.to_planet(
-                        OrchestratorToPlanet::IncomingExplorerRequest {
-                            explorer_id,
-                            new_sender: sender,
-                        },
-                    ) {
-                        Ok(_) => {
-                            let state_struct = WaitingIncomingResponse {
-                                curr_planet_struct: self.state.curr_planet_struct,
-                                explorer_struct: self.state.explorer_struct,
-                                dst_planet_id: self.state.dst_planet_struct.planet_id,
-                                planet_explorer_channels: self.state.planet_explorer_channels,
-                                explorers_location_ref: self.state.explorers_location_ref,
-                            };
-                            let new_state =
-                                MoveToPlanetConversation::<WaitingIncomingResponse>::new(
-                                    self.id,
-                                    state_struct,
-                                );
-                            Some(Box::new(new_state))
-                        }
-
-                        Err(err) => {
-                            let error: Box<dyn ErrorType> = match err {
-                                ToPlanetError::SenderNotFound(id) => {
-                                    Box::new(CommonErrorTypes::PlanetSenderNotFound(id))
-                                }
-                                ToPlanetError::SendingMessageFailure(id) => {
-                                    Box::new(MoveToPlanetErrors::IncomingMessageFailed(id))
-                                }
-                            };
-                            let error_state = ErrorState::new(error, self.id);
-                            Some(Box::new(error_state))
-                        }
-                    };
-                }
-                //The sender to explorer is not found, going to error state
-                let error_state = ErrorState::new(
-                    Box::new(CommonErrorTypes::ExplorerSenderNotFound(explorer_id)),
-                    self.id,
-                );
-                return Some(Box::new(error_state));
-            }
-
-            //Tries to send a MoveToPlanet {none} to the explorer as he cannot move, or goes in error
-            return match self.state.explorer_struct.to_explorer(MoveToPlanet {
-                sender_to_new_planet: None,
-            }) {
-                Ok(_) => {
-                    let state_struct = WaitMoveToPlanetResponse::new(self.state.explorers_location_ref, false, self.state.dst_planet_struct.planet_id);
-                    let next_state = MoveToPlanetConversation::<WaitMoveToPlanetResponse>::new(self.id, state_struct);
-                    Some(Box::new(next_state))
-                }
-                Err(err) => {
-                    let error: Box<dyn ErrorType> = match err {
-                        ToExplorerError::SenderNotFound(id) => {
-                            Box::new(CommonErrorTypes::ExplorerSenderNotFound(id))
-                        }
-                        ToExplorerError::SendingMessageFailure(id) => {
-                            Box::new(MoveToPlanetErrors::IncomingMessageFailed(id))
-                        }
-                    };
-                    let error_state = ErrorState::new(error, self.id);
-                    Some(Box::new(error_state))
-                }
-            };
-        }
-        //Wrong Message, close conversation
-        let error_state = ErrorState::new(Box::new(CommonErrorTypes::WrongMessage), self.id);
-        Some(Box::new(error_state))
-    }
-}
-
-impl MoveToPlanetConversation<WaitingTravelRequest> {
-    fn check_neighbors(&self) -> bool {
-        if let Some(curr_planet_ref) = self
-            .state
-            .galaxy
-            .lock()
-            .unwrap()
-            .get(&self.state.curr_planet_struct.planet_id)
-        {
-            if let Some(dst_planet_ref) = self
-                .state
-                .galaxy
-                .lock()
-                .unwrap()
-                .get(&self.state.dst_planet_struct.planet_id)
-            {
-                return curr_planet_ref.lock().unwrap().has_neighbor(dst_planet_ref);
-            }
-        }
-        false
-    }
-
-    fn get_new_explorer_sender(&self, explorer_id: ID) -> Option<Sender<PlanetToExplorer>> {
-        self.state
-            .planet_explorer_channels
-            .planet_to_explorer_senders
-            .lock()
-            .unwrap()
-            .get(&explorer_id)
-            .cloned()
-    }
-
-    fn new(id: ID, state: WaitingTravelRequest) -> Self {
-        Self {
-            id,
-            state,
-            expected_message: Some(ExplorerToOrchKind(
-                ExplorerToOrchestratorKind::TravelToPlanetRequest,
-            )),
-        }
-    }
-}
-
-//Waiting Incoming Response
-impl Conversation<ExplorerBag> for MoveToPlanetConversation<WaitingIncomingResponse> {
-    fn get_id(&self) -> ID {
-        self.id
-    }
-
-    fn get_expected_kind(&self) -> Option<PossibleExpectedKinds> {
-        self.expected_message.clone()
-    }
-
-    fn transition(
-        self: Box<Self>,
-        msg_wrapped: Option<PossibleMessage<ExplorerBag>>,
-    ) -> Option<Box<dyn Conversation<ExplorerBag>>> {
-        if let Some(PossibleMessage::PlanetToOrch(
-            PlanetToOrchestrator::IncomingExplorerResponse {
-                planet_id,
-                explorer_id,
-                res,
-            },
-        )) = msg_wrapped
-        {
-            //if the incoming response is positive, tries to send the Outgoing request, otherwise terminates in error state
-            return match res {
-                Ok(_) => {
-                    match self
-                        .state
-                        .curr_planet_struct
-                        .to_planet(OrchestratorToPlanet::OutgoingExplorerRequest { explorer_id })
-                    {
-                        Ok(_) => {
-                            let state_struct = WaitingOutgoingResponse::new(self.state.explorer_struct, self.state.planet_explorer_channels, self.state.dst_planet_id, self.state.explorers_location_ref);
-                            let next_state =
-                                MoveToPlanetConversation::<WaitingOutgoingResponse>::new(
-                                    self.id,
-                                    state_struct,
-                                );
-                            Some(Box::new(next_state))
-                        }
-                        Err(err) => {
-                            let error: Box<dyn ErrorType> = match err {
-                                ToPlanetError::SendingMessageFailure(id) => {
-                                    Box::new(MoveToPlanetErrors::OutgoingMessageFailed(id))
-                                }
-                                ToPlanetError::SenderNotFound(id) => {
-                                    Box::new(CommonErrorTypes::PlanetSenderNotFound(id))
-                                }
-                            };
-                            let error_state = ErrorState::new(error, self.id);
-                            Some(Box::new(error_state))
-                        }
-                    }
-                }
-
-                Err(_) => {
-                    let error_state = ErrorState::new(
-                        Box::new(MoveToPlanetErrors::DstPlanetFailed {
-                            planet_id,
-                            explorer_id,
-                        }),
-                        self.id,
-                    );
-                    return Some(Box::new(error_state));
-                }
-            };
-        }
-        //Wrong message, closing Conversation
-        let error_state = ErrorState::new(Box::new(CommonErrorTypes::WrongMessage), self.id);
-        Some(Box::new(error_state))
-    }
-}
-
-impl MoveToPlanetConversation<WaitingIncomingResponse> {
-    pub(crate) fn new(id: ID, state: WaitingIncomingResponse) -> Self {
-        Self {
-            id,
-            expected_message: Some(PossibleExpectedKinds::PlanetToOrchKind(
-                PlanetToOrchestratorKind::IncomingExplorerResponse,
-            )),
-            state,
-        }
-    }
-}
-
-//WaitingOutgoingResponse Implementation
-impl Conversation<ExplorerBag> for MoveToPlanetConversation<WaitingOutgoingResponse> {
-    fn get_id(&self) -> ID {
-        self.id
-    }
-
-    fn get_expected_kind(&self) -> Option<PossibleExpectedKinds> {
-        self.expected_message.clone()
-    }
-
-    fn transition(
-        self: Box<Self>,
-        msg_wrapped: Option<PossibleMessage<ExplorerBag>>,
-    ) -> Option<Box<dyn Conversation<ExplorerBag>>> {
-        if let Some(PossibleMessage::PlanetToOrch(
-            PlanetToOrchestrator::OutgoingExplorerResponse {
-                planet_id,
-                explorer_id,
-                res,
-            },
-        )) = msg_wrapped
-        {
-            return match res {
-                Ok(_) => {
-                    if let Some(new_sender) = self.get_new_planet_sender() {
-                        return match self.state.explorer_struct.to_explorer(MoveToPlanet {
-                            sender_to_new_planet: Some(new_sender),
-                        }) {
-                            Ok(_) => {
-                                let state_struct = WaitMoveToPlanetResponse::new(self.state.explorers_location_ref, true, self.state.dst_planet_id);
-                                let next_state =
-                                    MoveToPlanetConversation::<WaitMoveToPlanetResponse>::new(
-                                        self.id,
-                                        state_struct,
-                                    );
-                                Some(Box::new(next_state))
-                            }
-                            Err(err) => {
-                                let error: Box<dyn ErrorType> = match err {
-                                    ToExplorerError::SendingMessageFailure(id) => {
-                                        Box::new(CommonErrorTypes::MessageToExplorerFailed(id))
-                                    }
-                                    ToExplorerError::SenderNotFound(id) => {
-                                        Box::new(CommonErrorTypes::ExplorerSenderNotFound(id))
-                                    }
-                                };
-                                let error_state = ErrorState::new(error, self.id);
-                                Some(Box::new(error_state))
-                            }
-                        };
-                    }
-                    //sender to new planet not found!!, explorer has not changed channels but planets did, ATTENTION
-                    let error_state = ErrorState::new(
-                        Box::new(MoveToPlanetErrors::NewSenderToPlanetNotFound(
-                            self.state.dst_planet_id,
-                        )),
-                        self.id,
-                    );
-                    Some(Box::new(error_state))
-                }
-
-                Err(_) => {
-                    let error_state = ErrorState::new(
-                        Box::new(MoveToPlanetErrors::DstPlanetFailed {
-                            planet_id,
-                            explorer_id,
-                        }),
-                        self.id,
-                    );
-                    return Some(Box::new(error_state));
-                }
-            };
-        }
-        //Wrong message, closing Conversation
-        let error_state = ErrorState::new(Box::new(CommonErrorTypes::WrongMessage), self.id);
-        Some(Box::new(error_state))
-    }
-}
-
-impl MoveToPlanetConversation<WaitingOutgoingResponse> {
-    pub(crate) fn new(id: ID, state: WaitingOutgoingResponse) -> Self {
-        Self {
-            id,
-            expected_message: Some(PossibleExpectedKinds::PlanetToOrchKind(
-                PlanetToOrchestratorKind::OutgoingExplorerResponse,
-            )),
-            state,
-        }
-    }
-
-    fn get_new_planet_sender(&self) -> Option<Sender<ExplorerToPlanet>> {
-        self.state
-            .planet_explorer_channels
-            .explorer_to_planet_senders
-            .lock()
-            .unwrap()
-            .get(&self.state.dst_planet_id)
-            .cloned()
-    }
-}
-
-//WaitMoveToPlanetResponse Implementation
-impl Conversation<ExplorerBag> for MoveToPlanetConversation<WaitMoveToPlanetResponse> {
-    fn get_id(&self) -> ID {
-        self.id
-    }
-
-    fn get_expected_kind(&self) -> Option<PossibleExpectedKinds> {
-        self.expected_message.clone()
-    }
-
-    fn transition(
-        self: Box<Self>,
-        msg_wrapped: Option<PossibleMessage<ExplorerBag>>,
-    ) -> Option<Box<dyn Conversation<ExplorerBag>>> {
-        if let Some(PossibleMessage::ExplorerToOrch(
-            ExplorerToOrchestrator::MovedToPlanetResult { explorer_id },
-        )) = msg_wrapped
-        {
-            if self.state.is_explorer_moving {
-                println!("Explorer {explorer_id} moved correctly to planet {}", self.state.dst_planet_id);
-                return match self.move_explorer_location(explorer_id, self.state.dst_planet_id) {
-                    Ok(_) => {
-                        println!("Changed Explorer Location in list to planet {}", self.state.dst_planet_id);
-                        None
-                    }
-                    Err(e) => {
-                        let err_struct = ErrorState::new(Box::new(e), self.id);
-                        Some(Box::new(err_struct))
-                    }
-                }
-
-            }
-            println!("Explorer {explorer_id} responded and cannot move due to dst planet not being a neighbor of current planet");
-            return None;
-        }
-
-        //Wrong message, closing Conversation
-        let error_state = ErrorState::new(Box::new(CommonErrorTypes::WrongMessage), self.id);
-        Some(Box::new(error_state))
-    }
-}
-
-impl MoveToPlanetConversation<WaitMoveToPlanetResponse> {
-    pub(crate) fn new(id: ID, state: WaitMoveToPlanetResponse) -> Self {
-        Self {
-            id,
-            expected_message: Some(ExplorerToOrchKind(MovedToPlanetResult)),
-            state
-        }
-    }
-
-    fn move_explorer_location(&self, explorer_id: ID, dst_planet_id: ID) -> Result<(), MoveToPlanetErrors> {
-        if let Some(location) = self.state.explorers_location_ref.lock().unwrap().get_mut(&explorer_id) {
-            *location = dst_planet_id;
-            return Ok(())
-        }
-
-        Err(MoveToPlanetErrors::ExplorerLocationNotFound(explorer_id))
-
-
     }
 }
