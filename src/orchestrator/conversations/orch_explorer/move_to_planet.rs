@@ -3,7 +3,7 @@ use crate::orchestrator::conversations::{
     CommonErrorTypes, Conversation, ErrorState, ErrorType, PossibleExpectedKinds, PossibleMessage,
     ToExplorerError, ToExplorerStruct, ToPlanetError, ToPlanetStruct,
 };
-use crate::orchestrator::{ExplorerBag, PlanetExplorerChannels};
+use crate::orchestrator::{ExplorerBag, ExplorersLocationRef, PlanetExplorerChannels};
 
 use crate::orchestrator::conversations::PossibleExpectedKinds::ExplorerToOrchKind;
 use common_game::protocols::orchestrator_explorer::ExplorerToOrchestratorKind::MovedToPlanetResult;
@@ -26,6 +26,7 @@ pub(crate) enum MoveToPlanetErrors {
     DstPlanetFailed { planet_id: ID, explorer_id: ID },
     CurrPlanetFailed { planet_id: ID, explorer_id: ID },
     NewSenderToPlanetNotFound(ID),
+    ExplorerLocationNotFound(ID),
 }
 
 impl ErrorType for MoveToPlanetErrors {
@@ -52,6 +53,7 @@ impl ErrorType for MoveToPlanetErrors {
             MoveToPlanetErrors::NewSenderToPlanetNotFound(id) => format!(
                 "sender to dest planet {id} not found, planets already changed explorer channels but explorer did not"
             ),
+            MoveToPlanetErrors::ExplorerLocationNotFound(id) => format!("The location for explorer {id} is not found in the list"),
         }
     }
 }
@@ -63,6 +65,7 @@ struct WaitingTravelRequest {
     curr_planet_struct: ToPlanetStruct,
     dst_planet_struct: ToPlanetStruct,
     explorer_struct: ToExplorerStruct,
+    explorers_location_ref: ExplorersLocationRef,
 }
 
 struct WaitingIncomingResponse {
@@ -70,6 +73,7 @@ struct WaitingIncomingResponse {
     explorer_struct: ToExplorerStruct,
     dst_planet_id: ID,
     planet_explorer_channels: PlanetExplorerChannels,
+    explorers_location_ref: ExplorersLocationRef
 }
 
 impl WaitingIncomingResponse {
@@ -78,12 +82,14 @@ impl WaitingIncomingResponse {
         explorer_struct: ToExplorerStruct,
         dst_planet_id: ID,
         planet_explorer_channels: PlanetExplorerChannels,
+        explorers_location_ref: ExplorersLocationRef
     ) -> Self {
         Self {
             curr_planet_struct,
             explorer_struct,
             planet_explorer_channels,
             dst_planet_id,
+            explorers_location_ref
         }
     }
 }
@@ -92,6 +98,7 @@ struct WaitingOutgoingResponse {
     explorer_struct: ToExplorerStruct,
     planet_explorer_channels: PlanetExplorerChannels,
     dst_planet_id: ID,
+    explorers_location_ref: ExplorersLocationRef
 }
 
 impl WaitingOutgoingResponse {
@@ -99,16 +106,31 @@ impl WaitingOutgoingResponse {
         explorer_struct: ToExplorerStruct,
         planet_explorer_channels: PlanetExplorerChannels,
         dst_planet_id: ID,
+        explorers_location_ref: ExplorersLocationRef
     ) -> Self {
         Self {
             explorer_struct,
             planet_explorer_channels,
             dst_planet_id,
+            explorers_location_ref
         }
     }
 }
 
-struct WaitMoveToPlanetResponse;
+struct WaitMoveToPlanetResponse {
+    explorers_location_ref: ExplorersLocationRef,
+    is_explorer_moving: bool,
+    dst_planet_id: ID,
+}
+impl WaitMoveToPlanetResponse {
+    pub(crate) fn new(explorers_location_ref: ExplorersLocationRef, is_explorer_moving: bool, dst_planet_id: ID) -> Self {
+        Self {
+            explorers_location_ref,
+            is_explorer_moving,
+            dst_planet_id,
+        }
+    }
+}
 
 struct MoveToPlanetConversation<State> {
     id: ID,
@@ -152,6 +174,7 @@ impl Conversation<ExplorerBag> for MoveToPlanetConversation<WaitingTravelRequest
                                 explorer_struct: self.state.explorer_struct,
                                 dst_planet_id: self.state.dst_planet_struct.planet_id,
                                 planet_explorer_channels: self.state.planet_explorer_channels,
+                                explorers_location_ref: self.state.explorers_location_ref,
                             };
                             let new_state =
                                 MoveToPlanetConversation::<WaitingIncomingResponse>::new(
@@ -187,9 +210,11 @@ impl Conversation<ExplorerBag> for MoveToPlanetConversation<WaitingTravelRequest
             return match self.state.explorer_struct.to_explorer(MoveToPlanet {
                 sender_to_new_planet: None,
             }) {
-                Ok(_) => Some(Box::new(
-                    MoveToPlanetConversation::<WaitMoveToPlanetResponse>::new(self.id),
-                )),
+                Ok(_) => {
+                    let state_struct = WaitMoveToPlanetResponse::new(self.state.explorers_location_ref, false, self.state.dst_planet_struct.planet_id);
+                    let next_state = MoveToPlanetConversation::<WaitMoveToPlanetResponse>::new(self.id, state_struct);
+                    Some(Box::new(next_state))
+                }
                 Err(err) => {
                     let error: Box<dyn ErrorType> = match err {
                         ToExplorerError::SenderNotFound(id) => {
@@ -284,11 +309,7 @@ impl Conversation<ExplorerBag> for MoveToPlanetConversation<WaitingIncomingRespo
                         .to_planet(OrchestratorToPlanet::OutgoingExplorerRequest { explorer_id })
                     {
                         Ok(_) => {
-                            let state_struct = WaitingOutgoingResponse::new(
-                                self.state.explorer_struct,
-                                self.state.planet_explorer_channels,
-                                self.state.dst_planet_id,
-                            );
+                            let state_struct = WaitingOutgoingResponse::new(self.state.explorer_struct, self.state.planet_explorer_channels, self.state.dst_planet_id, self.state.explorers_location_ref);
                             let next_state =
                                 MoveToPlanetConversation::<WaitingOutgoingResponse>::new(
                                     self.id,
@@ -370,9 +391,11 @@ impl Conversation<ExplorerBag> for MoveToPlanetConversation<WaitingOutgoingRespo
                             sender_to_new_planet: Some(new_sender),
                         }) {
                             Ok(_) => {
+                                let state_struct = WaitMoveToPlanetResponse::new(self.state.explorers_location_ref, true, self.state.dst_planet_id);
                                 let next_state =
                                     MoveToPlanetConversation::<WaitMoveToPlanetResponse>::new(
                                         self.id,
+                                        state_struct,
                                     );
                                 Some(Box::new(next_state))
                             }
@@ -423,7 +446,7 @@ impl MoveToPlanetConversation<WaitingOutgoingResponse> {
         Self {
             id,
             expected_message: Some(PossibleExpectedKinds::PlanetToOrchKind(
-                PlanetToOrchestratorKind::IncomingExplorerResponse,
+                PlanetToOrchestratorKind::OutgoingExplorerResponse,
             )),
             state,
         }
@@ -458,7 +481,21 @@ impl Conversation<ExplorerBag> for MoveToPlanetConversation<WaitMoveToPlanetResp
             ExplorerToOrchestrator::MovedToPlanetResult { explorer_id },
         )) = msg_wrapped
         {
-            println!("Explorer {explorer_id} moved correctly");
+            if self.state.is_explorer_moving {
+                println!("Explorer {explorer_id} moved correctly to planet {}", self.state.dst_planet_id);
+                return match self.move_explorer_location(explorer_id, self.state.dst_planet_id) {
+                    Ok(_) => {
+                        println!("Changed Explorer Location in list to planet {}", self.state.dst_planet_id);
+                        None
+                    }
+                    Err(e) => {
+                        let err_struct = ErrorState::new(Box::new(e), self.id);
+                        Some(Box::new(err_struct))
+                    }
+                }
+
+            }
+            println!("Explorer {explorer_id} responded and cannot move due to dst planet not being a neighbor of current planet");
             return None;
         }
 
@@ -469,11 +506,22 @@ impl Conversation<ExplorerBag> for MoveToPlanetConversation<WaitMoveToPlanetResp
 }
 
 impl MoveToPlanetConversation<WaitMoveToPlanetResponse> {
-    pub(crate) fn new(id: ID) -> Self {
+    pub(crate) fn new(id: ID, state: WaitMoveToPlanetResponse) -> Self {
         Self {
             id,
             expected_message: Some(ExplorerToOrchKind(MovedToPlanetResult)),
-            state: WaitMoveToPlanetResponse,
+            state
         }
+    }
+
+    fn move_explorer_location(&self, explorer_id: ID, dst_planet_id: ID) -> Result<(), MoveToPlanetErrors> {
+        if let Some(location) = self.state.explorers_location_ref.lock().unwrap().get_mut(&explorer_id) {
+            *location = dst_planet_id;
+            return Ok(())
+        }
+
+        Err(MoveToPlanetErrors::ExplorerLocationNotFound(explorer_id))
+
+
     }
 }

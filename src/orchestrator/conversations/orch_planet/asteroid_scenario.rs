@@ -22,9 +22,10 @@ use std::sync::Arc;
 
 ///Marker Struct for FSM state
 ///
-/// The conversation starts in the [SendingAsteroid] state, this state does not expect any message as it sends a [OrchestratorToPlanet::Sunray]
+/// The conversation starts in the [SendingAsteroid] state, this state does not expect any message as it sends a [OrchestratorToPlanet::Asteroid]
 /// when the [Conversation::transition] method is called
 struct SendingAsteroid {
+    ///A struct containing fields to send messages to a planet, used if a planet cannot defend and has to be killed
     to_planet_struct: ToPlanetStruct,
     ///Atomic Reference to the forge to create [Asteroid]
     forge: Arc<Forge>,
