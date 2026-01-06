@@ -1,11 +1,11 @@
-use crate::orchestrator::ExplorerBag;
 use crate::orchestrator::conversations::orch_planet::kill_planet::{
     KillPlanetConversation, SendPlanetKill,
 };
 use crate::orchestrator::conversations::{
     CommonErrorTypes, Conversation, ErrorState, PossibleExpectedKinds, PossibleMessage,
-    ToPlanetError, ToPlanetStruct,
+    SendersToExplorer, ToPlanetError, ToPlanetStruct,
 };
+use crate::orchestrator::{ExplorerBag, ExplorersLocationRef};
 #[cfg(doc)]
 use common_game::components::asteroid::Asteroid;
 use common_game::components::forge::Forge;
@@ -28,13 +28,22 @@ struct SendingAsteroid {
     to_planet_struct: ToPlanetStruct,
     ///Atomic Reference to the forge to create [Asteroid]
     forge: Arc<Forge>,
+    explorers_senders: SendersToExplorer,
+    explorers_location_ref: ExplorersLocationRef,
 }
 
 impl SendingAsteroid {
-    fn new(to_planet_struct: ToPlanetStruct, forge: Arc<Forge>) -> Self {
+    fn new(
+        to_planet_struct: ToPlanetStruct,
+        forge: Arc<Forge>,
+        explorers_location_ref: ExplorersLocationRef,
+        explorers_senders: SendersToExplorer,
+    ) -> Self {
         Self {
             to_planet_struct,
             forge,
+            explorers_senders,
+            explorers_location_ref,
         }
     }
 }
@@ -45,11 +54,21 @@ impl SendingAsteroid {
 /// whether to kill the planet using the [KillPlanetConversation] or closing the conversations if the planet defends himself
 struct WaitingAsteroidAck {
     to_planet_struct: ToPlanetStruct,
+    explorers_senders: SendersToExplorer,
+    explorers_location_ref: ExplorersLocationRef,
 }
 
 impl WaitingAsteroidAck {
-    fn new(to_planet_struct: ToPlanetStruct) -> Self {
-        Self { to_planet_struct }
+    fn new(
+        to_planet_struct: ToPlanetStruct,
+        explorers_senders: SendersToExplorer,
+        explorers_location_ref: ExplorersLocationRef,
+    ) -> Self {
+        Self {
+            to_planet_struct,
+            explorers_senders,
+            explorers_location_ref,
+        }
     }
 }
 
@@ -83,7 +102,11 @@ impl Conversation<ExplorerBag> for AsteroidConversation<SendingAsteroid> {
             .to_planet(OrchestratorToPlanet::Asteroid(asteroid))
         {
             Ok(_) => {
-                let state_struct = WaitingAsteroidAck::new(self.state.to_planet_struct);
+                let state_struct = WaitingAsteroidAck::new(
+                    self.state.to_planet_struct,
+                    self.state.explorers_senders,
+                    self.state.explorers_location_ref,
+                );
                 let next_state =
                     AsteroidConversation::<WaitingAsteroidAck>::new(self.id, state_struct);
                 Some(Box::new(next_state))
@@ -141,7 +164,11 @@ impl Conversation<ExplorerBag> for AsteroidConversation<WaitingAsteroidAck> {
             //Transition to KillStateConversation
             let new_state = KillPlanetConversation::<SendPlanetKill>::new(
                 self.id,
-                SendPlanetKill::new(self.state.to_planet_struct),
+                SendPlanetKill::new(
+                    self.state.to_planet_struct,
+                    self.state.explorers_location_ref,
+                    self.state.explorers_senders,
+                ),
             );
             return Some(Box::new(new_state));
         }

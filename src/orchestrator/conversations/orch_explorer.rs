@@ -1,1 +1,12 @@
+mod bag_content_scenario;
+mod combine_resource;
+mod craft_resource;
+mod kill_explorer;
+pub(crate) mod kill_explorers_manager;
 pub(crate) mod move_to_planet;
+mod neighbors_discovery;
+mod reset_explorer;
+mod start_explorer;
+mod stop_explorer;
+mod supported_combination;
+mod supported_resources;

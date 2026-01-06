@@ -12,8 +12,8 @@ use std::collections::HashMap;
 use std::fmt::Debug;
 use std::sync::{Arc, Mutex};
 
-mod orch_explorer;
-mod orch_planet;
+pub(crate) mod orch_explorer;
+pub(crate) mod orch_planet;
 
 trait Conversation<T: Debug> {
     fn get_id(&self) -> ID;

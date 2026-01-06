@@ -17,6 +17,7 @@ use std::collections::HashMap;
 use std::fmt::Debug;
 use std::sync::{Arc, Mutex};
 
+type ExplorersLocationRef = Arc<Mutex<HashMap<ID, ID>>>;
 #[derive(Debug)]
 pub(crate) struct ExplorerBag;
 
@@ -34,6 +35,7 @@ pub(crate) struct Orchestrator<T: Debug> {
     explorer_bag: ExplorersBagRef<T>,
     galaxy: PlanetMap,
     planet_explorer_channels: PlanetExplorerChannels,
+    explorers_location: ExplorersLocationRef,
 }
 
 impl<T: Debug> Orchestrator<T> {
@@ -58,6 +60,7 @@ impl<T: Debug> Orchestrator<T> {
             explorer_bag: Arc::new(explorer_bag),
             galaxy,
             planet_explorer_channels,
+            explorers_location: Arc::new(Mutex::new(HashMap::new())),
         }
     }
 
