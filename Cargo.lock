@@ -102,6 +102,7 @@ dependencies = [
  "common-game",
  "crossbeam-channel",
  "immutable_cosmic_borrow",
+ "log",
 ]
 
 [[package]]

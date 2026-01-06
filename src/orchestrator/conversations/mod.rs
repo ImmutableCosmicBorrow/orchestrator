@@ -1,18 +1,17 @@
 use crate::galaxy_setup::OrchPlanSenderMap;
-use common_game::components::planet::Planet;
+use crate::orchestrator::ExplorerBag;
 use common_game::protocols::orchestrator_explorer::{
     ExplorerToOrchestrator, ExplorerToOrchestratorKind, OrchestratorToExplorer,
 };
 use common_game::protocols::orchestrator_planet::{
     OrchestratorToPlanet, PlanetToOrchestrator, PlanetToOrchestratorKind,
 };
-use common_game::protocols::planet_explorer::ExplorerToPlanet;
 use common_game::utils::ID;
 use crossbeam_channel::Sender;
 use std::collections::HashMap;
 use std::fmt::Debug;
-use std::marker::PhantomData;
 use std::sync::{Arc, Mutex};
+
 mod orch_explorer;
 mod orch_planet;
 
@@ -34,11 +33,6 @@ enum PossibleExpectedKinds {
 enum PossibleMessage<T> {
     PlanetToOrch(PlanetToOrchestrator),
     ExplorerToOrch(ExplorerToOrchestrator<T>),
-}
-
-enum ExpectedMessageKind {
-    PlanetToOrchestrator(PlanetToOrchestratorKind),
-    ExplorerToOrchestrator(ExplorerToOrchestratorKind),
 }
 
 pub(crate) type SendersToPlanet = Arc<Mutex<OrchPlanSenderMap>>;
@@ -72,7 +66,7 @@ impl ToPlanetStruct {
     }
 }
 
-enum ToPlanetError {
+pub(crate) enum ToPlanetError {
     SendingMessageFailure(ID),
     SenderNotFound(ID),
 }
@@ -86,7 +80,7 @@ impl ToPlanetError {
     }
 }
 
-enum ToExplorerError {
+pub(crate) enum ToExplorerError {
     SendingMessageFailure(ID),
     SenderNotFound(ID),
 }
@@ -120,6 +114,8 @@ enum CommonErrorTypes {
     WrongMessage,
     PlanetSenderNotFound(ID),
     ExplorerSenderNotFound(ID),
+    MessageToExplorerFailed(ID),
+    MessageToPlanetFailed(ID),
 }
 
 impl ErrorType for CommonErrorTypes {
@@ -132,16 +128,50 @@ impl ErrorType for CommonErrorTypes {
             CommonErrorTypes::ExplorerSenderNotFound(id) => {
                 format!("sender to explorer {id} not found")
             }
+            CommonErrorTypes::MessageToExplorerFailed(id) => {
+                format!("failed to send message to explorer {id}")
+            }
+            CommonErrorTypes::MessageToPlanetFailed(id) => {
+                format!("failed to send message to planet {id}")
+            }
         }
     }
 }
 
 struct ErrorState {
     error: Box<dyn ErrorType>,
+    id: ID,
+    expected_message: Option<PossibleExpectedKinds>,
 }
 
 impl ErrorState {
-    fn new(error: Box<dyn ErrorType>) -> Self {
-        Self { error }
+    fn new(error: Box<dyn ErrorType>, id: ID) -> Self {
+        Self {
+            error,
+            id,
+            expected_message: None,
+        }
+    }
+}
+
+impl Conversation<ExplorerBag> for ErrorState {
+    fn get_id(&self) -> ID {
+        self.id
+    }
+
+    fn get_expected_kind(&self) -> Option<PossibleExpectedKinds> {
+        None
+    }
+
+    fn transition(
+        self: Box<Self>,
+        _msg_wrapped: Option<PossibleMessage<ExplorerBag>>,
+    ) -> Option<Box<dyn Conversation<ExplorerBag>>> {
+        println!(
+            "Conversation {} reached an error {}, closing conversation!",
+            self.id,
+            self.error.stringify()
+        );
+        None
     }
 }

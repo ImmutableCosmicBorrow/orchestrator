@@ -4,17 +4,16 @@ use crate::orchestrator::conversations::orch_planet::kill_planet::{
 };
 use crate::orchestrator::conversations::{
     CommonErrorTypes, Conversation, ErrorState, PossibleExpectedKinds, PossibleMessage,
-    SendersToPlanet,
+    ToPlanetError, ToPlanetStruct,
 };
+#[cfg(doc)]
+use common_game::components::asteroid::Asteroid;
 use common_game::components::forge::Forge;
 use common_game::protocols::orchestrator_planet::{
     OrchestratorToPlanet, PlanetToOrchestrator, PlanetToOrchestratorKind,
 };
 use common_game::utils::ID;
 use std::sync::Arc;
-
-#[cfg(doc)]
-use common_game::components::asteroid::Asteroid;
 
 ///**Asteroid Conversation**
 ///
@@ -23,13 +22,35 @@ use common_game::components::asteroid::Asteroid;
 
 ///Marker Struct for FSM state
 ///
+/// The conversation starts in the [SendingAsteroid] state, this state does not expect any message as it sends a [OrchestratorToPlanet::Sunray]
+/// when the [Conversation::transition] method is called
+struct SendingAsteroid {
+    to_planet_struct: ToPlanetStruct,
+    ///Atomic Reference to the forge to create [Asteroid]
+    forge: Arc<Forge>,
+}
+
+impl SendingAsteroid {
+    fn new(to_planet_struct: ToPlanetStruct, forge: Arc<Forge>) -> Self {
+        Self {
+            to_planet_struct,
+            forge,
+        }
+    }
+}
+
+///Marker Struct for FSM state
+///
 /// In the [WaitingAsteroidAck] state, the conversation expects a [PlanetToOrchestrator::AsteroidAck] message to decide
 /// whether to kill the planet using the [KillPlanetConversation] or closing the conversations if the planet defends himself
 struct WaitingAsteroidAck {
-    ///ID of planet to send the message
-    to_planet_id: ID,
-    ///Atomic Reference to planet senders hashmap
-    planets_senders: SendersToPlanet,
+    to_planet_struct: ToPlanetStruct,
+}
+
+impl WaitingAsteroidAck {
+    fn new(to_planet_struct: ToPlanetStruct) -> Self {
+        Self { to_planet_struct }
+    }
 }
 
 ///Actual FSM struct, takes [State] to get the FSM state
@@ -40,6 +61,55 @@ struct AsteroidConversation<State> {
     expected_message: Option<PossibleExpectedKinds>,
     ///State of the FSM
     state: State,
+}
+
+impl Conversation<ExplorerBag> for AsteroidConversation<SendingAsteroid> {
+    fn get_id(&self) -> ID {
+        self.id
+    }
+
+    fn get_expected_kind(&self) -> Option<PossibleExpectedKinds> {
+        self.expected_message.clone()
+    }
+
+    fn transition(
+        self: Box<Self>,
+        _msg_wrapped: Option<PossibleMessage<ExplorerBag>>,
+    ) -> Option<Box<dyn Conversation<ExplorerBag>>> {
+        let asteroid = self.state.forge.generate_asteroid();
+        match self
+            .state
+            .to_planet_struct
+            .to_planet(OrchestratorToPlanet::Asteroid(asteroid))
+        {
+            Ok(_) => {
+                let state_struct = WaitingAsteroidAck::new(self.state.to_planet_struct);
+                let next_state =
+                    AsteroidConversation::<WaitingAsteroidAck>::new(self.id, state_struct);
+                Some(Box::new(next_state))
+            }
+            Err(err) => {
+                let error = match err {
+                    ToPlanetError::SendingMessageFailure(id) => {
+                        CommonErrorTypes::MessageToPlanetFailed(id)
+                    }
+                    ToPlanetError::SenderNotFound(id) => CommonErrorTypes::PlanetSenderNotFound(id),
+                };
+                let error_state = ErrorState::new(Box::new(error), self.id);
+                Some(Box::new(error_state))
+            }
+        }
+    }
+}
+
+impl AsteroidConversation<SendingAsteroid> {
+    pub(crate) fn new(id: ID, state: SendingAsteroid) -> Self {
+        Self {
+            id,
+            expected_message: None,
+            state,
+        }
+    }
 }
 
 impl Conversation<ExplorerBag> for AsteroidConversation<WaitingAsteroidAck> {
@@ -71,14 +141,13 @@ impl Conversation<ExplorerBag> for AsteroidConversation<WaitingAsteroidAck> {
             //Transition to KillStateConversation
             let new_state = KillPlanetConversation::<SendPlanetKill>::new(
                 self.id,
-                SendPlanetKill::new(self.state.to_planet_id, self.state.planets_senders.clone()),
+                SendPlanetKill::new(self.state.to_planet_struct),
             );
             return Some(Box::new(new_state));
         }
 
-        let error_state = ErrorState::new(Box::new(CommonErrorTypes::WrongMessage));
-        let next_state = AsteroidConversation::<ErrorState>::new(self.id, error_state);
-        Some(Box::new(next_state))
+        let error_state = ErrorState::new(Box::new(CommonErrorTypes::WrongMessage), self.id);
+        Some(Box::new(error_state))
     }
 }
 
@@ -89,69 +158,6 @@ impl AsteroidConversation<WaitingAsteroidAck> {
             expected_message: Some(PossibleExpectedKinds::PlanetToOrchKind(
                 PlanetToOrchestratorKind::AsteroidAck,
             )),
-            state,
-        }
-    }
-}
-
-///Marker Struct for FSM state
-///
-/// The conversation starts in the [SendingAsteroid] state, this state does not expect any message as it sends a [OrchestratorToPlanet::Sunray]
-/// when the [Conversation::transition] method is called
-struct SendingAsteroid {
-    ///ID of planet to send the message
-    to_planet_id: ID,
-    ///
-    planets_senders: SendersToPlanet,
-    ///Atomic Reference to the forge to create [Asteroid]
-    forge: Arc<Forge>,
-}
-
-impl Conversation<ExplorerBag> for AsteroidConversation<SendingAsteroid> {
-    fn get_id(&self) -> ID {
-        self.id
-    }
-
-    fn get_expected_kind(&self) -> Option<PossibleExpectedKinds> {
-        self.expected_message.clone()
-    }
-
-    fn transition(
-        self: Box<Self>,
-        _msg_wrapped: Option<PossibleMessage<ExplorerBag>>,
-    ) -> Option<Box<dyn Conversation<ExplorerBag>>> {
-        //to release immediately the lock on the hashmap
-        let sender = {
-            let lock = self.state.planets_senders.lock().unwrap();
-            lock.get(&self.state.to_planet_id).cloned() // Clone the Sender handle
-        };
-
-        if let Some(s) = sender {
-            let asteroid = self.state.forge.as_ref().generate_asteroid();
-            match s.send(OrchestratorToPlanet::Asteroid(asteroid)) {
-                Ok(_) => {
-                    let next_state = AsteroidConversation::<WaitingAsteroidAck>::new(
-                        self.id,
-                        WaitingAsteroidAck {
-                            to_planet_id: self.state.to_planet_id,
-                            planets_senders: self.state.planets_senders.clone(),
-                        },
-                    );
-                    Some(Box::new(next_state))
-                }
-                Err(_) => Err((Some(self), "Channel Disconnected".to_string())),
-            }
-        } else {
-            Err((Some(self), "Sender not Found!".to_string()))
-        }
-    }
-}
-
-impl AsteroidConversation<SendingAsteroid> {
-    pub(crate) fn new(id: ID, state: SendingAsteroid) -> Self {
-        Self {
-            id,
-            expected_message: None,
             state,
         }
     }
