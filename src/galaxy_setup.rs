@@ -27,7 +27,12 @@ fn create_planet_with_channels(
     expl_sender_map.insert(planet_id, tx_expl_in);
 
     let planet = match planet_id % 7 {
-        0 => crate::planet_factory::create_trip_planet(),
+        0 => crate::planet_factory::create_trip_planet(
+            planet_id,
+            rx_orch_in,
+            tx_orch_out,
+            rx_expl_in,
+        ),
         1 => crate::planet_factory::create_rustrelli_planet(
             planet_id,
             rx_orch_in,
@@ -48,8 +53,20 @@ fn create_planet_with_channels(
             tx_orch_out,
             rx_expl_in,
         ),
-        5 => crate::planet_factory::create_orbitron_planet(),
-        6 => crate::planet_factory::create_houston_we_have_a_borrow_planet(),
+        5 => crate::planet_factory::create_orbitron_planet(
+            planet_id,
+            rx_orch_in,
+            tx_orch_out,
+            rx_expl_in,
+        ),
+        6 => crate::planet_factory::create_houston_we_have_a_borrow_planet(
+            rx_orch_in,
+            tx_orch_out,
+            rx_expl_in,
+            planet_id,
+            houston_we_have_a_borrow::RocketStrategy::Safe,
+            None,
+        ),
         _ => unreachable!(),
     };
 

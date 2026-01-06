@@ -3,14 +3,15 @@ name = "orchestrator"
 version = "0.2.0"
 edition = "2024"
 
-#[patch.crates-io]
-#common-game = { git = "https://github.com/unitn-ap-2025/common"}
-
 [dependencies]
 common-game = { git = "https://www.github.com/unitn-ap-2025/common.git", rev = "f10376f9" }
+
 luna4 = {git = "https://github.com/luna4-ap2025/Planet_Luna4"}
 rustrelli = {git = "https://github.com/Rustrelli/rustrelli"}
 enterprise = {git = "https://github.com/Thompspsps/Enterprise_planet/"}
+houston-we-have-a-borrow = { package = "Planet", git = "https://github.com/Houston-we-have-a-borrow/Planet/"}
+orbitron = {git = "https://github.com/Advanced-Programming-2025-Orbitron/Orbitron/"}
+trip = { git = "https://github.com/Totally-Reliable-Imaginary-Planets/TRIP.git", branch = "main" }
 
 crossbeam-channel = "0.5.15"
 
