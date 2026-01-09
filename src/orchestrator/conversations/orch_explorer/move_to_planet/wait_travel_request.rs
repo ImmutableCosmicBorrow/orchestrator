@@ -30,7 +30,7 @@ impl Conversation<ExplorerBag> for MoveToPlanetConversation<WaitingTravelRequest
     fn transition(
         self: Box<Self>,
         msg_wrapped: Option<PossibleMessage<ExplorerBag>>,
-    ) -> Option<Box<dyn Conversation<ExplorerBag>>> {
+    ) -> Option<Box<dyn Conversation<ExplorerBag> + Send + Sync>> {
         if let Some(PossibleMessage::ExplorerToOrch(
             ExplorerToOrchestrator::TravelToPlanetRequest {
                 explorer_id,
@@ -48,7 +48,7 @@ impl Conversation<ExplorerBag> for MoveToPlanetConversation<WaitingTravelRequest
                             new_sender: sender,
                         },
                     ) {
-                        Ok(_) => {
+                        Ok(()) => {
                             let state_struct = WaitingIncomingResponse {
                                 curr_planet_struct: self.state.curr_planet_struct,
                                 explorer_struct: self.state.explorer_struct,
@@ -65,7 +65,7 @@ impl Conversation<ExplorerBag> for MoveToPlanetConversation<WaitingTravelRequest
                         }
 
                         Err(err) => {
-                            let error: Box<dyn ErrorType> = match err {
+                            let error: Box<dyn ErrorType + Send + Sync> = match err {
                                 ToPlanetError::SenderNotFound(id) => {
                                     Box::new(CommonErrorTypes::PlanetSenderNotFound(id))
                                 }
@@ -90,7 +90,7 @@ impl Conversation<ExplorerBag> for MoveToPlanetConversation<WaitingTravelRequest
             return match self.state.explorer_struct.to_explorer(MoveToPlanet {
                 sender_to_new_planet: None,
             }) {
-                Ok(_) => {
+                Ok(()) => {
                     let state_struct = WaitMoveToPlanetResponse::new(
                         self.state.explorers_location_ref,
                         false,
@@ -103,7 +103,7 @@ impl Conversation<ExplorerBag> for MoveToPlanetConversation<WaitingTravelRequest
                     Some(Box::new(next_state))
                 }
                 Err(err) => {
-                    let error: Box<dyn ErrorType> = match err {
+                    let error: Box<dyn ErrorType + Send + Sync> = match err {
                         ToExplorerError::SenderNotFound(id) => {
                             Box::new(CommonErrorTypes::ExplorerSenderNotFound(id))
                         }
@@ -124,22 +124,12 @@ impl Conversation<ExplorerBag> for MoveToPlanetConversation<WaitingTravelRequest
 
 impl MoveToPlanetConversation<WaitingTravelRequest> {
     fn check_neighbors(&self) -> bool {
-        if let Some(curr_planet_ref) = self
-            .state
-            .galaxy
-            .lock()
-            .unwrap()
-            .get(&self.state.curr_planet_struct.planet_id)
-        {
-            if let Some(dst_planet_ref) = self
-                .state
-                .galaxy
-                .lock()
-                .unwrap()
-                .get(&self.state.dst_planet_struct.planet_id)
-            {
-                return curr_planet_ref.lock().unwrap().has_neighbor(dst_planet_ref);
-            }
+        let galaxy = self.state.galaxy.lock().unwrap();
+        if let (Some(curr_planet_ref), Some(dst_planet_ref)) = (
+            galaxy.get(&self.state.curr_planet_struct.planet_id),
+            galaxy.get(&self.state.dst_planet_struct.planet_id),
+        ) {
+            return curr_planet_ref.lock().unwrap().has_neighbor(dst_planet_ref);
         }
         false
     }

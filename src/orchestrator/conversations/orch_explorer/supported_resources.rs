@@ -39,13 +39,13 @@ impl Conversation<ExplorerBag>
     fn transition(
         self: Box<Self>,
         _msg_wrapped: Option<PossibleMessage<ExplorerBag>>,
-    ) -> Option<Box<dyn Conversation<ExplorerBag>>> {
+    ) -> Option<Box<dyn Conversation<ExplorerBag> + Send + Sync>> {
         match self
             .state
             .to_explorer_struct
             .to_explorer(OrchestratorToExplorer::SupportedResourceRequest)
         {
-            Ok(_) => {
+            Ok(()) => {
                 let next_state =
                     SupportedResourcesConversation::<WaitingSupportedResourcesResult>::new(self.id);
                 Some(Box::new(next_state))
@@ -88,7 +88,7 @@ impl Conversation<ExplorerBag> for SupportedResourcesConversation<WaitingSupport
     fn transition(
         self: Box<Self>,
         msg_wrapped: Option<PossibleMessage<ExplorerBag>>,
-    ) -> Option<Box<dyn Conversation<ExplorerBag>>> {
+    ) -> Option<Box<dyn Conversation<ExplorerBag> + Send + Sync>> {
         if let Some(PossibleMessage::ExplorerToOrch(
             ExplorerToOrchestrator::SupportedResourceResult {
                 explorer_id,

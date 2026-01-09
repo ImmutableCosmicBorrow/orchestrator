@@ -72,13 +72,13 @@ impl Conversation<ExplorerBag> for KillExplorerConversation<SendingKillExplorer>
     fn transition(
         self: Box<Self>,
         _msg_wrapped: Option<PossibleMessage<ExplorerBag>>,
-    ) -> Option<Box<dyn Conversation<ExplorerBag>>> {
+    ) -> Option<Box<dyn Conversation<ExplorerBag> + Send + Sync>> {
         match self
             .state
             .to_explorer_struct
             .to_explorer(OrchestratorToExplorer::KillExplorer)
         {
-            Ok(_) => {
+            Ok(()) => {
                 let state_struct = WaitingKillExplorerResult::new(
                     self.state.to_planet_struct,
                     self.state.handle_outgoing,
@@ -128,7 +128,7 @@ impl Conversation<ExplorerBag> for KillExplorerConversation<WaitingKillExplorerR
     fn transition(
         self: Box<Self>,
         msg_wrapped: Option<PossibleMessage<ExplorerBag>>,
-    ) -> Option<Box<dyn Conversation<ExplorerBag>>> {
+    ) -> Option<Box<dyn Conversation<ExplorerBag> + Send + Sync>> {
         if let Some(PossibleMessage::ExplorerToOrch(ExplorerToOrchestrator::KillExplorerResult {
             explorer_id,
         })) = msg_wrapped

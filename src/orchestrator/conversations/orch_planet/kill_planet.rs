@@ -42,8 +42,8 @@ impl SendPlanetKill {
     ) -> Self {
         Self {
             to_planet_struct,
-            explorers_location_ref,
             explorers_senders,
+            explorers_location_ref,
         }
     }
 }
@@ -66,13 +66,13 @@ impl Conversation<ExplorerBag> for KillPlanetConversation<SendPlanetKill> {
     fn transition(
         self: Box<Self>,
         _msg_wrapped: Option<PossibleMessage<ExplorerBag>>,
-    ) -> Option<Box<dyn Conversation<ExplorerBag>>> {
+    ) -> Option<Box<dyn Conversation<ExplorerBag> + Send + Sync>> {
         match self
             .state
             .to_planet_struct
             .to_planet(OrchestratorToPlanet::KillPlanet)
         {
-            Ok(_) => {
+            Ok(()) => {
                 let state_struct = WaitingPlanetKillResult::new(
                     self.state.explorers_location_ref,
                     self.state.explorers_senders,
@@ -118,13 +118,13 @@ impl Conversation<ExplorerBag> for KillPlanetConversation<WaitingPlanetKillResul
     fn transition(
         self: Box<Self>,
         msg_wrapped: Option<PossibleMessage<ExplorerBag>>,
-    ) -> Option<Box<dyn Conversation<ExplorerBag>>> {
+    ) -> Option<Box<dyn Conversation<ExplorerBag> + Send + Sync>> {
         if let Some(PossibleMessage::PlanetToOrch(PlanetToOrchestrator::KillPlanetResult {
             planet_id,
         })) = msg_wrapped
         {
-            println!("Killed Planet: {:?}", planet_id);
-            let to_kill_list = self.get_explorers_in_planet(&planet_id);
+            println!("Killed Planet: {planet_id:?}");
+            let to_kill_list = self.get_explorers_in_planet(planet_id);
             let next_state = KillExplorersManager::new(
                 self.id,
                 self.state.explorers_senders,
@@ -150,13 +150,13 @@ impl KillPlanetConversation<WaitingPlanetKillResult> {
         }
     }
 
-    fn get_explorers_in_planet(&self, target_planet: &ID) -> Vec<(ID, ID)> {
+    fn get_explorers_in_planet(&self, target_planet: ID) -> Vec<(ID, ID)> {
         self.state
             .explorers_location_ref
             .lock()
             .unwrap()
             .iter()
-            .filter(|(_, planet_id)| *planet_id == target_planet)
+            .filter(|(_, planet_id)| **planet_id == target_planet)
             .map(|(explorer_id, planet_id)| (*explorer_id, *planet_id))
             .collect()
     }

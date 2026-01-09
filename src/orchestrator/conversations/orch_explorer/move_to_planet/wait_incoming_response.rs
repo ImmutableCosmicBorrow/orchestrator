@@ -25,7 +25,7 @@ impl Conversation<ExplorerBag> for MoveToPlanetConversation<WaitingIncomingRespo
     fn transition(
         self: Box<Self>,
         msg_wrapped: Option<PossibleMessage<ExplorerBag>>,
-    ) -> Option<Box<dyn Conversation<ExplorerBag>>> {
+    ) -> Option<Box<dyn Conversation<ExplorerBag> + Send + Sync>> {
         if let Some(PossibleMessage::PlanetToOrch(
             PlanetToOrchestrator::IncomingExplorerResponse {
                 planet_id,
@@ -35,52 +35,47 @@ impl Conversation<ExplorerBag> for MoveToPlanetConversation<WaitingIncomingRespo
         )) = msg_wrapped
         {
             //if the incoming response is positive, tries to send the Outgoing request, otherwise terminates in error state
-            return match res {
-                Ok(_) => {
-                    match self
-                        .state
-                        .curr_planet_struct
-                        .to_planet(OrchestratorToPlanet::OutgoingExplorerRequest { explorer_id })
-                    {
-                        Ok(_) => {
-                            let state_struct = WaitingOutgoingResponse::new(
-                                self.state.explorer_struct,
-                                self.state.planet_explorer_channels,
-                                self.state.dst_planet_id,
-                                self.state.explorers_location_ref,
-                            );
-                            let next_state =
-                                MoveToPlanetConversation::<WaitingOutgoingResponse>::new(
-                                    self.id,
-                                    state_struct,
-                                );
-                            Some(Box::new(next_state))
-                        }
-                        Err(err) => {
-                            let error: Box<dyn ErrorType> = match err {
-                                ToPlanetError::SendingMessageFailure(id) => {
-                                    Box::new(MoveToPlanetErrors::OutgoingMessageFailed(id))
-                                }
-                                ToPlanetError::SenderNotFound(id) => {
-                                    Box::new(CommonErrorTypes::PlanetSenderNotFound(id))
-                                }
-                            };
-                            let error_state = ErrorState::new(error, self.id);
-                            Some(Box::new(error_state))
-                        }
+            return if let Ok(()) = res {
+                match self
+                    .state
+                    .curr_planet_struct
+                    .to_planet(OrchestratorToPlanet::OutgoingExplorerRequest { explorer_id })
+                {
+                    Ok(()) => {
+                        let state_struct = WaitingOutgoingResponse::new(
+                            self.state.explorer_struct,
+                            self.state.planet_explorer_channels,
+                            self.state.dst_planet_id,
+                            self.state.explorers_location_ref,
+                        );
+                        let next_state = MoveToPlanetConversation::<WaitingOutgoingResponse>::new(
+                            self.id,
+                            state_struct,
+                        );
+                        Some(Box::new(next_state))
+                    }
+                    Err(err) => {
+                        let error: Box<dyn ErrorType + Send + Sync> = match err {
+                            ToPlanetError::SendingMessageFailure(id) => {
+                                Box::new(MoveToPlanetErrors::OutgoingMessageFailed(id))
+                            }
+                            ToPlanetError::SenderNotFound(id) => {
+                                Box::new(CommonErrorTypes::PlanetSenderNotFound(id))
+                            }
+                        };
+                        let error_state = ErrorState::new(error, self.id);
+                        Some(Box::new(error_state))
                     }
                 }
-
-                Err(_) => {
-                    let error_state = ErrorState::new(
-                        Box::new(MoveToPlanetErrors::DstPlanetFailed {
-                            planet_id,
-                            explorer_id,
-                        }),
-                        self.id,
-                    );
-                    return Some(Box::new(error_state));
-                }
+            } else {
+                let error_state = ErrorState::new(
+                    Box::new(MoveToPlanetErrors::DstPlanetFailed {
+                        planet_id,
+                        explorer_id,
+                    }),
+                    self.id,
+                );
+                return Some(Box::new(error_state));
             };
         }
         //Wrong message, closing Conversation

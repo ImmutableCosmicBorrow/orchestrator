@@ -39,13 +39,13 @@ impl Conversation<ExplorerBag>
     fn transition(
         self: Box<Self>,
         _msg_wrapped: Option<PossibleMessage<ExplorerBag>>,
-    ) -> Option<Box<dyn Conversation<ExplorerBag>>> {
+    ) -> Option<Box<dyn Conversation<ExplorerBag> + Send + Sync>> {
         match self
             .state
             .to_explorer_struct
             .to_explorer(OrchestratorToExplorer::SupportedCombinationRequest)
         {
-            Ok(_) => {
+            Ok(()) => {
                 let next_state = SupportedCombinationConversation::<
                     WaitingSupportedCombinationResult,
                 >::new(self.id);
@@ -91,7 +91,7 @@ impl Conversation<ExplorerBag>
     fn transition(
         self: Box<Self>,
         msg_wrapped: Option<PossibleMessage<ExplorerBag>>,
-    ) -> Option<Box<dyn Conversation<ExplorerBag>>> {
+    ) -> Option<Box<dyn Conversation<ExplorerBag> + Send + Sync>> {
         if let Some(PossibleMessage::ExplorerToOrch(
             ExplorerToOrchestrator::SupportedCombinationResult {
                 explorer_id,

@@ -37,13 +37,13 @@ impl Conversation<ExplorerBag> for StopExplorerConversation<SendingExplorerStop>
     fn transition(
         self: Box<Self>,
         _msg_wrapped: Option<PossibleMessage<ExplorerBag>>,
-    ) -> Option<Box<dyn Conversation<ExplorerBag>>> {
+    ) -> Option<Box<dyn Conversation<ExplorerBag> + Send + Sync>> {
         match self
             .state
             .to_explorer_struct
             .to_explorer(OrchestratorToExplorer::StopExplorerAI)
         {
-            Ok(_) => {
+            Ok(()) => {
                 let next_state =
                     StopExplorerConversation::<WaitingExplorerStopResult>::new(self.id);
                 Some(Box::new(next_state))
@@ -86,7 +86,7 @@ impl Conversation<ExplorerBag> for StopExplorerConversation<WaitingExplorerStopR
     fn transition(
         self: Box<Self>,
         msg_wrapped: Option<PossibleMessage<ExplorerBag>>,
-    ) -> Option<Box<dyn Conversation<ExplorerBag>>> {
+    ) -> Option<Box<dyn Conversation<ExplorerBag> + Send + Sync>> {
         if let Some(PossibleMessage::ExplorerToOrch(
             ExplorerToOrchestrator::StopExplorerAIResult { explorer_id },
         )) = msg_wrapped

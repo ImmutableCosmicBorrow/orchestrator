@@ -37,13 +37,13 @@ impl Conversation<ExplorerBag> for BagContentConversation<SendingBagContentReque
     fn transition(
         self: Box<Self>,
         _msg_wrapped: Option<PossibleMessage<ExplorerBag>>,
-    ) -> Option<Box<dyn Conversation<ExplorerBag>>> {
+    ) -> Option<Box<dyn Conversation<ExplorerBag> + Send + Sync>> {
         match self
             .state
             .to_explorer_struct
             .to_explorer(OrchestratorToExplorer::BagContentRequest)
         {
-            Ok(_) => {
+            Ok(()) => {
                 let next_state = BagContentConversation::<WaitingBagContentResponse>::new(self.id);
                 Some(Box::new(next_state))
             }
@@ -85,14 +85,14 @@ impl Conversation<ExplorerBag> for BagContentConversation<WaitingBagContentRespo
     fn transition(
         self: Box<Self>,
         msg_wrapped: Option<PossibleMessage<ExplorerBag>>,
-    ) -> Option<Box<dyn Conversation<ExplorerBag>>> {
+    ) -> Option<Box<dyn Conversation<ExplorerBag> + Send + Sync>> {
         if let Some(PossibleMessage::ExplorerToOrch(ExplorerToOrchestrator::BagContentResponse {
             explorer_id,
             bag_content,
         })) = msg_wrapped
         {
             //TODO: SEND THIS TO UI
-            println!("Explorer {} bag content: {:?}", explorer_id, bag_content);
+            println!("Explorer {explorer_id} bag content: {bag_content:?}");
             return None;
         }
 

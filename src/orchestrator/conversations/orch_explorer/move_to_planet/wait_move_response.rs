@@ -24,7 +24,7 @@ impl Conversation<ExplorerBag> for MoveToPlanetConversation<WaitMoveToPlanetResp
     fn transition(
         self: Box<Self>,
         msg_wrapped: Option<PossibleMessage<ExplorerBag>>,
-    ) -> Option<Box<dyn Conversation<ExplorerBag>>> {
+    ) -> Option<Box<dyn Conversation<ExplorerBag> + Send + Sync>> {
         if let Some(PossibleMessage::ExplorerToOrch(
             ExplorerToOrchestrator::MovedToPlanetResult { explorer_id },
         )) = msg_wrapped
@@ -35,7 +35,7 @@ impl Conversation<ExplorerBag> for MoveToPlanetConversation<WaitMoveToPlanetResp
                     self.state.dst_planet_id
                 );
                 return match self.move_explorer_location(explorer_id, self.state.dst_planet_id) {
-                    Ok(_) => {
+                    Ok(()) => {
                         println!(
                             "Changed Explorer Location in list to planet {}",
                             self.state.dst_planet_id

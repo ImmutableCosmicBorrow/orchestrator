@@ -46,8 +46,8 @@ impl WaitingIncomingResponse {
         Self {
             curr_planet_struct,
             explorer_struct,
-            planet_explorer_channels,
             dst_planet_id,
+            planet_explorer_channels,
             explorers_location_ref,
         }
     }

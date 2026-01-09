@@ -6,7 +6,6 @@ use crate::orchestrator::conversations::{
     Conversation, PossibleExpectedKinds, PossibleMessage, SendersToExplorer, SendersToPlanet,
     ToExplorerStruct, ToPlanetStruct,
 };
-use common_game::protocols::orchestrator_explorer::OrchestratorToExplorer::KillExplorer;
 use common_game::utils::ID;
 
 #[derive(Clone)]
@@ -29,9 +28,9 @@ impl KillExplorersManager {
         Self {
             id,
             explorers_senders,
+            explorers_to_kill,
             planet_senders,
             handle_outgoing,
-            explorers_to_kill,
         }
     }
 }
@@ -48,9 +47,9 @@ impl Conversation<ExplorerBag> for KillExplorersManager {
     fn transition(
         mut self: Box<Self>,
         _msg_wrapped: Option<PossibleMessage<ExplorerBag>>,
-    ) -> Option<Box<dyn Conversation<ExplorerBag>>> {
+    ) -> Option<Box<dyn Conversation<ExplorerBag> + Send + Sync>> {
         if let Some((explorer_id, planet_id)) = self.explorers_to_kill.pop() {
-            let conv_id = self.id.clone(); //TODO: CHANGE THIS TO DIFFERENT IDs
+            let conv_id = self.id; //TODO: CHANGE THIS TO DIFFERENT IDs
             let to_explorer_struct = ToExplorerStruct {
                 explorer_id,
                 explorers_senders: self.explorers_senders.clone(),

@@ -72,14 +72,14 @@ impl Conversation<ExplorerBag> for OutgoingExplorer<SendingOutgoingRequest> {
     fn transition(
         self: Box<Self>,
         _msg_wrapped: Option<PossibleMessage<ExplorerBag>>,
-    ) -> Option<Box<dyn Conversation<ExplorerBag>>> {
+    ) -> Option<Box<dyn Conversation<ExplorerBag> + Send + Sync>> {
         match self
             .state
             .to_planet_struct
             .to_planet(OrchestratorToPlanet::OutgoingExplorerRequest {
                 explorer_id: self.state.outgoing_explorer_id,
             }) {
-            Ok(_) => {
+            Ok(()) => {
                 let state_struct = WaitingOutgoingResponse::new(self.state.kill_explorers_manager);
                 let next_state =
                     OutgoingExplorer::<WaitingOutgoingResponse>::new(self.id, state_struct);
@@ -121,7 +121,7 @@ impl Conversation<ExplorerBag> for OutgoingExplorer<WaitingOutgoingResponse> {
     fn transition(
         self: Box<Self>,
         msg_wrapped: Option<PossibleMessage<ExplorerBag>>,
-    ) -> Option<Box<dyn Conversation<ExplorerBag>>> {
+    ) -> Option<Box<dyn Conversation<ExplorerBag> + Send + Sync>> {
         if let Some(PossibleMessage::PlanetToOrch(
             PlanetToOrchestrator::OutgoingExplorerResponse {
                 planet_id,
@@ -130,21 +130,18 @@ impl Conversation<ExplorerBag> for OutgoingExplorer<WaitingOutgoingResponse> {
             },
         )) = msg_wrapped
         {
-            return match res {
-                Ok(_) => {
-                    println!(
-                        "Planet {planet_id} correctly handled outgoing explorer {explorer_id}, going back to manager"
-                    );
-                    Some(self.state.kill_explorers_manager)
-                }
-                Err(_) => {
-                    let error = FailedToHandleOutgoingExplorer {
-                        planet_id,
-                        explorer_id,
-                    };
-                    let error_state = ErrorState::new(Box::new(error), self.id);
-                    Some(Box::new(error_state))
-                }
+            return if res.is_ok() {
+                println!(
+                    "Planet {planet_id} correctly handled outgoing explorer {explorer_id}, going back to manager"
+                );
+                Some(self.state.kill_explorers_manager)
+            } else {
+                let error = FailedToHandleOutgoingExplorer {
+                    planet_id,
+                    explorer_id,
+                };
+                let error_state = ErrorState::new(Box::new(error), self.id);
+                Some(Box::new(error_state))
             };
         }
 

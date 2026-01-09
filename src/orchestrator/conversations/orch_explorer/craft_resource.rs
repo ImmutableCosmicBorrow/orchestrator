@@ -64,13 +64,13 @@ impl Conversation<ExplorerBag> for CraftResourceConversation<SendingCraftResourc
     fn transition(
         self: Box<Self>,
         _msg_wrapped: Option<PossibleMessage<ExplorerBag>>,
-    ) -> Option<Box<dyn Conversation<ExplorerBag>>> {
+    ) -> Option<Box<dyn Conversation<ExplorerBag> + Send + Sync>> {
         match self.state.to_explorer_struct.to_explorer(
             OrchestratorToExplorer::GenerateResourceRequest {
                 to_generate: self.state.to_craft,
             },
         ) {
-            Ok(_) => {
+            Ok(()) => {
                 let state_struct = WaitingCraftResourceResult::new(self.state.to_craft);
                 let next_state = CraftResourceConversation::<WaitingCraftResourceResult>::new(
                     self.id,
@@ -116,7 +116,7 @@ impl Conversation<ExplorerBag> for CraftResourceConversation<WaitingCraftResourc
     fn transition(
         self: Box<Self>,
         msg_wrapped: Option<PossibleMessage<ExplorerBag>>,
-    ) -> Option<Box<dyn Conversation<ExplorerBag>>> {
+    ) -> Option<Box<dyn Conversation<ExplorerBag> + Send + Sync>> {
         if let Some(PossibleMessage::ExplorerToOrch(
             ExplorerToOrchestrator::GenerateResourceResponse {
                 explorer_id,
@@ -125,7 +125,7 @@ impl Conversation<ExplorerBag> for CraftResourceConversation<WaitingCraftResourc
         )) = msg_wrapped
         {
             return match generated {
-                Ok(_) => {
+                Ok(()) => {
                     println!("Explorer {explorer_id} generated the requested resource correctly");
                     None
                 }

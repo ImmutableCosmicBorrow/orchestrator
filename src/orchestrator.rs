@@ -1,9 +1,14 @@
 #![allow(dead_code)]
 
 mod conversations;
+mod queue;
 
 use crate::galaxy_setup::{PlanetMap, galaxy_loader};
-use crate::orchestrator::conversations::{ExplorersBagRef, SendersToExplorer, SendersToPlanet};
+use crate::orchestrator::conversations::{
+    ExplorersBagRef, PossibleExpectedKinds, PossibleMessage, SendersToExplorer, SendersToPlanet,
+};
+use crate::orchestrator::queue::PQueue;
+
 use common_game::components::forge::Forge;
 use common_game::protocols::orchestrator_explorer::{
     ExplorerToOrchestrator, OrchestratorToExplorer,
@@ -16,8 +21,11 @@ use crossbeam_channel::{Receiver, Sender};
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::sync::{Arc, Mutex};
+use strum::IntoDiscriminant;
 
 type ExplorersLocationRef = Arc<Mutex<HashMap<ID, ID>>>;
+
+// Todo: Define what to store in the ExplorerBag
 #[derive(Debug)]
 pub(crate) struct ExplorerBag;
 
@@ -26,24 +34,27 @@ pub(crate) struct PlanetExplorerChannels {
     explorer_to_planet_senders: Arc<Mutex<HashMap<ID, Sender<ExplorerToPlanet>>>>,
 }
 
-pub(crate) struct Orchestrator<T: Debug> {
+pub(crate) struct Orchestrator {
     planets_senders: SendersToPlanet,
     explorer_senders: SendersToExplorer,
     planets_receiver: Receiver<PlanetToOrchestrator>,
     explorers_receiver: Receiver<OrchestratorToExplorer>,
     forge: Forge,
-    explorer_bag: ExplorersBagRef<T>,
+    explorer_bag: ExplorersBagRef<ExplorerBag>,
+    queue: PQueue<ExplorerBag>,
     galaxy: PlanetMap,
     planet_explorer_channels: PlanetExplorerChannels,
     explorers_location: ExplorersLocationRef,
 }
 
-impl<T: Debug> Orchestrator<T> {
+impl Orchestrator {
     pub fn new(file_path: &std::path::Path) -> Self {
         let (galaxy, planets_receiver, planets_senders) = galaxy_loader(file_path);
         let (explorers_receiver, explorer_senders) =
             (unbounded::<OrchestratorToExplorer>().1, HashMap::new());
         let forge = Forge::new().expect("Couldn't create forge!");
+        // TODO: Remove allow when HashMap with non zero sized values is used
+        #[allow(clippy::zero_sized_map_values)]
         let explorer_bag = HashMap::new();
 
         let planet_explorer_channels = PlanetExplorerChannels {
@@ -59,6 +70,9 @@ impl<T: Debug> Orchestrator<T> {
             forge,
             explorer_bag: Arc::new(explorer_bag),
             galaxy,
+            queue: PQueue::new(Mutex::new(Vec::<
+                Box<dyn conversations::Conversation<ExplorerBag> + Send + Sync>,
+            >::new())),
             planet_explorer_channels,
             explorers_location: Arc::new(Mutex::new(HashMap::new())),
         }
@@ -172,7 +186,7 @@ impl<T: Debug> Orchestrator<T> {
     ///Returns an optional tuple with the `explorer_id` and the message to send to the planet as a response
     fn handle_explorer_message(
         &mut self,
-        message: ExplorerToOrchestrator<T>,
+        message: ExplorerToOrchestrator<ExplorerBag>,
     ) -> Option<(ID, OrchestratorToExplorer)> {
         match message {
             ExplorerToOrchestrator::CombineResourceResponse {
@@ -280,6 +294,100 @@ impl<T: Debug> Orchestrator<T> {
             ExplorerToOrchestrator::MovedToPlanetResult { explorer_id } => {
                 println!("Explorer {explorer_id} moved to planet");
                 None
+            }
+        }
+    }
+
+    fn handle_message(&mut self, message: conversations::PossibleMessage<ExplorerBag>) {
+        // Temp variable for number of threads used for conversations
+        // TODO: make this dynamic later (or change location)
+        let threads = 5;
+
+        // Lock the queue and iterate through conversations
+        let mut queue = self.queue.lock().unwrap();
+        for i in 0..threads {
+            // Get mutable reference to the conversation
+            let conv = &mut queue[i];
+            // Check if the conversation expects this kind of message
+            // TODO: improve this matching by also checking if the message uis not only of the expected kind but also from the expected sender
+            let pass_message = match &message {
+                PossibleMessage::ExplorerToOrch(msg) => match conv.get_expected_kind().unwrap() {
+                    PossibleExpectedKinds::PlanetToOrchKind(_) => false,
+                    PossibleExpectedKinds::ExplorerToOrchKind(explorer_to_orchestrator_kind) => {
+                        msg.discriminant() == explorer_to_orchestrator_kind
+                    }
+                },
+                PossibleMessage::PlanetToOrch(msg) => match conv.get_expected_kind().unwrap() {
+                    PossibleExpectedKinds::PlanetToOrchKind(planet_to_orchestrator_kind) => {
+                        msg.discriminant() == planet_to_orchestrator_kind
+                    }
+                    PossibleExpectedKinds::ExplorerToOrchKind(_) => false,
+                },
+            };
+            // If the message matches the expected kind, transition the conversation
+            if pass_message {
+                let conv = queue.remove(i);
+                if let Some(new_conv) = conv.transition(Some(message)) {
+                    queue.insert(i, new_conv);
+                }
+                return;
+            }
+        }
+        // If no conversation matched, we create a new one and insert it into the queue
+        match message {
+            PossibleMessage::ExplorerToOrch(msg) => {
+                match msg {
+                    #[allow(unused_variables)]
+                    ExplorerToOrchestrator::NeighborsRequest {
+                        explorer_id,
+                        current_planet_id,
+                    } => {
+                        let to_explorer_struct =
+                            crate::orchestrator::conversations::ToExplorerStruct {
+                                explorer_id,
+                                explorers_senders: self.explorer_senders.clone(),
+                            };
+                        let state = conversations::orch_explorer::neighbors_discovery::WaitingExplorerNeighborsRequest::new(
+                            to_explorer_struct,
+                            self.galaxy.clone(),
+                        );
+                        let new_conv = conversations::orch_explorer::neighbors_discovery::NeighborsDiscoveryConversation::<conversations::orch_explorer::neighbors_discovery::WaitingExplorerNeighborsRequest>::new(
+                            explorer_id,
+                            state,
+                        );
+                        queue.push(Box::new(new_conv)
+                            as Box<dyn conversations::Conversation<ExplorerBag> + Send + Sync>);
+                    }
+                    #[allow(unused_variables)]
+                    ExplorerToOrchestrator::TravelToPlanetRequest {
+                        explorer_id,
+                        current_planet_id,
+                        dst_planet_id,
+                    } => todo!(),
+                    // These messages are responses that do not start a conversation
+                    ExplorerToOrchestrator::StartExplorerAIResult { .. }
+                    | ExplorerToOrchestrator::KillExplorerResult { .. }
+                    | ExplorerToOrchestrator::ResetExplorerAIResult { .. }
+                    | ExplorerToOrchestrator::StopExplorerAIResult { .. }
+                    | ExplorerToOrchestrator::MovedToPlanetResult { .. }
+                    | ExplorerToOrchestrator::CurrentPlanetResult { .. }
+                    | ExplorerToOrchestrator::SupportedResourceResult { .. }
+                    | ExplorerToOrchestrator::SupportedCombinationResult { .. }
+                    | ExplorerToOrchestrator::GenerateResourceResponse { .. }
+                    | ExplorerToOrchestrator::CombineResourceResponse { .. }
+                    | ExplorerToOrchestrator::BagContentResponse { .. } => {
+                        println!(
+                            "Received ExplorerToOrch message that does not start a conversation. Ignoring."
+                        );
+                    }
+                }
+            }
+            // Since the planet never starts a conversation, we just ignore these messages
+            PossibleMessage::PlanetToOrch(_) => {
+                // TODO: log this properly
+                println!(
+                    "Received PlanetToOrch message that does not match any existing conversation. Ignoring."
+                );
             }
         }
     }

@@ -36,13 +36,13 @@ impl Conversation<ExplorerBag> for StartPlanetConversation<SendingPlanetStart> {
     fn transition(
         self: Box<Self>,
         _msg_wrapped: Option<PossibleMessage<ExplorerBag>>,
-    ) -> Option<Box<dyn Conversation<ExplorerBag>>> {
+    ) -> Option<Box<dyn Conversation<ExplorerBag> + Send + Sync>> {
         match self
             .state
             .to_planet_struct
             .to_planet(OrchestratorToPlanet::StartPlanetAI)
         {
-            Ok(_) => {
+            Ok(()) => {
                 let next_state = StartPlanetConversation::<WaitingPlanetStartResult>::new(self.id);
                 Some(Box::new(next_state))
             }
@@ -82,12 +82,12 @@ impl Conversation<ExplorerBag> for StartPlanetConversation<WaitingPlanetStartRes
     fn transition(
         self: Box<Self>,
         msg_wrapped: Option<PossibleMessage<ExplorerBag>>,
-    ) -> Option<Box<dyn Conversation<ExplorerBag>>> {
+    ) -> Option<Box<dyn Conversation<ExplorerBag> + Send + Sync>> {
         if let Some(PossibleMessage::PlanetToOrch(PlanetToOrchestrator::StartPlanetAIResult {
             planet_id,
         })) = msg_wrapped
         {
-            println!("Stopped Planet: {:?}", planet_id);
+            println!("Started Planet: {planet_id:?}");
             return None;
         }
 

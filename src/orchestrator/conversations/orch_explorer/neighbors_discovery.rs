@@ -10,13 +10,13 @@ use common_game::protocols::orchestrator_explorer::{
 };
 use common_game::utils::ID;
 
-struct WaitingExplorerNeighborsRequest {
+pub(crate) struct WaitingExplorerNeighborsRequest {
     to_explorer_struct: ToExplorerStruct,
     galaxy: PlanetMap,
 }
 
 impl WaitingExplorerNeighborsRequest {
-    fn new(to_explorer_struct: ToExplorerStruct, galaxy: PlanetMap) -> Self {
+    pub(crate) fn new(to_explorer_struct: ToExplorerStruct, galaxy: PlanetMap) -> Self {
         Self {
             to_explorer_struct,
             galaxy,
@@ -44,7 +44,7 @@ impl SendingNeighborsResponse {
     }
 }
 
-struct NeighborsDiscoveryConversation<State> {
+pub(crate) struct NeighborsDiscoveryConversation<State> {
     id: ID,
     expected_message: Option<PossibleExpectedKinds>,
     state: State,
@@ -62,14 +62,14 @@ impl Conversation<ExplorerBag> for NeighborsDiscoveryConversation<SendingNeighbo
     fn transition(
         self: Box<Self>,
         _msg_wrapped: Option<PossibleMessage<ExplorerBag>>,
-    ) -> Option<Box<dyn Conversation<ExplorerBag>>> {
+    ) -> Option<Box<dyn Conversation<ExplorerBag> + Send + Sync>> {
         match self
             .state
             .to_explorer_struct
             .to_explorer(OrchestratorToExplorer::NeighborsResponse {
                 neighbors: self.state.neighbors,
             }) {
-            Ok(_) => {
+            Ok(()) => {
                 println!(
                     "Explorer {} obtained its neighbors correctly",
                     self.state.to_explorer_struct.explorer_id
@@ -114,7 +114,7 @@ impl Conversation<ExplorerBag> for NeighborsDiscoveryConversation<WaitingExplore
     fn transition(
         self: Box<Self>,
         msg_wrapped: Option<PossibleMessage<ExplorerBag>>,
-    ) -> Option<Box<dyn Conversation<ExplorerBag>>> {
+    ) -> Option<Box<dyn Conversation<ExplorerBag> + Send + Sync>> {
         if let Some(PossibleMessage::ExplorerToOrch(ExplorerToOrchestrator::NeighborsRequest {
             explorer_id: _explorer_id,
             current_planet_id,
@@ -145,7 +145,7 @@ impl Conversation<ExplorerBag> for NeighborsDiscoveryConversation<WaitingExplore
 }
 
 impl NeighborsDiscoveryConversation<WaitingExplorerNeighborsRequest> {
-    fn new(id: ID, state: WaitingExplorerNeighborsRequest) -> Self {
+    pub(crate) fn new(id: ID, state: WaitingExplorerNeighborsRequest) -> Self {
         Self {
             id,
             expected_message: Some(ExplorerToOrchKind(
@@ -155,7 +155,10 @@ impl NeighborsDiscoveryConversation<WaitingExplorerNeighborsRequest> {
         }
     }
 
-    fn get_neighbors(&self, curr_planet_id: ID) -> Result<Vec<ID>, Box<dyn ErrorType>> {
+    fn get_neighbors(
+        &self,
+        curr_planet_id: ID,
+    ) -> Result<Vec<ID>, Box<dyn ErrorType + Send + Sync>> {
         if let Some(curr_planet_ref) = self.state.galaxy.lock().unwrap().get(&curr_planet_id) {
             let neighbors = curr_planet_ref.lock().unwrap().get_neighbors();
             Ok(neighbors)

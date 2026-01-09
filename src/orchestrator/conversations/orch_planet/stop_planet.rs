@@ -8,7 +8,6 @@ use common_game::protocols::orchestrator_planet::{
     OrchestratorToPlanet, PlanetToOrchestrator, PlanetToOrchestratorKind,
 };
 use common_game::utils::ID;
-use std::fmt::Debug;
 
 struct WaitingPlanetStopResult;
 struct SendingPlanetStop {
@@ -39,13 +38,13 @@ impl Conversation<ExplorerBag> for StopPlanetConversation<SendingPlanetStop> {
     fn transition(
         self: Box<Self>,
         _msg_wrapped: Option<PossibleMessage<ExplorerBag>>,
-    ) -> Option<Box<dyn Conversation<ExplorerBag>>> {
+    ) -> Option<Box<dyn Conversation<ExplorerBag> + Send + Sync>> {
         match self
             .state
             .to_planet_struct
             .to_planet(OrchestratorToPlanet::StopPlanetAI)
         {
-            Ok(_) => {
+            Ok(()) => {
                 let next_state = StopPlanetConversation::<WaitingPlanetStopResult>::new(self.id);
                 Some(Box::new(next_state))
             }
@@ -85,12 +84,12 @@ impl Conversation<ExplorerBag> for StopPlanetConversation<WaitingPlanetStopResul
     fn transition(
         self: Box<Self>,
         msg_wrapped: Option<PossibleMessage<ExplorerBag>>,
-    ) -> Option<Box<dyn Conversation<ExplorerBag>>> {
+    ) -> Option<Box<dyn Conversation<ExplorerBag> + Send + Sync>> {
         if let Some(PossibleMessage::PlanetToOrch(PlanetToOrchestrator::StopPlanetAIResult {
             planet_id,
         })) = msg_wrapped
         {
-            println!("Stopped Planet: {:?}", planet_id);
+            println!("Stopped Planet: {planet_id:?}");
             return None;
         }
 

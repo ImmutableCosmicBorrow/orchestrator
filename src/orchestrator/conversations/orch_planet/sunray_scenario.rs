@@ -42,14 +42,14 @@ impl Conversation<ExplorerBag> for SunrayConversation<SendSunray> {
     fn transition(
         self: Box<Self>,
         _msg_wrapped: Option<PossibleMessage<ExplorerBag>>,
-    ) -> Option<Box<dyn Conversation<ExplorerBag>>> {
+    ) -> Option<Box<dyn Conversation<ExplorerBag> + Send + Sync>> {
         let sunray = self.state.forge_ref.generate_sunray();
         match self
             .state
             .to_planet_struct
             .to_planet(OrchestratorToPlanet::Sunray(sunray))
         {
-            Ok(_) => {
+            Ok(()) => {
                 let next_state = SunrayConversation::<WaitingSunrayAck>::new(self.id);
                 Some(Box::new(next_state))
             }
@@ -89,11 +89,11 @@ impl Conversation<ExplorerBag> for SunrayConversation<WaitingSunrayAck> {
     fn transition(
         self: Box<Self>,
         msg_wrapped: Option<PossibleMessage<ExplorerBag>>,
-    ) -> Option<Box<dyn Conversation<ExplorerBag>>> {
+    ) -> Option<Box<dyn Conversation<ExplorerBag> + Send + Sync>> {
         if let Some(PossibleMessage::PlanetToOrch(PlanetToOrchestrator::SunrayAck { planet_id })) =
             msg_wrapped
         {
-            println!("Planet {:?} received the sunray", planet_id);
+            println!("Planet {planet_id:?} received the sunray");
             return None;
         }
 

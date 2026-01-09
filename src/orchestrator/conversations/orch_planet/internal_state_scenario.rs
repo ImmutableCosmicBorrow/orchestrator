@@ -39,13 +39,13 @@ impl Conversation<ExplorerBag> for InternalStateConversation<SendingInternalStat
     fn transition(
         self: Box<Self>,
         _msg_wrapped: Option<PossibleMessage<ExplorerBag>>,
-    ) -> Option<Box<dyn Conversation<ExplorerBag>>> {
+    ) -> Option<Box<dyn Conversation<ExplorerBag> + Send + Sync>> {
         match self
             .state
             .to_planet_struct
             .to_planet(OrchestratorToPlanet::InternalStateRequest)
         {
-            Ok(_) => {
+            Ok(()) => {
                 let next_state =
                     InternalStateConversation::<WaitingInternalStateResponse>::new(self.id);
                 Some(Box::new(next_state))
@@ -86,7 +86,7 @@ impl Conversation<ExplorerBag> for InternalStateConversation<WaitingInternalStat
     fn transition(
         self: Box<Self>,
         msg_wrapped: Option<PossibleMessage<ExplorerBag>>,
-    ) -> Option<Box<dyn Conversation<ExplorerBag>>> {
+    ) -> Option<Box<dyn Conversation<ExplorerBag> + Send + Sync>> {
         if let Some(PossibleMessage::PlanetToOrch(PlanetToOrchestrator::InternalStateResponse {
             planet_id,
             planet_state,

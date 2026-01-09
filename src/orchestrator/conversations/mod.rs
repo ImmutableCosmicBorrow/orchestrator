@@ -15,22 +15,22 @@ use std::sync::{Arc, Mutex};
 pub(crate) mod orch_explorer;
 pub(crate) mod orch_planet;
 
-trait Conversation<T: Debug> {
+pub(crate) trait Conversation<T: Debug>: Send + Sync {
     fn get_id(&self) -> ID;
     fn get_expected_kind(&self) -> Option<PossibleExpectedKinds>;
     fn transition(
         self: Box<Self>,
         msg_wrapped: Option<PossibleMessage<T>>,
-    ) -> Option<Box<dyn Conversation<T>>>;
+    ) -> Option<Box<dyn Conversation<T> + Send + Sync>>;
 }
 
 #[derive(Debug, Clone)]
-enum PossibleExpectedKinds {
+pub(crate) enum PossibleExpectedKinds {
     PlanetToOrchKind(PlanetToOrchestratorKind),
     ExplorerToOrchKind(ExplorerToOrchestratorKind),
 }
 
-enum PossibleMessage<T> {
+pub(crate) enum PossibleMessage<T> {
     PlanetToOrch(PlanetToOrchestrator),
     ExplorerToOrch(ExplorerToOrchestrator<T>),
 }
@@ -74,8 +74,7 @@ pub(crate) enum ToPlanetError {
 impl ToPlanetError {
     fn get_id(&self) -> ID {
         match self {
-            Self::SendingMessageFailure(id) => *id,
-            Self::SenderNotFound(id) => *id,
+            Self::SendingMessageFailure(id) | Self::SenderNotFound(id) => *id,
         }
     }
 }
@@ -86,8 +85,8 @@ pub(crate) enum ToExplorerError {
 }
 
 pub(crate) struct ToExplorerStruct {
-    explorers_senders: SendersToExplorer,
-    explorer_id: ID,
+    pub(crate) explorers_senders: SendersToExplorer,
+    pub(crate) explorer_id: ID,
 }
 
 impl ToExplorerStruct {
@@ -139,13 +138,13 @@ impl ErrorType for CommonErrorTypes {
 }
 
 struct ErrorState {
-    error: Box<dyn ErrorType>,
+    error: Box<dyn ErrorType + Send + Sync>,
     id: ID,
     expected_message: Option<PossibleExpectedKinds>,
 }
 
 impl ErrorState {
-    fn new(error: Box<dyn ErrorType>, id: ID) -> Self {
+    fn new(error: Box<dyn ErrorType + Send + Sync>, id: ID) -> Self {
         Self {
             error,
             id,
@@ -166,7 +165,7 @@ impl Conversation<ExplorerBag> for ErrorState {
     fn transition(
         self: Box<Self>,
         _msg_wrapped: Option<PossibleMessage<ExplorerBag>>,
-    ) -> Option<Box<dyn Conversation<ExplorerBag>>> {
+    ) -> Option<Box<dyn Conversation<ExplorerBag> + Send + Sync>> {
         println!(
             "Conversation {} reached an error {}, closing conversation!",
             self.id,
