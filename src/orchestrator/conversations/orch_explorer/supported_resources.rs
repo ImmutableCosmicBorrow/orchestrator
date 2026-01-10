@@ -17,7 +17,15 @@ impl SendingSupportedResourcesRequest {
     }
 }
 
-struct WaitingSupportedResourcesResult;
+struct WaitingSupportedResourcesResult {
+    explorer_id: ID,
+}
+
+impl WaitingSupportedResourcesResult {
+    fn new(explorer_id: ID) -> Self {
+        Self { explorer_id }
+    }
+}
 
 struct SupportedResourcesConversation<State> {
     id: ID,
@@ -30,6 +38,10 @@ impl Conversation<ExplorerBag>
 {
     fn get_id(&self) -> ID {
         self.id
+    }
+
+    fn get_entity_id(&self) -> ID {
+        self.state.to_explorer_struct.explorer_id
     }
 
     fn get_expected_kind(&self) -> Option<PossibleExpectedKinds> {
@@ -46,8 +58,12 @@ impl Conversation<ExplorerBag>
             .to_explorer(OrchestratorToExplorer::SupportedResourceRequest)
         {
             Ok(()) => {
+                let explorer_id = self.state.to_explorer_struct.explorer_id;
                 let next_state =
-                    SupportedResourcesConversation::<WaitingSupportedResourcesResult>::new(self.id);
+                    SupportedResourcesConversation::<WaitingSupportedResourcesResult>::new(
+                        self.id,
+                        explorer_id,
+                    );
                 Some(Box::new(next_state))
             }
             Err(err) => {
@@ -64,6 +80,10 @@ impl Conversation<ExplorerBag>
             }
         }
     }
+
+    fn get_priority(&self) -> i32 {
+        2
+    }
 }
 
 impl SupportedResourcesConversation<SendingSupportedResourcesRequest> {
@@ -79,6 +99,10 @@ impl SupportedResourcesConversation<SendingSupportedResourcesRequest> {
 impl Conversation<ExplorerBag> for SupportedResourcesConversation<WaitingSupportedResourcesResult> {
     fn get_id(&self) -> ID {
         self.id
+    }
+
+    fn get_entity_id(&self) -> ID {
+        self.state.explorer_id
     }
 
     fn get_expected_kind(&self) -> Option<PossibleExpectedKinds> {
@@ -106,16 +130,20 @@ impl Conversation<ExplorerBag> for SupportedResourcesConversation<WaitingSupport
         let error_state = ErrorState::new(Box::new(CommonErrorTypes::WrongMessage), self.id);
         Some(Box::new(error_state))
     }
+
+    fn get_priority(&self) -> i32 {
+        2
+    }
 }
 
 impl SupportedResourcesConversation<WaitingSupportedResourcesResult> {
-    fn new(id: ID) -> Self {
+    fn new(id: ID, explorer_id: ID) -> Self {
         Self {
             id,
             expected_message: Some(PossibleExpectedKinds::ExplorerToOrchKind(
                 ExplorerToOrchestratorKind::SupportedResourceResult,
             )),
-            state: WaitingSupportedResourcesResult,
+            state: WaitingSupportedResourcesResult::new(explorer_id),
         }
     }
 }

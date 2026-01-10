@@ -10,7 +10,15 @@ use common_game::protocols::orchestrator_planet::{OrchestratorToPlanet, PlanetTo
 use common_game::utils::ID;
 use std::sync::Arc;
 
-struct WaitingSunrayAck;
+struct WaitingSunrayAck {
+    planet_id: ID,
+}
+
+impl WaitingSunrayAck {
+    fn new(planet_id: ID) -> Self {
+        Self { planet_id }
+    }
+}
 struct SendSunray {
     to_planet_struct: ToPlanetStruct,
     forge_ref: Arc<Forge>,
@@ -35,6 +43,10 @@ impl Conversation<ExplorerBag> for SunrayConversation<SendSunray> {
         self.id
     }
 
+    fn get_entity_id(&self) -> ID {
+        self.state.to_planet_struct.planet_id
+    }
+
     fn get_expected_kind(&self) -> Option<PossibleExpectedKinds> {
         self.expected_message.clone()
     }
@@ -50,7 +62,8 @@ impl Conversation<ExplorerBag> for SunrayConversation<SendSunray> {
             .to_planet(OrchestratorToPlanet::Sunray(sunray))
         {
             Ok(()) => {
-                let next_state = SunrayConversation::<WaitingSunrayAck>::new(self.id);
+                let planet_id = self.state.to_planet_struct.planet_id;
+                let next_state = SunrayConversation::<WaitingSunrayAck>::new(self.id, planet_id);
                 Some(Box::new(next_state))
             }
             Err(err) => {
@@ -64,6 +77,10 @@ impl Conversation<ExplorerBag> for SunrayConversation<SendSunray> {
                 Some(Box::new(error_state))
             }
         }
+    }
+
+    fn get_priority(&self) -> i32 {
+        1
     }
 }
 
@@ -80,6 +97,10 @@ impl SunrayConversation<SendSunray> {
 impl Conversation<ExplorerBag> for SunrayConversation<WaitingSunrayAck> {
     fn get_id(&self) -> ID {
         self.id
+    }
+
+    fn get_entity_id(&self) -> ID {
+        self.state.planet_id
     }
 
     fn get_expected_kind(&self) -> Option<PossibleExpectedKinds> {
@@ -101,14 +122,18 @@ impl Conversation<ExplorerBag> for SunrayConversation<WaitingSunrayAck> {
         let error_state = ErrorState::new(Box::new(CommonErrorTypes::WrongMessage), self.id);
         Some(Box::new(error_state))
     }
+
+    fn get_priority(&self) -> i32 {
+        1
+    }
 }
 
 impl SunrayConversation<WaitingSunrayAck> {
-    pub(crate) fn new(id: ID) -> Self {
+    pub(crate) fn new(id: ID, planet_id: ID) -> Self {
         Self {
             id,
             expected_message: Some(PlanetToOrchKind(SunrayAck)),
-            state: WaitingSunrayAck,
+            state: WaitingSunrayAck::new(planet_id),
         }
     }
 }

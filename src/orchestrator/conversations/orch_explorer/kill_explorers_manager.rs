@@ -19,7 +19,7 @@ pub(crate) struct KillExplorersManager {
 
 impl KillExplorersManager {
     pub(crate) fn new(
-        id: ID,
+        id: ID, //TODO: is this the object ID?
         explorers_senders: SendersToExplorer,
         planet_senders: SendersToPlanet,
         handle_outgoing: bool,
@@ -37,6 +37,10 @@ impl KillExplorersManager {
 
 impl Conversation<ExplorerBag> for KillExplorersManager {
     fn get_id(&self) -> ID {
+        self.id
+    }
+
+    fn get_entity_id(&self) -> ID {
         self.id
     }
 
@@ -69,5 +73,9 @@ impl Conversation<ExplorerBag> for KillExplorersManager {
             return Some(Box::new(next_state));
         }
         None
+    }
+
+    fn get_priority(&self) -> i32 {
+        5
     }
 }

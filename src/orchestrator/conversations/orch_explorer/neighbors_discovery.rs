@@ -55,6 +55,10 @@ impl Conversation<ExplorerBag> for NeighborsDiscoveryConversation<SendingNeighbo
         self.id
     }
 
+    fn get_entity_id(&self) -> ID {
+        self.state.to_explorer_struct.explorer_id
+    }
+
     fn get_expected_kind(&self) -> Option<PossibleExpectedKinds> {
         self.expected_message.clone()
     }
@@ -90,6 +94,10 @@ impl Conversation<ExplorerBag> for NeighborsDiscoveryConversation<SendingNeighbo
             }
         }
     }
+
+    fn get_priority(&self) -> i32 {
+        3
+    }
 }
 
 impl NeighborsDiscoveryConversation<SendingNeighborsResponse> {
@@ -105,6 +113,10 @@ impl NeighborsDiscoveryConversation<SendingNeighborsResponse> {
 impl Conversation<ExplorerBag> for NeighborsDiscoveryConversation<WaitingExplorerNeighborsRequest> {
     fn get_id(&self) -> ID {
         self.id
+    }
+
+    fn get_entity_id(&self) -> ID {
+        self.state.to_explorer_struct.explorer_id
     }
 
     fn get_expected_kind(&self) -> Option<PossibleExpectedKinds> {
@@ -141,6 +153,10 @@ impl Conversation<ExplorerBag> for NeighborsDiscoveryConversation<WaitingExplore
         //Wrong Message, close conversation
         let error_state = ErrorState::new(Box::new(CommonErrorTypes::WrongMessage), self.id);
         Some(Box::new(error_state))
+    }
+
+    fn get_priority(&self) -> i32 {
+        3
     }
 }
 

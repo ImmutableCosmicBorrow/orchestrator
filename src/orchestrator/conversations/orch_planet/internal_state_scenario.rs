@@ -19,7 +19,15 @@ impl SendingInternalStateRequest {
     }
 }
 
-struct WaitingInternalStateResponse;
+struct WaitingInternalStateResponse {
+    planet_id: ID,
+}
+
+impl WaitingInternalStateResponse {
+    fn new(planet_id: ID) -> Self {
+        Self { planet_id }
+    }
+}
 
 struct InternalStateConversation<State> {
     id: ID,
@@ -30,6 +38,10 @@ struct InternalStateConversation<State> {
 impl Conversation<ExplorerBag> for InternalStateConversation<SendingInternalStateRequest> {
     fn get_id(&self) -> ID {
         self.id
+    }
+
+    fn get_entity_id(&self) -> ID {
+        self.state.to_planet_struct.planet_id
     }
 
     fn get_expected_kind(&self) -> Option<PossibleExpectedKinds> {
@@ -46,8 +58,10 @@ impl Conversation<ExplorerBag> for InternalStateConversation<SendingInternalStat
             .to_planet(OrchestratorToPlanet::InternalStateRequest)
         {
             Ok(()) => {
-                let next_state =
-                    InternalStateConversation::<WaitingInternalStateResponse>::new(self.id);
+                let next_state = InternalStateConversation::<WaitingInternalStateResponse>::new(
+                    self.id,
+                    self.state.to_planet_struct.planet_id,
+                );
                 Some(Box::new(next_state))
             }
             Err(err) => {
@@ -61,6 +75,10 @@ impl Conversation<ExplorerBag> for InternalStateConversation<SendingInternalStat
                 Some(Box::new(error_state))
             }
         }
+    }
+
+    fn get_priority(&self) -> i32 {
+        3
     }
 }
 
@@ -77,6 +95,10 @@ impl InternalStateConversation<SendingInternalStateRequest> {
 impl Conversation<ExplorerBag> for InternalStateConversation<WaitingInternalStateResponse> {
     fn get_id(&self) -> ID {
         self.id
+    }
+
+    fn get_entity_id(&self) -> ID {
+        self.state.planet_id
     }
 
     fn get_expected_kind(&self) -> Option<PossibleExpectedKinds> {
@@ -101,16 +123,20 @@ impl Conversation<ExplorerBag> for InternalStateConversation<WaitingInternalStat
         let error_state = ErrorState::new(Box::new(CommonErrorTypes::WrongMessage), self.id);
         Some(Box::new(error_state))
     }
+
+    fn get_priority(&self) -> i32 {
+        3
+    }
 }
 
 impl InternalStateConversation<WaitingInternalStateResponse> {
-    pub(crate) fn new(id: ID) -> Self {
+    pub(crate) fn new(id: ID, planet_id: ID) -> Self {
         Self {
             id,
             expected_message: Some(PlanetToOrchKind(
                 PlanetToOrchestratorKind::InternalStateResponse,
             )),
-            state: WaitingInternalStateResponse,
+            state: WaitingInternalStateResponse::new(planet_id),
         }
     }
 }

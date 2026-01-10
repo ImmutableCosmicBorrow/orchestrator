@@ -17,7 +17,15 @@ impl SendingExplorerStop {
     }
 }
 
-struct WaitingExplorerStopResult;
+struct WaitingExplorerStopResult {
+    explorer_id: ID,
+}
+
+impl WaitingExplorerStopResult {
+    fn new(explorer_id: ID) -> Self {
+        Self { explorer_id }
+    }
+}
 
 struct StopExplorerConversation<State> {
     id: ID,
@@ -28,6 +36,10 @@ struct StopExplorerConversation<State> {
 impl Conversation<ExplorerBag> for StopExplorerConversation<SendingExplorerStop> {
     fn get_id(&self) -> ID {
         self.id
+    }
+
+    fn get_entity_id(&self) -> ID {
+        self.state.to_explorer_struct.explorer_id
     }
 
     fn get_expected_kind(&self) -> Option<PossibleExpectedKinds> {
@@ -44,8 +56,11 @@ impl Conversation<ExplorerBag> for StopExplorerConversation<SendingExplorerStop>
             .to_explorer(OrchestratorToExplorer::StopExplorerAI)
         {
             Ok(()) => {
-                let next_state =
-                    StopExplorerConversation::<WaitingExplorerStopResult>::new(self.id);
+                let explorer_id = self.state.to_explorer_struct.explorer_id;
+                let next_state = StopExplorerConversation::<WaitingExplorerStopResult>::new(
+                    self.id,
+                    explorer_id,
+                );
                 Some(Box::new(next_state))
             }
             Err(err) => {
@@ -62,6 +77,10 @@ impl Conversation<ExplorerBag> for StopExplorerConversation<SendingExplorerStop>
             }
         }
     }
+
+    fn get_priority(&self) -> i32 {
+        5
+    }
 }
 
 impl StopExplorerConversation<SendingExplorerStop> {
@@ -77,6 +96,10 @@ impl StopExplorerConversation<SendingExplorerStop> {
 impl Conversation<ExplorerBag> for StopExplorerConversation<WaitingExplorerStopResult> {
     fn get_id(&self) -> ID {
         self.id
+    }
+
+    fn get_entity_id(&self) -> ID {
+        self.state.explorer_id
     }
 
     fn get_expected_kind(&self) -> Option<PossibleExpectedKinds> {
@@ -99,16 +122,20 @@ impl Conversation<ExplorerBag> for StopExplorerConversation<WaitingExplorerStopR
         let error_state = ErrorState::new(Box::new(CommonErrorTypes::WrongMessage), self.id);
         Some(Box::new(error_state))
     }
+
+    fn get_priority(&self) -> i32 {
+        5
+    }
 }
 
 impl StopExplorerConversation<WaitingExplorerStopResult> {
-    fn new(id: ID) -> Self {
+    fn new(id: ID, explorer_id: ID) -> Self {
         Self {
             id,
             expected_message: Some(PossibleExpectedKinds::ExplorerToOrchKind(
                 ExplorerToOrchestratorKind::StopExplorerAIResult,
             )),
-            state: WaitingExplorerStopResult,
+            state: WaitingExplorerStopResult::new(explorer_id),
         }
     }
 }

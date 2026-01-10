@@ -18,6 +18,10 @@ impl Conversation<ExplorerBag> for MoveToPlanetConversation<WaitingIncomingRespo
         self.id
     }
 
+    fn get_entity_id(&self) -> ID {
+        self.state.explorer_struct.explorer_id
+    }
+
     fn get_expected_kind(&self) -> Option<PossibleExpectedKinds> {
         self.expected_message.clone()
     }
@@ -81,6 +85,10 @@ impl Conversation<ExplorerBag> for MoveToPlanetConversation<WaitingIncomingRespo
         //Wrong message, closing Conversation
         let error_state = ErrorState::new(Box::new(CommonErrorTypes::WrongMessage), self.id);
         Some(Box::new(error_state))
+    }
+
+    fn get_priority(&self) -> i32 {
+        4
     }
 }
 

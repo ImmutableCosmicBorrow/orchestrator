@@ -17,7 +17,15 @@ impl SendingBagContentRequest {
     }
 }
 
-struct WaitingBagContentResponse;
+struct WaitingBagContentResponse {
+    explorer_id: ID,
+}
+
+impl WaitingBagContentResponse {
+    fn new(explorer_id: ID) -> Self {
+        Self { explorer_id }
+    }
+}
 
 struct BagContentConversation<State> {
     id: ID,
@@ -28,6 +36,10 @@ struct BagContentConversation<State> {
 impl Conversation<ExplorerBag> for BagContentConversation<SendingBagContentRequest> {
     fn get_id(&self) -> ID {
         self.id
+    }
+
+    fn get_entity_id(&self) -> ID {
+        self.state.to_explorer_struct.explorer_id
     }
 
     fn get_expected_kind(&self) -> Option<PossibleExpectedKinds> {
@@ -44,7 +56,9 @@ impl Conversation<ExplorerBag> for BagContentConversation<SendingBagContentReque
             .to_explorer(OrchestratorToExplorer::BagContentRequest)
         {
             Ok(()) => {
-                let next_state = BagContentConversation::<WaitingBagContentResponse>::new(self.id);
+                let explorer_id = self.state.to_explorer_struct.explorer_id;
+                let next_state =
+                    BagContentConversation::<WaitingBagContentResponse>::new(self.id, explorer_id);
                 Some(Box::new(next_state))
             }
             Err(err) => {
@@ -61,6 +75,10 @@ impl Conversation<ExplorerBag> for BagContentConversation<SendingBagContentReque
             }
         }
     }
+
+    fn get_priority(&self) -> i32 {
+        3
+    }
 }
 
 impl BagContentConversation<SendingBagContentRequest> {
@@ -76,6 +94,10 @@ impl BagContentConversation<SendingBagContentRequest> {
 impl Conversation<ExplorerBag> for BagContentConversation<WaitingBagContentResponse> {
     fn get_id(&self) -> ID {
         self.id
+    }
+
+    fn get_entity_id(&self) -> ID {
+        self.state.explorer_id
     }
 
     fn get_expected_kind(&self) -> Option<PossibleExpectedKinds> {
@@ -100,16 +122,20 @@ impl Conversation<ExplorerBag> for BagContentConversation<WaitingBagContentRespo
         let error_state = ErrorState::new(Box::new(CommonErrorTypes::WrongMessage), self.id);
         Some(Box::new(error_state))
     }
+
+    fn get_priority(&self) -> i32 {
+        3
+    }
 }
 
 impl BagContentConversation<WaitingBagContentResponse> {
-    fn new(id: ID) -> Self {
+    fn new(id: ID, explorer_id: ID) -> Self {
         Self {
             id,
             expected_message: Some(PossibleExpectedKinds::ExplorerToOrchKind(
                 ExplorerToOrchestratorKind::BagContentResponse,
             )),
-            state: WaitingBagContentResponse,
+            state: WaitingBagContentResponse::new(explorer_id),
         }
     }
 }

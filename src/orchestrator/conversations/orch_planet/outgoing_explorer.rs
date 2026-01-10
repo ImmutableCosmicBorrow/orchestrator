@@ -43,12 +43,14 @@ impl SendingOutgoingRequest {
 }
 
 struct WaitingOutgoingResponse {
+    planet_id: ID,
     kill_explorers_manager: Box<KillExplorersManager>,
 }
 
 impl WaitingOutgoingResponse {
-    fn new(kill_explorers_manager: Box<KillExplorersManager>) -> Self {
+    fn new(planet_id: ID, kill_explorers_manager: Box<KillExplorersManager>) -> Self {
         Self {
+            planet_id,
             kill_explorers_manager,
         }
     }
@@ -63,6 +65,10 @@ pub(crate) struct OutgoingExplorer<State> {
 impl Conversation<ExplorerBag> for OutgoingExplorer<SendingOutgoingRequest> {
     fn get_id(&self) -> ID {
         self.id
+    }
+
+    fn get_entity_id(&self) -> ID {
+        self.state.to_planet_struct.planet_id
     }
 
     fn get_expected_kind(&self) -> Option<PossibleExpectedKinds> {
@@ -80,7 +86,9 @@ impl Conversation<ExplorerBag> for OutgoingExplorer<SendingOutgoingRequest> {
                 explorer_id: self.state.outgoing_explorer_id,
             }) {
             Ok(()) => {
-                let state_struct = WaitingOutgoingResponse::new(self.state.kill_explorers_manager);
+                let planet_id = self.state.to_planet_struct.planet_id;
+                let state_struct =
+                    WaitingOutgoingResponse::new(planet_id, self.state.kill_explorers_manager);
                 let next_state =
                     OutgoingExplorer::<WaitingOutgoingResponse>::new(self.id, state_struct);
                 Some(Box::new(next_state))
@@ -97,6 +105,10 @@ impl Conversation<ExplorerBag> for OutgoingExplorer<SendingOutgoingRequest> {
             }
         }
     }
+
+    fn get_priority(&self) -> i32 {
+        4
+    }
 }
 
 impl OutgoingExplorer<SendingOutgoingRequest> {
@@ -112,6 +124,10 @@ impl OutgoingExplorer<SendingOutgoingRequest> {
 impl Conversation<ExplorerBag> for OutgoingExplorer<WaitingOutgoingResponse> {
     fn get_id(&self) -> ID {
         self.id
+    }
+
+    fn get_entity_id(&self) -> ID {
+        self.state.planet_id
     }
 
     fn get_expected_kind(&self) -> Option<PossibleExpectedKinds> {
@@ -147,6 +163,10 @@ impl Conversation<ExplorerBag> for OutgoingExplorer<WaitingOutgoingResponse> {
 
         //Wrong Message, close conversation
         Some(self.state.kill_explorers_manager)
+    }
+
+    fn get_priority(&self) -> i32 {
+        4
     }
 }
 

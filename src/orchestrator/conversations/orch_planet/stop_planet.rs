@@ -9,7 +9,15 @@ use common_game::protocols::orchestrator_planet::{
 };
 use common_game::utils::ID;
 
-struct WaitingPlanetStopResult;
+struct WaitingPlanetStopResult {
+    planet_id: ID,
+}
+
+impl WaitingPlanetStopResult {
+    fn new(planet_id: ID) -> Self {
+        Self { planet_id }
+    }
+}
 struct SendingPlanetStop {
     to_planet_struct: ToPlanetStruct,
 }
@@ -31,6 +39,10 @@ impl Conversation<ExplorerBag> for StopPlanetConversation<SendingPlanetStop> {
         self.id
     }
 
+    fn get_entity_id(&self) -> ID {
+        self.state.to_planet_struct.planet_id
+    }
+
     fn get_expected_kind(&self) -> Option<PossibleExpectedKinds> {
         self.expected_message.clone()
     }
@@ -45,7 +57,9 @@ impl Conversation<ExplorerBag> for StopPlanetConversation<SendingPlanetStop> {
             .to_planet(OrchestratorToPlanet::StopPlanetAI)
         {
             Ok(()) => {
-                let next_state = StopPlanetConversation::<WaitingPlanetStopResult>::new(self.id);
+                let planet_id = self.state.to_planet_struct.planet_id;
+                let next_state =
+                    StopPlanetConversation::<WaitingPlanetStopResult>::new(self.id, planet_id);
                 Some(Box::new(next_state))
             }
             Err(err) => {
@@ -59,6 +73,10 @@ impl Conversation<ExplorerBag> for StopPlanetConversation<SendingPlanetStop> {
                 Some(Box::new(error_state))
             }
         }
+    }
+
+    fn get_priority(&self) -> i32 {
+        5
     }
 }
 
@@ -75,6 +93,10 @@ impl StopPlanetConversation<SendingPlanetStop> {
 impl Conversation<ExplorerBag> for StopPlanetConversation<WaitingPlanetStopResult> {
     fn get_id(&self) -> ID {
         self.id
+    }
+
+    fn get_entity_id(&self) -> ID {
+        self.state.planet_id
     }
 
     fn get_expected_kind(&self) -> Option<PossibleExpectedKinds> {
@@ -97,16 +119,20 @@ impl Conversation<ExplorerBag> for StopPlanetConversation<WaitingPlanetStopResul
         let error_state = ErrorState::new(Box::new(CommonErrorTypes::WrongMessage), self.id);
         Some(Box::new(error_state))
     }
+
+    fn get_priority(&self) -> i32 {
+        5
+    }
 }
 
 impl StopPlanetConversation<WaitingPlanetStopResult> {
-    pub(crate) fn new(id: ID) -> Self {
+    fn new(id: ID, planet_id: ID) -> Self {
         Self {
             id,
             expected_message: Some(PlanetToOrchKind(
                 PlanetToOrchestratorKind::StopPlanetAIResult,
             )),
-            state: WaitingPlanetStopResult,
+            state: WaitingPlanetStopResult::new(planet_id),
         }
     }
 }

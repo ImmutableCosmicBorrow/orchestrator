@@ -17,7 +17,15 @@ impl SendingSupportedCombinationRequest {
     }
 }
 
-struct WaitingSupportedCombinationResult;
+struct WaitingSupportedCombinationResult {
+    explorer_id: ID,
+}
+
+impl WaitingSupportedCombinationResult {
+    fn new(explorer_id: ID) -> Self {
+        Self { explorer_id }
+    }
+}
 
 struct SupportedCombinationConversation<State> {
     id: ID,
@@ -30,6 +38,10 @@ impl Conversation<ExplorerBag>
 {
     fn get_id(&self) -> ID {
         self.id
+    }
+
+    fn get_entity_id(&self) -> ID {
+        self.state.to_explorer_struct.explorer_id
     }
 
     fn get_expected_kind(&self) -> Option<PossibleExpectedKinds> {
@@ -46,9 +58,10 @@ impl Conversation<ExplorerBag>
             .to_explorer(OrchestratorToExplorer::SupportedCombinationRequest)
         {
             Ok(()) => {
+                let explorer_id = self.state.to_explorer_struct.explorer_id;
                 let next_state = SupportedCombinationConversation::<
                     WaitingSupportedCombinationResult,
-                >::new(self.id);
+                >::new(self.id, explorer_id);
                 Some(Box::new(next_state))
             }
             Err(err) => {
@@ -64,6 +77,10 @@ impl Conversation<ExplorerBag>
                 Some(Box::new(error_state))
             }
         }
+    }
+
+    fn get_priority(&self) -> i32 {
+        2
     }
 }
 
@@ -82,6 +99,10 @@ impl Conversation<ExplorerBag>
 {
     fn get_id(&self) -> ID {
         self.id
+    }
+
+    fn get_entity_id(&self) -> ID {
+        self.state.explorer_id
     }
 
     fn get_expected_kind(&self) -> Option<PossibleExpectedKinds> {
@@ -109,16 +130,20 @@ impl Conversation<ExplorerBag>
         let error_state = ErrorState::new(Box::new(CommonErrorTypes::WrongMessage), self.id);
         Some(Box::new(error_state))
     }
+
+    fn get_priority(&self) -> i32 {
+        2
+    }
 }
 
 impl SupportedCombinationConversation<WaitingSupportedCombinationResult> {
-    fn new(id: ID) -> Self {
+    fn new(id: ID, explorer_id: ID) -> Self {
         Self {
             id,
             expected_message: Some(PossibleExpectedKinds::ExplorerToOrchKind(
                 ExplorerToOrchestratorKind::SupportedCombinationResult,
             )),
-            state: WaitingSupportedCombinationResult,
+            state: WaitingSupportedCombinationResult::new(explorer_id),
         }
     }
 }

@@ -10,6 +10,7 @@ use common_game::protocols::orchestrator_planet::{OrchestratorToPlanet, PlanetTo
 use common_game::utils::ID;
 
 struct WaitingPlanetKillResult {
+    planet_id: ID,
     explorers_location_ref: ExplorersLocationRef,
     explorers_senders: SendersToExplorer,
     planet_senders: SendersToPlanet,
@@ -17,11 +18,13 @@ struct WaitingPlanetKillResult {
 
 impl WaitingPlanetKillResult {
     fn new(
+        planet_id: ID,
         explorers_location_ref: ExplorersLocationRef,
         explorers_senders: SendersToExplorer,
         planet_senders: SendersToPlanet,
     ) -> Self {
         Self {
+            planet_id,
             explorers_location_ref,
             explorers_senders,
             planet_senders,
@@ -59,6 +62,10 @@ impl Conversation<ExplorerBag> for KillPlanetConversation<SendPlanetKill> {
         self.id
     }
 
+    fn get_entity_id(&self) -> ID {
+        self.state.to_planet_struct.planet_id
+    }
+
     fn get_expected_kind(&self) -> Option<PossibleExpectedKinds> {
         self.expected_message.clone()
     }
@@ -73,7 +80,9 @@ impl Conversation<ExplorerBag> for KillPlanetConversation<SendPlanetKill> {
             .to_planet(OrchestratorToPlanet::KillPlanet)
         {
             Ok(()) => {
+                let planet_id = self.state.to_planet_struct.planet_id;
                 let state_struct = WaitingPlanetKillResult::new(
+                    planet_id,
                     self.state.explorers_location_ref,
                     self.state.explorers_senders,
                     self.state.to_planet_struct.planets_senders,
@@ -94,6 +103,10 @@ impl Conversation<ExplorerBag> for KillPlanetConversation<SendPlanetKill> {
             }
         }
     }
+
+    fn get_priority(&self) -> i32 {
+        5
+    }
 }
 
 impl KillPlanetConversation<SendPlanetKill> {
@@ -109,6 +122,10 @@ impl KillPlanetConversation<SendPlanetKill> {
 impl Conversation<ExplorerBag> for KillPlanetConversation<WaitingPlanetKillResult> {
     fn get_id(&self) -> ID {
         self.id
+    }
+
+    fn get_entity_id(&self) -> ID {
+        self.state.planet_id
     }
 
     fn get_expected_kind(&self) -> Option<PossibleExpectedKinds> {
@@ -138,6 +155,10 @@ impl Conversation<ExplorerBag> for KillPlanetConversation<WaitingPlanetKillResul
         //Wrong Message, close conversation
         let error_state = ErrorState::new(Box::new(CommonErrorTypes::WrongMessage), self.id);
         Some(Box::new(error_state))
+    }
+
+    fn get_priority(&self) -> i32 {
+        5
     }
 }
 

@@ -8,7 +8,15 @@ use common_game::protocols::orchestrator_planet::PlanetToOrchestratorKind::Start
 use common_game::protocols::orchestrator_planet::{OrchestratorToPlanet, PlanetToOrchestrator};
 use common_game::utils::ID;
 
-struct WaitingPlanetStartResult;
+struct WaitingPlanetStartResult {
+    planet_id: ID,
+}
+
+impl WaitingPlanetStartResult {
+    fn new(planet_id: ID) -> Self {
+        Self { planet_id }
+    }
+}
 struct SendingPlanetStart {
     to_planet_struct: ToPlanetStruct,
 }
@@ -29,6 +37,10 @@ impl Conversation<ExplorerBag> for StartPlanetConversation<SendingPlanetStart> {
         self.id
     }
 
+    fn get_entity_id(&self) -> ID {
+        self.state.to_planet_struct.planet_id
+    }
+
     fn get_expected_kind(&self) -> Option<PossibleExpectedKinds> {
         self.expected_message.clone()
     }
@@ -43,7 +55,9 @@ impl Conversation<ExplorerBag> for StartPlanetConversation<SendingPlanetStart> {
             .to_planet(OrchestratorToPlanet::StartPlanetAI)
         {
             Ok(()) => {
-                let next_state = StartPlanetConversation::<WaitingPlanetStartResult>::new(self.id);
+                let planet_id = self.state.to_planet_struct.planet_id;
+                let next_state =
+                    StartPlanetConversation::<WaitingPlanetStartResult>::new(self.id, planet_id);
                 Some(Box::new(next_state))
             }
             Err(err) => {
@@ -57,6 +71,10 @@ impl Conversation<ExplorerBag> for StartPlanetConversation<SendingPlanetStart> {
                 Some(Box::new(error_state))
             }
         }
+    }
+
+    fn get_priority(&self) -> i32 {
+        5
     }
 }
 
@@ -73,6 +91,10 @@ impl StartPlanetConversation<SendingPlanetStart> {
 impl Conversation<ExplorerBag> for StartPlanetConversation<WaitingPlanetStartResult> {
     fn get_id(&self) -> ID {
         self.id
+    }
+
+    fn get_entity_id(&self) -> ID {
+        self.state.planet_id
     }
 
     fn get_expected_kind(&self) -> Option<PossibleExpectedKinds> {
@@ -95,14 +117,18 @@ impl Conversation<ExplorerBag> for StartPlanetConversation<WaitingPlanetStartRes
         let error_state = ErrorState::new(Box::new(CommonErrorTypes::WrongMessage), self.id);
         Some(Box::new(error_state))
     }
+
+    fn get_priority(&self) -> i32 {
+        5
+    }
 }
 
 impl StartPlanetConversation<WaitingPlanetStartResult> {
-    pub(crate) fn new(id: ID) -> Self {
+    fn new(id: ID, planet_id: ID) -> Self {
         Self {
             id,
             expected_message: Some(PlanetToOrchKind(StartPlanetAIResult)),
-            state: WaitingPlanetStartResult,
+            state: WaitingPlanetStartResult::new(planet_id),
         }
     }
 }

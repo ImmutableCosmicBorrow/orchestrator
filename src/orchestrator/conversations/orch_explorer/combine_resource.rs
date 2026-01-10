@@ -37,12 +37,16 @@ impl SendingCombineResourceRequest {
 }
 
 struct WaitingCombineResourceResult {
+    explorer_id: ID,
     to_craft: ComplexResourceType,
 }
 
 impl WaitingCombineResourceResult {
-    fn new(to_craft: ComplexResourceType) -> Self {
-        Self { to_craft }
+    fn new(explorer_id: ID, to_craft: ComplexResourceType) -> Self {
+        Self {
+            explorer_id,
+            to_craft,
+        }
     }
 }
 
@@ -55,6 +59,10 @@ struct CombineResourceConversation<State> {
 impl Conversation<ExplorerBag> for CombineResourceConversation<SendingCombineResourceRequest> {
     fn get_id(&self) -> ID {
         self.id
+    }
+
+    fn get_entity_id(&self) -> ID {
+        self.state.to_explorer_struct.explorer_id
     }
 
     fn get_expected_kind(&self) -> Option<PossibleExpectedKinds> {
@@ -71,7 +79,9 @@ impl Conversation<ExplorerBag> for CombineResourceConversation<SendingCombineRes
             },
         ) {
             Ok(()) => {
-                let state_struct = WaitingCombineResourceResult::new(self.state.to_craft);
+                let explorer_id = self.state.to_explorer_struct.explorer_id;
+                let state_struct =
+                    WaitingCombineResourceResult::new(explorer_id, self.state.to_craft);
                 let next_state = CombineResourceConversation::<WaitingCombineResourceResult>::new(
                     self.id,
                     state_struct,
@@ -92,6 +102,10 @@ impl Conversation<ExplorerBag> for CombineResourceConversation<SendingCombineRes
             }
         }
     }
+
+    fn get_priority(&self) -> i32 {
+        2
+    }
 }
 
 impl CombineResourceConversation<SendingCombineResourceRequest> {
@@ -107,6 +121,10 @@ impl CombineResourceConversation<SendingCombineResourceRequest> {
 impl Conversation<ExplorerBag> for CombineResourceConversation<WaitingCombineResourceResult> {
     fn get_id(&self) -> ID {
         self.id
+    }
+
+    fn get_entity_id(&self) -> ID {
+        self.state.explorer_id
     }
 
     fn get_expected_kind(&self) -> Option<PossibleExpectedKinds> {
@@ -147,6 +165,10 @@ impl Conversation<ExplorerBag> for CombineResourceConversation<WaitingCombineRes
         //Wrong Message, close conversation
         let error_state = ErrorState::new(Box::new(CommonErrorTypes::WrongMessage), self.id);
         Some(Box::new(error_state))
+    }
+
+    fn get_priority(&self) -> i32 {
+        2
     }
 }
 

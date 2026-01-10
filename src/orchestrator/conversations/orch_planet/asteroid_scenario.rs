@@ -95,6 +95,10 @@ impl Conversation<ExplorerBag> for AsteroidConversation<SendingAsteroid> {
         self.id
     }
 
+    fn get_entity_id(&self) -> ID {
+        self.state.to_planet_struct.planet_id
+    }
+
     fn get_expected_kind(&self) -> Option<PossibleExpectedKinds> {
         self.expected_message.clone()
     }
@@ -140,6 +144,10 @@ impl Conversation<ExplorerBag> for AsteroidConversation<SendingAsteroid> {
             }
         }
     }
+
+    fn get_priority(&self) -> i32 {
+        4
+    }
 }
 
 impl AsteroidConversation<SendingAsteroid> {
@@ -156,6 +164,10 @@ impl AsteroidConversation<SendingAsteroid> {
 impl Conversation<ExplorerBag> for AsteroidConversation<WaitingAsteroidAck> {
     fn get_id(&self) -> ID {
         self.id
+    }
+
+    fn get_entity_id(&self) -> ID {
+        self.state.to_planet_struct.planet_id
     }
 
     fn get_expected_kind(&self) -> Option<PossibleExpectedKinds> {
@@ -202,6 +214,10 @@ impl Conversation<ExplorerBag> for AsteroidConversation<WaitingAsteroidAck> {
 
         let error_state = ErrorState::new(Box::new(CommonErrorTypes::WrongMessage), self.id);
         Some(Box::new(error_state))
+    }
+
+    fn get_priority(&self) -> i32 {
+        4
     }
 }
 

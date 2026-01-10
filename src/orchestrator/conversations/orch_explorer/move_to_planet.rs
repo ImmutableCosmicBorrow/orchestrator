@@ -77,6 +77,7 @@ impl WaitingOutgoingResponse {
 }
 
 pub(crate) struct WaitMoveToPlanetResponse {
+    explorer_id: ID,
     explorers_location_ref: ExplorersLocationRef,
     is_explorer_moving: bool,
     dst_planet_id: ID,
@@ -86,8 +87,10 @@ impl WaitMoveToPlanetResponse {
         explorers_location_ref: ExplorersLocationRef,
         is_explorer_moving: bool,
         dst_planet_id: ID,
+        explorer_id: ID,
     ) -> Self {
         Self {
+            explorer_id,
             explorers_location_ref,
             is_explorer_moving,
             dst_planet_id,

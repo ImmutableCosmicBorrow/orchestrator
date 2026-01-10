@@ -37,12 +37,16 @@ impl SendingCraftResourceRequest {
 }
 
 struct WaitingCraftResourceResult {
+    explorer_id: ID,
     to_craft: BasicResourceType,
 }
 
 impl WaitingCraftResourceResult {
-    fn new(to_craft: BasicResourceType) -> Self {
-        Self { to_craft }
+    fn new(explorer_id: ID, to_craft: BasicResourceType) -> Self {
+        Self {
+            explorer_id,
+            to_craft,
+        }
     }
 }
 
@@ -55,6 +59,10 @@ struct CraftResourceConversation<State> {
 impl Conversation<ExplorerBag> for CraftResourceConversation<SendingCraftResourceRequest> {
     fn get_id(&self) -> ID {
         self.id
+    }
+
+    fn get_entity_id(&self) -> ID {
+        self.state.to_explorer_struct.explorer_id
     }
 
     fn get_expected_kind(&self) -> Option<PossibleExpectedKinds> {
@@ -71,7 +79,9 @@ impl Conversation<ExplorerBag> for CraftResourceConversation<SendingCraftResourc
             },
         ) {
             Ok(()) => {
-                let state_struct = WaitingCraftResourceResult::new(self.state.to_craft);
+                let explorer_id = self.state.to_explorer_struct.explorer_id;
+                let state_struct =
+                    WaitingCraftResourceResult::new(explorer_id, self.state.to_craft);
                 let next_state = CraftResourceConversation::<WaitingCraftResourceResult>::new(
                     self.id,
                     state_struct,
@@ -92,6 +102,10 @@ impl Conversation<ExplorerBag> for CraftResourceConversation<SendingCraftResourc
             }
         }
     }
+
+    fn get_priority(&self) -> i32 {
+        2
+    }
 }
 
 impl CraftResourceConversation<SendingCraftResourceRequest> {
@@ -107,6 +121,10 @@ impl CraftResourceConversation<SendingCraftResourceRequest> {
 impl Conversation<ExplorerBag> for CraftResourceConversation<WaitingCraftResourceResult> {
     fn get_id(&self) -> ID {
         self.id
+    }
+
+    fn get_entity_id(&self) -> ID {
+        self.state.explorer_id
     }
 
     fn get_expected_kind(&self) -> Option<PossibleExpectedKinds> {
@@ -144,6 +162,10 @@ impl Conversation<ExplorerBag> for CraftResourceConversation<WaitingCraftResourc
         //Wrong Message, close conversation
         let error_state = ErrorState::new(Box::new(CommonErrorTypes::WrongMessage), self.id);
         Some(Box::new(error_state))
+    }
+
+    fn get_priority(&self) -> i32 {
+        2
     }
 }
 

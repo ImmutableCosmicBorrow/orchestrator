@@ -17,6 +17,10 @@ impl Conversation<ExplorerBag> for MoveToPlanetConversation<WaitMoveToPlanetResp
         self.id
     }
 
+    fn get_entity_id(&self) -> ID {
+        self.state.explorer_id
+    }
+
     fn get_expected_kind(&self) -> Option<PossibleExpectedKinds> {
         self.expected_message.clone()
     }
@@ -26,20 +30,17 @@ impl Conversation<ExplorerBag> for MoveToPlanetConversation<WaitMoveToPlanetResp
         msg_wrapped: Option<PossibleMessage<ExplorerBag>>,
     ) -> Option<Box<dyn Conversation<ExplorerBag> + Send + Sync>> {
         if let Some(PossibleMessage::ExplorerToOrch(
-            ExplorerToOrchestrator::MovedToPlanetResult { explorer_id },
+            ExplorerToOrchestrator::MovedToPlanetResult {
+                explorer_id,
+                planet_id,
+            },
         )) = msg_wrapped
         {
             if self.state.is_explorer_moving {
-                println!(
-                    "Explorer {explorer_id} moved correctly to planet {}",
-                    self.state.dst_planet_id
-                );
-                return match self.move_explorer_location(explorer_id, self.state.dst_planet_id) {
+                println!("Explorer {explorer_id} moved correctly to planet {planet_id}");
+                return match self.move_explorer_location(explorer_id, planet_id) {
                     Ok(()) => {
-                        println!(
-                            "Changed Explorer Location in list to planet {}",
-                            self.state.dst_planet_id
-                        );
+                        println!("Changed Explorer Location in list to planet {planet_id}");
                         None
                     }
                     Err(e) => {
@@ -57,6 +58,10 @@ impl Conversation<ExplorerBag> for MoveToPlanetConversation<WaitMoveToPlanetResp
         //Wrong message, closing Conversation
         let error_state = ErrorState::new(Box::new(CommonErrorTypes::WrongMessage), self.id);
         Some(Box::new(error_state))
+    }
+
+    fn get_priority(&self) -> i32 {
+        4
     }
 }
 

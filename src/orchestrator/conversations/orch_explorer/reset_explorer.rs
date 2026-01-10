@@ -17,7 +17,15 @@ impl SendingExplorerReset {
     }
 }
 
-struct WaitingExplorerResetResult;
+struct WaitingExplorerResetResult {
+    explorer_id: ID,
+}
+
+impl WaitingExplorerResetResult {
+    fn new(explorer_id: ID) -> Self {
+        Self { explorer_id }
+    }
+}
 
 struct ResetExplorerConversation<State> {
     id: ID,
@@ -28,6 +36,10 @@ struct ResetExplorerConversation<State> {
 impl Conversation<ExplorerBag> for ResetExplorerConversation<SendingExplorerReset> {
     fn get_id(&self) -> ID {
         self.id
+    }
+
+    fn get_entity_id(&self) -> ID {
+        self.state.to_explorer_struct.explorer_id
     }
 
     fn get_expected_kind(&self) -> Option<PossibleExpectedKinds> {
@@ -44,8 +56,11 @@ impl Conversation<ExplorerBag> for ResetExplorerConversation<SendingExplorerRese
             .to_explorer(OrchestratorToExplorer::ResetExplorerAI)
         {
             Ok(()) => {
-                let next_state =
-                    ResetExplorerConversation::<WaitingExplorerResetResult>::new(self.id);
+                let explorer_id = self.state.to_explorer_struct.explorer_id;
+                let next_state = ResetExplorerConversation::<WaitingExplorerResetResult>::new(
+                    self.id,
+                    explorer_id,
+                );
                 Some(Box::new(next_state))
             }
             Err(err) => {
@@ -62,6 +77,10 @@ impl Conversation<ExplorerBag> for ResetExplorerConversation<SendingExplorerRese
             }
         }
     }
+
+    fn get_priority(&self) -> i32 {
+        5
+    }
 }
 
 impl ResetExplorerConversation<SendingExplorerReset> {
@@ -77,6 +96,10 @@ impl ResetExplorerConversation<SendingExplorerReset> {
 impl Conversation<ExplorerBag> for ResetExplorerConversation<WaitingExplorerResetResult> {
     fn get_id(&self) -> ID {
         self.id
+    }
+
+    fn get_entity_id(&self) -> ID {
+        self.state.explorer_id
     }
 
     fn get_expected_kind(&self) -> Option<PossibleExpectedKinds> {
@@ -99,16 +122,20 @@ impl Conversation<ExplorerBag> for ResetExplorerConversation<WaitingExplorerRese
         let error_state = ErrorState::new(Box::new(CommonErrorTypes::WrongMessage), self.id);
         Some(Box::new(error_state))
     }
+
+    fn get_priority(&self) -> i32 {
+        5
+    }
 }
 
 impl ResetExplorerConversation<WaitingExplorerResetResult> {
-    fn new(id: ID) -> Self {
+    fn new(id: ID, explorer_id: ID) -> Self {
         Self {
             id,
             expected_message: Some(PossibleExpectedKinds::ExplorerToOrchKind(
                 ExplorerToOrchestratorKind::ResetExplorerAIResult,
             )),
-            state: WaitingExplorerResetResult,
+            state: WaitingExplorerResetResult::new(explorer_id),
         }
     }
 }

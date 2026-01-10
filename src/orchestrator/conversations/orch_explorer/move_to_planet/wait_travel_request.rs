@@ -23,6 +23,10 @@ impl Conversation<ExplorerBag> for MoveToPlanetConversation<WaitingTravelRequest
         self.id
     }
 
+    fn get_entity_id(&self) -> ID {
+        self.state.explorer_struct.explorer_id
+    }
+
     fn get_expected_kind(&self) -> Option<PossibleExpectedKinds> {
         self.expected_message.clone()
     }
@@ -89,12 +93,15 @@ impl Conversation<ExplorerBag> for MoveToPlanetConversation<WaitingTravelRequest
             //Tries to send a MoveToPlanet {none} to the explorer as he cannot move, or goes in error
             return match self.state.explorer_struct.to_explorer(MoveToPlanet {
                 sender_to_new_planet: None,
+                planet_id: self.state.dst_planet_struct.planet_id,
             }) {
                 Ok(()) => {
+                    let explorer_id = self.state.explorer_struct.explorer_id;
                     let state_struct = WaitMoveToPlanetResponse::new(
                         self.state.explorers_location_ref,
                         false,
                         self.state.dst_planet_struct.planet_id,
+                        explorer_id,
                     );
                     let next_state = MoveToPlanetConversation::<WaitMoveToPlanetResponse>::new(
                         self.id,
@@ -119,6 +126,10 @@ impl Conversation<ExplorerBag> for MoveToPlanetConversation<WaitingTravelRequest
         //Wrong Message, close conversation
         let error_state = ErrorState::new(Box::new(CommonErrorTypes::WrongMessage), self.id);
         Some(Box::new(error_state))
+    }
+
+    fn get_priority(&self) -> i32 {
+        4
     }
 }
 

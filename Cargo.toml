@@ -4,8 +4,10 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-common-game = { git = "https://github.com/unitn-ap-2025/common" }
+common-game = { git = "https://github.com/unitn-ap-2025/common"}
 immutable_cosmic_borrow = { git = "https://github.com/ImmutableCosmicBorrow/planet", rev = "43032f40d6e22e08cc11b238f4ff1520f68a0b6e" }
 crossbeam-channel = "0.5.15"
 log = "0.4.29"
 strum = "0.27.2"
+priority-queue = "2.7.0"
+rayon = "1.10"
