@@ -66,7 +66,7 @@ struct SupportedCombinationConversation<State> {
 
 // SENDING SUPPORTED COMBINATION REQUEST IMPLEMENTATION
 impl Conversation<ExplorerBag>
-for SupportedCombinationConversation<SendingSupportedCombinationRequest>
+    for SupportedCombinationConversation<SendingSupportedCombinationRequest>
 {
     fn get_id(&self) -> ID {
         self.id
@@ -138,7 +138,7 @@ impl SupportedCombinationConversation<SendingSupportedCombinationRequest> {
 
 // WAITING SUPPORTED COMBINATION RESULT IMPLEMENTATION
 impl Conversation<ExplorerBag>
-for SupportedCombinationConversation<WaitingSupportedCombinationResult>
+    for SupportedCombinationConversation<WaitingSupportedCombinationResult>
 {
     fn get_id(&self) -> ID {
         self.id
@@ -164,11 +164,11 @@ for SupportedCombinationConversation<WaitingSupportedCombinationResult>
         msg_wrapped: Option<PossibleMessage<ExplorerBag>>,
     ) -> Option<Box<dyn Conversation<ExplorerBag> + Send + Sync>> {
         if let Some(PossibleMessage::ExplorerToOrch(
-                        ExplorerToOrchestrator::SupportedCombinationResult {
-                            explorer_id,
-                            combination_list,
-                        },
-                    )) = msg_wrapped
+            ExplorerToOrchestrator::SupportedCombinationResult {
+                explorer_id,
+                combination_list,
+            },
+        )) = msg_wrapped
         {
             println!(
                 "Supported combinations in explorer {explorer_id} current planet: {combination_list:?}"

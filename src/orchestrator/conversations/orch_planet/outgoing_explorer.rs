@@ -194,12 +194,12 @@ impl Conversation<ExplorerBag> for OutgoingExplorer<WaitingOutgoingResponse> {
         msg_wrapped: Option<PossibleMessage<ExplorerBag>>,
     ) -> Option<Box<dyn Conversation<ExplorerBag> + Send + Sync>> {
         if let Some(PossibleMessage::PlanetToOrch(
-                        PlanetToOrchestrator::OutgoingExplorerResponse {
-                            planet_id,
-                            explorer_id,
-                            res,
-                        },
-                    )) = msg_wrapped
+            PlanetToOrchestrator::OutgoingExplorerResponse {
+                planet_id,
+                explorer_id,
+                res,
+            },
+        )) = msg_wrapped
         {
             return if res.is_ok() {
                 println!(

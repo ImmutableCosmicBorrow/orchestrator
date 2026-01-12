@@ -12,13 +12,33 @@ use common_game::protocols::orchestrator_explorer::{
 };
 use common_game::utils::ID;
 
+///**Kill Explorer Conversation**
+///
+/// This module manages the termination of an Explorer.
+/// It uses a Finite State Machine (FSM) to send the kill command to the explorer and wait
+/// for confirmation.
+///
+/// Depending on the `handle_outgoing` flag, it can subsequently transition to an
+/// [`OutgoingExplorer`] conversation to notify the planet that the explorer has left/died,
+/// or return directly to the [`KillExplorersManager`] to finish the killing of other explorers.
+///
+/// Marker struct for FSM state
+///
+/// The conversation starts in the [`SendingKillExplorer`] state, which sends an
+/// [`OrchestratorToExplorer::KillExplorer`] request when the [`Conversation::transition`] method is called.
 pub(crate) struct SendingKillExplorer {
+    /// A struct containing fields to send messages to the specific explorer
     to_explorer_struct: ToExplorerStruct,
+    /// A struct containing fields to send messages to the planet (for the outgoing notification phase)
     to_planet_struct: ToPlanetStruct,
+    /// Flag indicating if the conversation should proceed to handle the outgoing explorer notification
     handle_outgoing: bool,
+    /// The manager to return to once the termination sequence is complete
     manager: Box<KillExplorersManager>,
 }
+
 impl SendingKillExplorer {
+    /// Constructor for [`SendingKillExplorer`] state struct
     pub(crate) fn new(
         to_explorer_struct: ToExplorerStruct,
         to_planet_struct: ToPlanetStruct,
@@ -34,14 +54,23 @@ impl SendingKillExplorer {
     }
 }
 
+/// Marker struct for FSM state
+///
+/// In the [`WaitingKillExplorerResult`] state, the conversation expects an
+/// [`ExplorerToOrchestrator::KillExplorerResult`] message to confirm the explorer has been successfully terminated.
 struct WaitingKillExplorerResult {
+    /// ID of the explorer being terminated
     explorer_id: ID,
+    /// A struct containing fields to send messages to the planet
     to_planet_struct: ToPlanetStruct,
+    /// Flag indicating if the outgoing notification phase is required
     handle_outgoing: bool,
+    /// The manager to return to after completion
     manager: Box<KillExplorersManager>,
 }
 
 impl WaitingKillExplorerResult {
+    /// The constructor for [`WaitingKillExplorerResult`] state struct
     fn new(
         explorer_id: ID,
         to_planet_struct: ToPlanetStruct,
@@ -57,12 +86,20 @@ impl WaitingKillExplorerResult {
     }
 }
 
+/// Kill Explorer Conversation FSM
+///
+/// This is the generic FSM struct that takes the generic type `State` to ensure only methods
+/// of that specific state can be called during the conversation.
 pub(crate) struct KillExplorerConversation<State> {
+    /// Conversation ID
     id: ID,
+    /// Optional expected message to trigger the transition
     expected_message: Option<PossibleExpectedKinds>,
+    /// State of the FSM
     state: State,
 }
 
+// SENDING KILL EXPLORER IMPLEMENTATION
 impl Conversation<ExplorerBag> for KillExplorerConversation<SendingKillExplorer> {
     fn get_id(&self) -> ID {
         self.id
@@ -76,6 +113,13 @@ impl Conversation<ExplorerBag> for KillExplorerConversation<SendingKillExplorer>
         self.expected_message.clone()
     }
 
+    /// Transition Function for [`SendingKillExplorer`] state:
+    ///
+    /// Returns:
+    ///
+    /// [`ErrorState`] if the kill command fails to send or the sender is not found.
+    ///
+    /// [`KillExplorerConversation<WaitingKillExplorerResult>`] if the request was sent successfully.
     fn transition(
         self: Box<Self>,
         _msg_wrapped: Option<PossibleMessage<ExplorerBag>>,
@@ -120,6 +164,7 @@ impl Conversation<ExplorerBag> for KillExplorerConversation<SendingKillExplorer>
 }
 
 impl KillExplorerConversation<SendingKillExplorer> {
+    /// The constructor for [`KillExplorerConversation`] in the [`SendingKillExplorer`] state
     pub(crate) fn new(id: ID, state: SendingKillExplorer) -> Self {
         Self {
             id,
@@ -129,6 +174,7 @@ impl KillExplorerConversation<SendingKillExplorer> {
     }
 }
 
+// WAITING KILL EXPLORER RESULT IMPLEMENTATION
 impl Conversation<ExplorerBag> for KillExplorerConversation<WaitingKillExplorerResult> {
     fn get_id(&self) -> ID {
         self.id
@@ -142,6 +188,13 @@ impl Conversation<ExplorerBag> for KillExplorerConversation<WaitingKillExplorerR
         self.expected_message.clone()
     }
 
+    /// Transition Function for [`WaitingKillExplorerResult`] state:
+    ///
+    /// Returns:
+    ///
+    /// [`OutgoingExplorer<SendingOutgoingRequest>`] if `handle_outgoing` is true, to notify the planet of the dead explorer.
+    ///
+    /// The original [`KillExplorersManager`] if `handle_outgoing` is false (we already took care of the dead explorer in its planet) or if an unexpected message is received.
     fn transition(
         self: Box<Self>,
         msg_wrapped: Option<PossibleMessage<ExplorerBag>>,
@@ -167,7 +220,7 @@ impl Conversation<ExplorerBag> for KillExplorerConversation<WaitingKillExplorerR
             return Some(self.state.manager);
         }
 
-        //Wrong Message, return to manager
+        // Wrong Message, return to manager as fallback
         Some(self.state.manager)
     }
 
@@ -177,6 +230,7 @@ impl Conversation<ExplorerBag> for KillExplorerConversation<WaitingKillExplorerR
 }
 
 impl KillExplorerConversation<WaitingKillExplorerResult> {
+    /// The constructor for [`KillExplorerConversation`] in the [`WaitingKillExplorerResult`] state
     fn new(id: ID, state: WaitingKillExplorerResult) -> Self {
         Self {
             id,

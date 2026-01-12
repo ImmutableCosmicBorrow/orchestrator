@@ -12,7 +12,16 @@ use common_game::protocols::orchestrator_planet::{
 };
 use common_game::utils::ID;
 
-//Waiting Incoming Response
+///**Move To Planet Conversation - Waiting Incoming Response**
+///
+/// This state represents the first critical waiting phase in an explorer's movement between planets.
+/// The Orchestrator has already requested the destination planet to "accept" the incoming explorer.
+///
+/// If the destination planet accepts (`Ok`), this state transitions the conversation to
+/// [`WaitingOutgoingResponse`] after requesting the current planet to "release" the explorer.
+/// If the destination planet rejects the explorer, the conversation terminates in an [`ErrorState`].
+
+// WAITING INCOMING RESPONSE IMPLEMENTATION
 impl Conversation<ExplorerBag> for MoveToPlanetConversation<WaitingIncomingResponse> {
     fn get_id(&self) -> ID {
         self.id
@@ -26,6 +35,20 @@ impl Conversation<ExplorerBag> for MoveToPlanetConversation<WaitingIncomingRespo
         self.expected_message.clone()
     }
 
+    /// Transition Function for [`WaitingIncomingResponse`] state:
+    ///
+    /// Returns:
+    ///
+    /// * [`MoveToPlanetConversation<WaitingOutgoingResponse>`] if the destination planet accepts
+    ///   the explorer and the release request is successfully sent to the current planet.
+    ///
+    /// * [`ErrorState`] with [`MoveToPlanetErrors::DstPlanetFailed`] if the destination planet
+    ///   rejects the acquisition.
+    ///
+    /// * [`ErrorState`] with [`MoveToPlanetErrors::OutgoingMessageFailed`] if the orchestrator
+    ///   cannot communicate with the current planet.
+    ///
+    /// * [`ErrorState`] with [`CommonErrorTypes::WrongMessage`] if an unexpected protocol message is received.
     fn transition(
         self: Box<Self>,
         msg_wrapped: Option<PossibleMessage<ExplorerBag>>,
@@ -38,7 +61,8 @@ impl Conversation<ExplorerBag> for MoveToPlanetConversation<WaitingIncomingRespo
             },
         )) = msg_wrapped
         {
-            //if the incoming response is positive, tries to send the Outgoing request, otherwise terminates in error state
+            // If the incoming response is positive, tries to send the Outgoing request,
+            // otherwise terminates in error state
             return if let Ok(()) = res {
                 match self
                     .state
@@ -71,7 +95,9 @@ impl Conversation<ExplorerBag> for MoveToPlanetConversation<WaitingIncomingRespo
                         Some(Box::new(error_state))
                     }
                 }
-            } else {
+            }
+            //Dst Planet failed to acquire new explorer
+            else {
                 let error_state = ErrorState::new(
                     Box::new(MoveToPlanetErrors::DstPlanetFailed {
                         planet_id,
@@ -82,7 +108,7 @@ impl Conversation<ExplorerBag> for MoveToPlanetConversation<WaitingIncomingRespo
                 return Some(Box::new(error_state));
             };
         }
-        //Wrong message, closing Conversation
+        // Wrong message, closing Conversation
         let error_state = ErrorState::new(Box::new(CommonErrorTypes::WrongMessage), self.id);
         Some(Box::new(error_state))
     }
@@ -93,6 +119,9 @@ impl Conversation<ExplorerBag> for MoveToPlanetConversation<WaitingIncomingRespo
 }
 
 impl MoveToPlanetConversation<WaitingIncomingResponse> {
+    /// The constructor for [`MoveToPlanetConversation`] in the [`WaitingIncomingResponse`] state.
+    ///
+    /// Automatically sets the expected message kind to [`PlanetToOrchestratorKind::IncomingExplorerResponse`].
     pub(crate) fn new(id: ID, state: WaitingIncomingResponse) -> Self {
         Self {
             id,

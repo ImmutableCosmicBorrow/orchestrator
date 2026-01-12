@@ -10,12 +10,37 @@ use common_game::protocols::orchestrator_explorer::{
 };
 use common_game::utils::ID;
 
+///**Neighbors Discovery Conversation**
+///
+/// This module manages the process of an Explorer discovering the adjacent planets (neighbors)
+/// of its current location.
+/// It uses a Finite State Machine (FSM) to ensure that the exchange of messages happens in the appropriate order
+
+/// Custom error type for when a planet ID provided by an explorer does not exist in the galaxy.
+struct PlanetNotFound(ID);
+impl ErrorType for PlanetNotFound {
+    fn stringify(&self) -> String {
+        format!(
+            "Planet {} not found in current galaxy, can't provide neighbors",
+            self.0
+        )
+    }
+}
+
+/// Marker struct for FSM state
+///
+/// In the [`WaitingExplorerNeighborsRequest`] state, the conversation waits for the explorer
+/// to send a [`ExplorerToOrchestrator::NeighborsRequest`]. It holds a reference to the [`PlanetMap`]
+/// to resolve the query.
 pub(crate) struct WaitingExplorerNeighborsRequest {
+    /// A struct containing fields to send messages to the specific explorer
     to_explorer_struct: ToExplorerStruct,
+    /// Reference to the galaxy map used to find neighboring IDs
     galaxy: PlanetMap,
 }
 
 impl WaitingExplorerNeighborsRequest {
+    /// Constructor for [`WaitingExplorerNeighborsRequest`] state struct
     pub(crate) fn new(to_explorer_struct: ToExplorerStruct, galaxy: PlanetMap) -> Self {
         Self {
             to_explorer_struct,
@@ -24,18 +49,19 @@ impl WaitingExplorerNeighborsRequest {
     }
 }
 
-struct PlanetNotFound(ID);
-impl ErrorType for PlanetNotFound {
-    fn stringify(&self) -> String {
-        format!("Planet {} not found in current galaxy", self.0)
-    }
-}
-
+/// Marker struct for FSM state
+///
+/// In the [`SendingNeighborsResponse`] state, the conversation sends the collected
+/// list of neighboring planet IDs back to the explorer via [`OrchestratorToExplorer::NeighborsResponse`].
 struct SendingNeighborsResponse {
+    /// A struct containing fields to send messages to the specific explorer
     to_explorer_struct: ToExplorerStruct,
+    /// The list of neighbor planet IDs found in the galaxy map
     neighbors: Vec<ID>,
 }
+
 impl SendingNeighborsResponse {
+    /// Constructor for [`SendingNeighborsResponse`] state struct
     fn new(to_explorer_struct: ToExplorerStruct, neighbors: Vec<ID>) -> Self {
         Self {
             to_explorer_struct,
@@ -44,12 +70,20 @@ impl SendingNeighborsResponse {
     }
 }
 
+/// Neighbors Discovery Conversation FSM
+///
+/// This is the generic FSM struct that takes the generic type `State` to ensure only methods
+/// of that specific state can be called during the conversation.
 pub(crate) struct NeighborsDiscoveryConversation<State> {
+    /// Conversation ID
     id: ID,
+    /// Optional expected message to trigger the transition
     expected_message: Option<PossibleExpectedKinds>,
+    /// State of the FSM
     state: State,
 }
 
+// SENDING NEIGHBORS RESPONSE IMPLEMENTATION
 impl Conversation<ExplorerBag> for NeighborsDiscoveryConversation<SendingNeighborsResponse> {
     fn get_id(&self) -> ID {
         self.id
@@ -63,6 +97,13 @@ impl Conversation<ExplorerBag> for NeighborsDiscoveryConversation<SendingNeighbo
         self.expected_message.clone()
     }
 
+    /// Transition Function for [`SendingNeighborsResponse`] state:
+    ///
+    /// Returns:
+    ///
+    /// [None] if the neighbor list is successfully sent to the explorer, ending the conversation.
+    ///
+    /// [`ErrorState`] if the message failed to send or the explorer's sender is missing.
     fn transition(
         self: Box<Self>,
         _msg_wrapped: Option<PossibleMessage<ExplorerBag>>,
@@ -101,6 +142,7 @@ impl Conversation<ExplorerBag> for NeighborsDiscoveryConversation<SendingNeighbo
 }
 
 impl NeighborsDiscoveryConversation<SendingNeighborsResponse> {
+    /// The constructor for [`NeighborsDiscoveryConversation`] in the [`SendingNeighborsResponse`] state
     fn new(id: ID, state: SendingNeighborsResponse) -> Self {
         Self {
             id,
@@ -110,6 +152,7 @@ impl NeighborsDiscoveryConversation<SendingNeighborsResponse> {
     }
 }
 
+// WAITING EXPLORER NEIGHBORS REQUEST IMPLEMENTATION
 impl Conversation<ExplorerBag> for NeighborsDiscoveryConversation<WaitingExplorerNeighborsRequest> {
     fn get_id(&self) -> ID {
         self.id
@@ -123,6 +166,13 @@ impl Conversation<ExplorerBag> for NeighborsDiscoveryConversation<WaitingExplore
         self.expected_message.clone()
     }
 
+    /// Transition Function for [`WaitingExplorerNeighborsRequest`] state:
+    ///
+    /// Returns:
+    ///
+    /// [`NeighborsDiscoveryConversation<SendingNeighborsResponse>`] if the request is valid and neighbors are found.
+    ///
+    /// [`ErrorState`] if the planet ID is not found in the galaxy or a wrong message type is received.
     fn transition(
         self: Box<Self>,
         msg_wrapped: Option<PossibleMessage<ExplorerBag>>,
@@ -161,6 +211,7 @@ impl Conversation<ExplorerBag> for NeighborsDiscoveryConversation<WaitingExplore
 }
 
 impl NeighborsDiscoveryConversation<WaitingExplorerNeighborsRequest> {
+    /// The constructor for [`NeighborsDiscoveryConversation`] in the [`WaitingExplorerNeighborsRequest`] state
     pub(crate) fn new(id: ID, state: WaitingExplorerNeighborsRequest) -> Self {
         Self {
             id,
@@ -171,6 +222,7 @@ impl NeighborsDiscoveryConversation<WaitingExplorerNeighborsRequest> {
         }
     }
 
+    /// Helper function to access the galaxy map and retrieve the neighbors of a specific planet.
     fn get_neighbors(
         &self,
         curr_planet_id: ID,

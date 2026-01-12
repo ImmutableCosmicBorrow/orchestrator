@@ -156,8 +156,8 @@ impl Conversation<ExplorerBag> for StopPlanetConversation<WaitingPlanetStopResul
         msg_wrapped: Option<PossibleMessage<ExplorerBag>>,
     ) -> Option<Box<dyn Conversation<ExplorerBag> + Send + Sync>> {
         if let Some(PossibleMessage::PlanetToOrch(PlanetToOrchestrator::StopPlanetAIResult {
-                                                      planet_id,
-                                                  })) = msg_wrapped
+            planet_id,
+        })) = msg_wrapped
         {
             println!("Stopped Planet: {planet_id:?}");
             return None;

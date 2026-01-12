@@ -4,9 +4,7 @@ mod conversations;
 mod queue;
 
 use crate::galaxy_setup::{PlanetMap, galaxy_loader};
-use crate::orchestrator::conversations::{
-    ExplorersBagRef, PossibleMessage, SendersToExplorer, SendersToPlanet,
-};
+use crate::orchestrator::conversations::{PossibleMessage, SendersToExplorer, SendersToPlanet};
 use crate::orchestrator::queue::ConvoScheduler;
 
 use common_game::components::forge::Forge;
@@ -39,7 +37,6 @@ pub(crate) struct Orchestrator {
     planets_receiver: Receiver<PlanetToOrchestrator>,
     explorers_receiver: Receiver<OrchestratorToExplorer>,
     forge: Forge,
-    explorer_bag: ExplorersBagRef<ExplorerBag>,
     convo_scheduler: ConvoScheduler<ExplorerBag>,
     galaxy: PlanetMap,
     planet_explorer_channels: PlanetExplorerChannels,
@@ -52,9 +49,6 @@ impl Orchestrator {
         let (explorers_receiver, explorer_senders) =
             (unbounded::<OrchestratorToExplorer>().1, HashMap::new());
         let forge = Forge::new().expect("Couldn't create forge!");
-        // TODO: Remove allow when HashMap with non zero sized values is used
-        #[allow(clippy::zero_sized_map_values)]
-        let explorer_bag = HashMap::new();
 
         let planet_explorer_channels = PlanetExplorerChannels {
             planet_to_explorer_senders: Arc::new(Mutex::new(HashMap::new())),
@@ -67,7 +61,6 @@ impl Orchestrator {
             planets_receiver,
             explorers_receiver,
             forge,
-            explorer_bag: Arc::new(explorer_bag),
             galaxy,
             convo_scheduler: ConvoScheduler::new(),
             planet_explorer_channels,

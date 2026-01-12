@@ -159,8 +159,8 @@ impl Conversation<ExplorerBag> for StopExplorerConversation<WaitingExplorerStopR
         msg_wrapped: Option<PossibleMessage<ExplorerBag>>,
     ) -> Option<Box<dyn Conversation<ExplorerBag> + Send + Sync>> {
         if let Some(PossibleMessage::ExplorerToOrch(
-                        ExplorerToOrchestrator::StopExplorerAIResult { explorer_id },
-                    )) = msg_wrapped
+            ExplorerToOrchestrator::StopExplorerAIResult { explorer_id },
+        )) = msg_wrapped
         {
             println!("Stopped Explorer {explorer_id}");
             return None;

@@ -154,8 +154,8 @@ impl Conversation<ExplorerBag> for StartPlanetConversation<WaitingPlanetStartRes
         msg_wrapped: Option<PossibleMessage<ExplorerBag>>,
     ) -> Option<Box<dyn Conversation<ExplorerBag> + Send + Sync>> {
         if let Some(PossibleMessage::PlanetToOrch(PlanetToOrchestrator::StartPlanetAIResult {
-                                                      planet_id,
-                                                  })) = msg_wrapped
+            planet_id,
+        })) = msg_wrapped
         {
             println!("Started Planet: {planet_id:?}");
             return None;

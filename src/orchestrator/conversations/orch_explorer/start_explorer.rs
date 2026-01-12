@@ -159,8 +159,8 @@ impl Conversation<ExplorerBag> for StartExplorerConversation<WaitingExplorerStar
         msg_wrapped: Option<PossibleMessage<ExplorerBag>>,
     ) -> Option<Box<dyn Conversation<ExplorerBag> + Send + Sync>> {
         if let Some(PossibleMessage::ExplorerToOrch(
-                        ExplorerToOrchestrator::StartExplorerAIResult { explorer_id },
-                    )) = msg_wrapped
+            ExplorerToOrchestrator::StartExplorerAIResult { explorer_id },
+        )) = msg_wrapped
         {
             println!("Started Explorer {explorer_id}");
             return None;

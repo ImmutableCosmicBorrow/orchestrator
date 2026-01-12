@@ -159,8 +159,8 @@ impl Conversation<ExplorerBag> for ResetExplorerConversation<WaitingExplorerRese
         msg_wrapped: Option<PossibleMessage<ExplorerBag>>,
     ) -> Option<Box<dyn Conversation<ExplorerBag> + Send + Sync>> {
         if let Some(PossibleMessage::ExplorerToOrch(
-                        ExplorerToOrchestrator::ResetExplorerAIResult { explorer_id },
-                    )) = msg_wrapped
+            ExplorerToOrchestrator::ResetExplorerAIResult { explorer_id },
+        )) = msg_wrapped
         {
             println!("Reset Explorer {explorer_id}");
             return None;

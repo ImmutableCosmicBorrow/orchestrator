@@ -187,8 +187,8 @@ impl Conversation<ExplorerBag> for KillPlanetConversation<WaitingPlanetKillResul
         msg_wrapped: Option<PossibleMessage<ExplorerBag>>,
     ) -> Option<Box<dyn Conversation<ExplorerBag> + Send + Sync>> {
         if let Some(PossibleMessage::PlanetToOrch(PlanetToOrchestrator::KillPlanetResult {
-                                                      planet_id,
-                                                  })) = msg_wrapped
+            planet_id,
+        })) = msg_wrapped
         {
             println!("Killed Planet: {planet_id:?}");
             let to_kill_list = self.get_explorers_in_planet(planet_id);

@@ -14,7 +14,17 @@ use common_game::protocols::planet_explorer::ExplorerToPlanet;
 use common_game::utils::ID;
 use crossbeam_channel::Sender;
 
-//WaitingOutgoingResponse Implementation
+///**Move To Planet Conversation - Waiting Outgoing Response**
+///
+/// This state represents the intermediate phase of movement where the destination planet has
+/// already acknowledged the incoming explorer, and the Orchestrator is waiting for the current
+/// (source) planet to confirm the explorer's release.
+///
+/// Once the current planet confirms (`OutgoingExplorerResponse`), the Orchestrator retrieves
+/// the communication channel for the new planet and sends it to the Explorer via a
+/// [`MoveToPlanet`] command, transitioning to the final [`WaitMoveToPlanetResponse`] state.
+
+// WAITING OUTGOING RESPONSE IMPLEMENTATION
 impl Conversation<ExplorerBag> for MoveToPlanetConversation<WaitingOutgoingResponse> {
     fn get_id(&self) -> ID {
         self.id
@@ -28,6 +38,21 @@ impl Conversation<ExplorerBag> for MoveToPlanetConversation<WaitingOutgoingRespo
         self.expected_message.clone()
     }
 
+    /// Transition Function for [`WaitingOutgoingResponse`] state:
+    ///
+    /// Returns:
+    ///
+    /// * [`MoveToPlanetConversation<WaitMoveToPlanetResponse>`] if the current planet confirms
+    ///   the release and the explorer successfully receives the new destination channel.
+    ///
+    /// * [`ErrorState`] with [`MoveToPlanetErrors::NewSenderToPlanetNotFound`] if the planets
+    ///   have swapped channels but the Orchestrator cannot resolve the new destination's sender.
+    ///
+    /// * [`ErrorState`] with [`MoveToPlanetErrors::DstPlanetFailed`] if the current planet
+    ///   fails to let go of the explorer.
+    ///
+    /// * [`ErrorState`] with explorer communication errors if the [`MoveToPlanet`] command
+    ///   fails to send.
     fn transition(
         self: Box<Self>,
         msg_wrapped: Option<PossibleMessage<ExplorerBag>>,
@@ -40,7 +65,9 @@ impl Conversation<ExplorerBag> for MoveToPlanetConversation<WaitingOutgoingRespo
             },
         )) = msg_wrapped
         {
+            //Check if current planet correctly handled outgoing explorer
             return if res.is_ok() {
+                //try to find the sender to the new planet and send it to the explorer
                 if let Some(new_sender) = self.get_new_planet_sender() {
                     return match self.state.explorer_struct.to_explorer(MoveToPlanet {
                         sender_to_new_planet: Some(new_sender),
@@ -74,7 +101,7 @@ impl Conversation<ExplorerBag> for MoveToPlanetConversation<WaitingOutgoingRespo
                         }
                     };
                 }
-                //sender to new planet not found!!, explorer has not changed channels but planets did, ATTENTION
+                // Sender to new planet not found!! Critical inconsistency state, one planet changed, one didn't
                 let error_state = ErrorState::new(
                     Box::new(MoveToPlanetErrors::NewSenderToPlanetNotFound(
                         self.state.dst_planet_id,
@@ -82,9 +109,11 @@ impl Conversation<ExplorerBag> for MoveToPlanetConversation<WaitingOutgoingRespo
                     self.id,
                 );
                 Some(Box::new(error_state))
-            } else {
+            }
+            //Current planet failed in handling outgoing explorer
+            else {
                 let error_state = ErrorState::new(
-                    Box::new(MoveToPlanetErrors::DstPlanetFailed {
+                    Box::new(MoveToPlanetErrors::CurrPlanetFailed {
                         planet_id,
                         explorer_id,
                     }),
@@ -93,7 +122,7 @@ impl Conversation<ExplorerBag> for MoveToPlanetConversation<WaitingOutgoingRespo
                 return Some(Box::new(error_state));
             };
         }
-        //Wrong message, closing Conversation
+        // Wrong message, closing Conversation
         let error_state = ErrorState::new(Box::new(CommonErrorTypes::WrongMessage), self.id);
         Some(Box::new(error_state))
     }
@@ -104,6 +133,9 @@ impl Conversation<ExplorerBag> for MoveToPlanetConversation<WaitingOutgoingRespo
 }
 
 impl MoveToPlanetConversation<WaitingOutgoingResponse> {
+    /// The constructor for [`MoveToPlanetConversation`] in the [`WaitingOutgoingResponse`] state.
+    ///
+    /// Automatically sets the expected message kind to [`PlanetToOrchestratorKind::OutgoingExplorerResponse`].
     pub(crate) fn new(id: ID, state: WaitingOutgoingResponse) -> Self {
         Self {
             id,
@@ -114,6 +146,7 @@ impl MoveToPlanetConversation<WaitingOutgoingResponse> {
         }
     }
 
+    /// Internal helper to retrieve the `Sender` channel for the destination planet from the shared channel map.
     fn get_new_planet_sender(&self) -> Option<Sender<ExplorerToPlanet>> {
         self.state
             .planet_explorer_channels

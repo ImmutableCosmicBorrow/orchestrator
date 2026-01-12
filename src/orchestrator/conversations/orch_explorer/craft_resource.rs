@@ -9,9 +9,23 @@ use common_game::protocols::orchestrator_explorer::{
 };
 use common_game::utils::ID;
 
+///**Craft Resource Conversation**
+///
+/// This module manages the conversation between the Orchestrator and an Explorer regarding
+/// the generation of basic resources.
+/// It uses a Finite State Machine (FSM) to ensure that the resource generation request
+/// and the subsequent result are handled in the correct order at compile time.
+///
+/// The conversation flow starts by sending a generation request to the explorer and terminates
+/// once the [`ExplorerToOrchestrator::GenerateResourceResponse`] is received.
+
+/// Custom error type for when an explorer fails to generate the requested basic resource.
 struct CraftingFailed {
+    /// ID of the explorer who attempted the generation.
     explorer_id: ID,
+    /// Detailed error message provided by the explorer.
     err: String,
+    /// The type of basic resource that failed to be generated.
     resource: BasicResourceType,
 }
 
@@ -23,11 +37,20 @@ impl ErrorType for CraftingFailed {
         )
     }
 }
+
+/// Marker struct for FSM state
+///
+/// The conversation starts in the [`SendingCraftResourceRequest`] state, which sends an
+/// [`OrchestratorToExplorer::GenerateResourceRequest`] when the [`Conversation::transition`] method is called.
 struct SendingCraftResourceRequest {
+    /// A struct containing fields to send messages to the specific explorer
     to_explorer_struct: ToExplorerStruct,
+    /// The basic resource type intended to be generated
     to_craft: BasicResourceType,
 }
+
 impl SendingCraftResourceRequest {
+    /// Constructor for [`SendingCraftResourceRequest`] state struct
     fn new(to_explorer_struct: ToExplorerStruct, to_craft: BasicResourceType) -> Self {
         Self {
             to_explorer_struct,
@@ -36,12 +59,20 @@ impl SendingCraftResourceRequest {
     }
 }
 
+/// Marker struct for FSM state
+///
+/// In the [`WaitingCraftResourceResult`] state, the conversation expects an
+/// [`ExplorerToOrchestrator::GenerateResourceResponse`] message indicating whether
+/// the generation process was successful.
 struct WaitingCraftResourceResult {
+    /// ID of the explorer we are waiting for
     explorer_id: ID,
+    /// The resource type being generated (carried over for error reporting)
     to_craft: BasicResourceType,
 }
 
 impl WaitingCraftResourceResult {
+    /// The constructor for [`WaitingCraftResourceResult`] state struct
     fn new(explorer_id: ID, to_craft: BasicResourceType) -> Self {
         Self {
             explorer_id,
@@ -50,12 +81,20 @@ impl WaitingCraftResourceResult {
     }
 }
 
+/// Craft Resource Conversation FSM
+///
+/// This is the generic FSM struct that takes the generic type `State` to ensure only methods
+/// of that specific state can be called during the conversation.
 struct CraftResourceConversation<State> {
+    /// Conversation ID
     id: ID,
+    /// Optional expected message to trigger the transition
     expected_message: Option<PossibleExpectedKinds>,
+    /// State of the FSM
     state: State,
 }
 
+// SENDING CRAFT RESOURCE REQUEST IMPLEMENTATION
 impl Conversation<ExplorerBag> for CraftResourceConversation<SendingCraftResourceRequest> {
     fn get_id(&self) -> ID {
         self.id
@@ -69,6 +108,13 @@ impl Conversation<ExplorerBag> for CraftResourceConversation<SendingCraftResourc
         self.expected_message.clone()
     }
 
+    /// Transition Function for [`SendingCraftResourceRequest`] state:
+    ///
+    /// Returns:
+    ///
+    /// [`ErrorState`] if the request failed to send to the explorer.
+    ///
+    /// [`CraftResourceConversation<WaitingCraftResourceResult>`] if the request was sent successfully.
     fn transition(
         self: Box<Self>,
         _msg_wrapped: Option<PossibleMessage<ExplorerBag>>,
@@ -109,6 +155,7 @@ impl Conversation<ExplorerBag> for CraftResourceConversation<SendingCraftResourc
 }
 
 impl CraftResourceConversation<SendingCraftResourceRequest> {
+    /// The constructor for [`CraftResourceConversation`] in the [`SendingCraftResourceRequest`] state
     fn new(id: ID, state: SendingCraftResourceRequest) -> Self {
         Self {
             id,
@@ -118,6 +165,7 @@ impl CraftResourceConversation<SendingCraftResourceRequest> {
     }
 }
 
+// WAITING CRAFT RESOURCE RESULT IMPLEMENTATION
 impl Conversation<ExplorerBag> for CraftResourceConversation<WaitingCraftResourceResult> {
     fn get_id(&self) -> ID {
         self.id
@@ -131,6 +179,15 @@ impl Conversation<ExplorerBag> for CraftResourceConversation<WaitingCraftResourc
         self.expected_message.clone()
     }
 
+    /// Transition Function for [`WaitingCraftResourceResult`] state:
+    ///
+    /// Returns:
+    ///
+    /// [None] if the [`ExplorerToOrchestrator::GenerateResourceResponse`] returns `Ok(())`, closing the conversation.
+    ///
+    /// [`ErrorState`] with [`CraftingFailed`] if the explorer returns an error.
+    ///
+    /// [`ErrorState`] with [`CommonErrorTypes::WrongMessage`] if an unexpected message is received.
     fn transition(
         self: Box<Self>,
         msg_wrapped: Option<PossibleMessage<ExplorerBag>>,
@@ -170,6 +227,7 @@ impl Conversation<ExplorerBag> for CraftResourceConversation<WaitingCraftResourc
 }
 
 impl CraftResourceConversation<WaitingCraftResourceResult> {
+    /// The constructor for [`CraftResourceConversation`] in the [`WaitingCraftResourceResult`] state
     fn new(id: ID, state: WaitingCraftResourceResult) -> Self {
         Self {
             id,

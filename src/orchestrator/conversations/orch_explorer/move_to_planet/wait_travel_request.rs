@@ -18,6 +18,19 @@ use common_game::protocols::planet_explorer::PlanetToExplorer;
 use common_game::utils::ID;
 use crossbeam_channel::Sender;
 
+///**Move To Planet Conversation - Waiting Travel Request**
+///
+/// This is the starting state of the movement lifecycle. It listens for a
+/// [`ExplorerToOrchestrator::TravelToPlanetRequest`] from an explorer.
+///
+/// **Logic Flow:**
+/// 1. Verifies if the destination planet is a neighbor of the current planet via the Galaxy Map.
+/// 2. If valid, sends an [`IncomingExplorerRequest`] to the destination planet and transitions
+///    to [`WaitingIncomingResponse`].
+/// 3. If invalid (not neighbors), it informs the explorer movement is impossible and transitions
+///    directly to [`WaitMoveToPlanetResponse`] to gracefully close the attempt.
+
+// WAITING TRAVEL REQUEST IMPLEMENTATION
 impl Conversation<ExplorerBag> for MoveToPlanetConversation<WaitingTravelRequest> {
     fn get_id(&self) -> ID {
         self.id
@@ -31,6 +44,18 @@ impl Conversation<ExplorerBag> for MoveToPlanetConversation<WaitingTravelRequest
         self.expected_message.clone()
     }
 
+    /// Transition Function for [`WaitingTravelRequest`] state:
+    ///
+    /// Returns:
+    ///
+    /// * [`MoveToPlanetConversation<WaitingIncomingResponse>`] if the neighbor check passes
+    ///   and the destination planet is successfully notified.
+    ///
+    /// * [`MoveToPlanetConversation<WaitMoveToPlanetResponse>`] if the neighbor check fails;
+    ///   informs the explorer that movement is denied.
+    ///
+    /// * [`ErrorState`] if the destination planet sender is missing or if communication
+    ///   with the explorer fails during a denial.
     fn transition(
         self: Box<Self>,
         msg_wrapped: Option<PossibleMessage<ExplorerBag>>,
@@ -43,9 +68,11 @@ impl Conversation<ExplorerBag> for MoveToPlanetConversation<WaitingTravelRequest
             },
         )) = msg_wrapped
         {
+            // 1. Verify spatial validity (Neighborhood check)
             if self.check_neighbors() {
+                // Try to find the new explorer sender and send it to the dst planet
                 if let Some(sender) = self.get_new_explorer_sender(explorer_id) {
-                    //returns new state if send message goes well or same state if channel fails
+                    // Try to initiate the handshake with the destination planet
                     return match self.state.dst_planet_struct.to_planet(
                         OrchestratorToPlanet::IncomingExplorerRequest {
                             explorer_id,
@@ -82,7 +109,7 @@ impl Conversation<ExplorerBag> for MoveToPlanetConversation<WaitingTravelRequest
                         }
                     };
                 }
-                //The sender to explorer is not found, going to error state
+                // The sender to explorer is not found
                 let error_state = ErrorState::new(
                     Box::new(CommonErrorTypes::ExplorerSenderNotFound(explorer_id)),
                     self.id,
@@ -90,7 +117,7 @@ impl Conversation<ExplorerBag> for MoveToPlanetConversation<WaitingTravelRequest
                 return Some(Box::new(error_state));
             }
 
-            //Tries to send a MoveToPlanet {none} to the explorer as he cannot move, or goes in error
+            // 2. Deny movement (Destination is not a neighbor)
             return match self.state.explorer_struct.to_explorer(MoveToPlanet {
                 sender_to_new_planet: None,
                 planet_id: self.state.dst_planet_struct.planet_id,
@@ -123,7 +150,7 @@ impl Conversation<ExplorerBag> for MoveToPlanetConversation<WaitingTravelRequest
                 }
             };
         }
-        //Wrong Message, close conversation
+        // Wrong Message type received for this state
         let error_state = ErrorState::new(Box::new(CommonErrorTypes::WrongMessage), self.id);
         Some(Box::new(error_state))
     }
@@ -134,6 +161,7 @@ impl Conversation<ExplorerBag> for MoveToPlanetConversation<WaitingTravelRequest
 }
 
 impl MoveToPlanetConversation<WaitingTravelRequest> {
+    /// Checks the Galaxy Map to see if the target destination is reachable from the current location.
     fn check_neighbors(&self) -> bool {
         let galaxy = self.state.galaxy.lock().unwrap();
         if let (Some(curr_planet_ref), Some(dst_planet_ref)) = (
@@ -145,6 +173,7 @@ impl MoveToPlanetConversation<WaitingTravelRequest> {
         false
     }
 
+    /// Resolves the specific communication channel for the explorer.
     fn get_new_explorer_sender(&self, explorer_id: ID) -> Option<Sender<PlanetToExplorer>> {
         self.state
             .planet_explorer_channels
@@ -155,6 +184,7 @@ impl MoveToPlanetConversation<WaitingTravelRequest> {
             .cloned()
     }
 
+    /// Internal constructor for the initial state.
     fn new(id: ID, state: WaitingTravelRequest) -> Self {
         Self {
             id,

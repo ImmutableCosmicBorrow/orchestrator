@@ -157,9 +157,9 @@ impl Conversation<ExplorerBag> for BagContentConversation<WaitingBagContentRespo
         msg_wrapped: Option<PossibleMessage<ExplorerBag>>,
     ) -> Option<Box<dyn Conversation<ExplorerBag> + Send + Sync>> {
         if let Some(PossibleMessage::ExplorerToOrch(ExplorerToOrchestrator::BagContentResponse {
-                                                        explorer_id,
-                                                        bag_content,
-                                                    })) = msg_wrapped
+            explorer_id,
+            bag_content,
+        })) = msg_wrapped
         {
             //TODO: SEND THIS TO UI
             println!("Explorer {explorer_id} bag content: {bag_content:?}");

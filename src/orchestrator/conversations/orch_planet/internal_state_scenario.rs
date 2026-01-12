@@ -152,9 +152,9 @@ impl Conversation<ExplorerBag> for InternalStateConversation<WaitingInternalStat
         msg_wrapped: Option<PossibleMessage<ExplorerBag>>,
     ) -> Option<Box<dyn Conversation<ExplorerBag> + Send + Sync>> {
         if let Some(PossibleMessage::PlanetToOrch(PlanetToOrchestrator::InternalStateResponse {
-                                                      planet_id,
-                                                      planet_state,
-                                                  })) = msg_wrapped
+            planet_id,
+            planet_state,
+        })) = msg_wrapped
         {
             //TODO: SEND PLANET STATE TO UI
             println!("Planet {planet_id} sent its internal state {planet_state:?}");

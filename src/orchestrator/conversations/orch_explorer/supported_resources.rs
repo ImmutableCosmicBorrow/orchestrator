@@ -66,7 +66,7 @@ struct SupportedResourcesConversation<State> {
 
 // SENDING SUPPORTED RESOURCES REQUEST IMPLEMENTATION
 impl Conversation<ExplorerBag>
-for SupportedResourcesConversation<SendingSupportedResourcesRequest>
+    for SupportedResourcesConversation<SendingSupportedResourcesRequest>
 {
     fn get_id(&self) -> ID {
         self.id
@@ -164,11 +164,11 @@ impl Conversation<ExplorerBag> for SupportedResourcesConversation<WaitingSupport
         msg_wrapped: Option<PossibleMessage<ExplorerBag>>,
     ) -> Option<Box<dyn Conversation<ExplorerBag> + Send + Sync>> {
         if let Some(PossibleMessage::ExplorerToOrch(
-                        ExplorerToOrchestrator::SupportedResourceResult {
-                            explorer_id,
-                            supported_resources,
-                        },
-                    )) = msg_wrapped
+            ExplorerToOrchestrator::SupportedResourceResult {
+                explorer_id,
+                supported_resources,
+            },
+        )) = msg_wrapped
         {
             println!(
                 "Supported resources in explorer {explorer_id} current planet: {supported_resources:?}"
