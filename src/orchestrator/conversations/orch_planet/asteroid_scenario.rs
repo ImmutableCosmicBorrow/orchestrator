@@ -103,7 +103,7 @@ impl Conversation<ExplorerBag> for AsteroidConversation<SendingAsteroid> {
         self.expected_message.clone()
     }
 
-    ///Transition Funtion for [`SendingAsteroid`] state:
+    ///Transition Function for [`SendingAsteroid`] state:
     ///
     /// Returns:
     ///
@@ -211,7 +211,7 @@ impl Conversation<ExplorerBag> for AsteroidConversation<WaitingAsteroidAck> {
             );
             return Some(Box::new(new_state));
         }
-
+        //wrong message arrived, transitioning to ErrorState
         let error_state = ErrorState::new(Box::new(CommonErrorTypes::WrongMessage), self.id);
         Some(Box::new(error_state))
     }

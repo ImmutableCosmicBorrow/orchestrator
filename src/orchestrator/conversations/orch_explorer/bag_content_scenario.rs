@@ -8,31 +8,61 @@ use common_game::protocols::orchestrator_explorer::{
 };
 use common_game::utils::ID;
 
+///**Bag Content Conversation**
+///
+/// This module manages the conversation between the Orchestrator and an Explorer regarding the contents of their bag.
+/// It uses a Finite State Machine (FSM) to ensure that the inventory request and response are handled
+/// in the correct order at compile time.
+///
+/// The conversation flow starts by sending a request to the explorer and terminates once the
+/// bag content is received (intended for UI reporting).
+
+/// Marker struct for FSM state
+///
+/// The conversation starts in the [`SendingBagContentRequest`] state, which sends an
+/// [`OrchestratorToExplorer::BagContentRequest`] when the [`Conversation::transition`] method is called.
 struct SendingBagContentRequest {
+    /// A struct containing fields to send messages to the specific explorer
     to_explorer_struct: ToExplorerStruct,
 }
+
 impl SendingBagContentRequest {
+    /// Constructor for [`SendingBagContentRequest`] state struct
     fn new(to_explorer_struct: ToExplorerStruct) -> Self {
         Self { to_explorer_struct }
     }
 }
 
+/// Marker struct for FSM state
+///
+/// In the [`WaitingBagContentResponse`] state, the conversation expects an
+/// [`ExplorerToOrchestrator::BagContentResponse`] message containing the items currently held by the explorer.
 struct WaitingBagContentResponse {
+    /// ID of the explorer we are waiting for
     explorer_id: ID,
 }
 
 impl WaitingBagContentResponse {
+    /// The constructor for [`WaitingBagContentResponse`] state struct
     fn new(explorer_id: ID) -> Self {
         Self { explorer_id }
     }
 }
 
+/// Bag Content Conversation FSM
+///
+/// This is the generic FSM struct that takes the generic type `State` to ensure only methods
+/// of that specific state can be called during the conversation.
 struct BagContentConversation<State> {
+    /// Conversation ID
     id: ID,
+    /// Optional expected message to trigger the transition
     expected_message: Option<PossibleExpectedKinds>,
+    /// State of the FSM
     state: State,
 }
 
+// SENDING BAG CONTENT REQUEST IMPLEMENTATION
 impl Conversation<ExplorerBag> for BagContentConversation<SendingBagContentRequest> {
     fn get_id(&self) -> ID {
         self.id
@@ -46,6 +76,15 @@ impl Conversation<ExplorerBag> for BagContentConversation<SendingBagContentReque
         self.expected_message.clone()
     }
 
+    /// Transition Function for [`SendingBagContentRequest`] state:
+    ///
+    /// Returns:
+    ///
+    /// [`ErrorState`] with [`CommonErrorTypes::MessageToExplorerFailed`] if the request failed to send.
+    ///
+    /// [`ErrorState`] with [`CommonErrorTypes::ExplorerSenderNotFound`] if the communication channel is missing.
+    ///
+    /// The next state: [`BagContentConversation<WaitingBagContentResponse>`] if the request was sent successfully.
     fn transition(
         self: Box<Self>,
         _msg_wrapped: Option<PossibleMessage<ExplorerBag>>,
@@ -82,6 +121,7 @@ impl Conversation<ExplorerBag> for BagContentConversation<SendingBagContentReque
 }
 
 impl BagContentConversation<SendingBagContentRequest> {
+    /// The constructor for [`BagContentConversation`] in the [`SendingBagContentRequest`] state
     fn new(id: ID, state: SendingBagContentRequest) -> Self {
         Self {
             id,
@@ -91,6 +131,7 @@ impl BagContentConversation<SendingBagContentRequest> {
     }
 }
 
+// WAITING BAG CONTENT RESPONSE IMPLEMENTATION
 impl Conversation<ExplorerBag> for BagContentConversation<WaitingBagContentResponse> {
     fn get_id(&self) -> ID {
         self.id
@@ -104,14 +145,21 @@ impl Conversation<ExplorerBag> for BagContentConversation<WaitingBagContentRespo
         self.expected_message.clone()
     }
 
+    /// Transition Function for [`WaitingBagContentResponse`] state:
+    ///
+    /// Returns:
+    ///
+    /// [None] if the [`ExplorerToOrchestrator::BagContentResponse`] is successfully received and processed, closing the conversation.
+    ///
+    /// [`ErrorState`] with [`CommonErrorTypes::WrongMessage`] if the received message does not match the expected response kind.
     fn transition(
         self: Box<Self>,
         msg_wrapped: Option<PossibleMessage<ExplorerBag>>,
     ) -> Option<Box<dyn Conversation<ExplorerBag> + Send + Sync>> {
         if let Some(PossibleMessage::ExplorerToOrch(ExplorerToOrchestrator::BagContentResponse {
-            explorer_id,
-            bag_content,
-        })) = msg_wrapped
+                                                        explorer_id,
+                                                        bag_content,
+                                                    })) = msg_wrapped
         {
             //TODO: SEND THIS TO UI
             println!("Explorer {explorer_id} bag content: {bag_content:?}");
@@ -129,6 +177,7 @@ impl Conversation<ExplorerBag> for BagContentConversation<WaitingBagContentRespo
 }
 
 impl BagContentConversation<WaitingBagContentResponse> {
+    /// The constructor for [`BagContentConversation`] in the [`WaitingBagContentResponse`] state
     fn new(id: ID, explorer_id: ID) -> Self {
         Self {
             id,

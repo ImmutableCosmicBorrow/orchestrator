@@ -10,7 +10,6 @@ use crate::orchestrator::{ExplorersLocationRef, PlanetExplorerChannels};
 
 use common_game::utils::ID;
 
-//TODO: Look for DashMap
 struct MoveToPlanetConversation<State> {
     id: ID,
     state: State,

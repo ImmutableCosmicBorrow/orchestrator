@@ -8,33 +8,65 @@ use common_game::protocols::orchestrator_explorer::{
 };
 use common_game::utils::ID;
 
+///**Supported Combination Conversation**
+///
+/// This module manages the conversation between the Orchestrator and an Explorer regarding the combinations
+/// supported by the explorer's current planet.
+/// It uses a Finite State Machine (FSM) to ensure that the request for combinations and the subsequent
+/// result list are handled in the correct order at compile time.
+///
+/// The conversation flow starts by sending a request to the explorer and terminates once the
+/// [`ExplorerToOrchestrator::SupportedCombinationResult`] is received and processed.
+
+/// Marker struct for FSM state
+///
+/// The conversation starts in the [`SendingSupportedCombinationRequest`] state, which sends an
+/// [`OrchestratorToExplorer::SupportedCombinationRequest`] when the [`Conversation::transition`] method is called.
 struct SendingSupportedCombinationRequest {
+    /// A struct containing fields to send messages to the specific explorer
     to_explorer_struct: ToExplorerStruct,
 }
+
 impl SendingSupportedCombinationRequest {
+    /// Constructor for [`SendingSupportedCombinationRequest`] state struct
     fn new(to_explorer_struct: ToExplorerStruct) -> Self {
         Self { to_explorer_struct }
     }
 }
 
+/// Marker struct for FSM state
+///
+/// In the [`WaitingSupportedCombinationResult`] state, the conversation expects an
+/// [`ExplorerToOrchestrator::SupportedCombinationResult`] message containing the list of valid
+/// recipes or combinations available to the explorer.
 struct WaitingSupportedCombinationResult {
+    /// ID of the explorer we are waiting for
     explorer_id: ID,
 }
 
 impl WaitingSupportedCombinationResult {
+    /// The constructor for [`WaitingSupportedCombinationResult`] state struct
     fn new(explorer_id: ID) -> Self {
         Self { explorer_id }
     }
 }
 
+/// Supported Combination Conversation FSM
+///
+/// This is the generic FSM struct that takes the generic type `State` to ensure only methods
+/// of that specific state can be called during the conversation.
 struct SupportedCombinationConversation<State> {
+    /// Conversation ID
     id: ID,
+    /// Optional expected message to trigger the transition
     expected_message: Option<PossibleExpectedKinds>,
+    /// State of the FSM
     state: State,
 }
 
+// SENDING SUPPORTED COMBINATION REQUEST IMPLEMENTATION
 impl Conversation<ExplorerBag>
-    for SupportedCombinationConversation<SendingSupportedCombinationRequest>
+for SupportedCombinationConversation<SendingSupportedCombinationRequest>
 {
     fn get_id(&self) -> ID {
         self.id
@@ -48,6 +80,15 @@ impl Conversation<ExplorerBag>
         self.expected_message.clone()
     }
 
+    /// Transition Function for [`SendingSupportedCombinationRequest`] state:
+    ///
+    /// Returns:
+    ///
+    /// [`ErrorState`] with [`CommonErrorTypes::MessageToExplorerFailed`] if the request failed to send.
+    ///
+    /// [`ErrorState`] with [`CommonErrorTypes::ExplorerSenderNotFound`] if the communication channel is missing.
+    ///
+    /// The next state: [`SupportedCombinationConversation<WaitingSupportedCombinationResult>`] if the request was sent successfully.
     fn transition(
         self: Box<Self>,
         _msg_wrapped: Option<PossibleMessage<ExplorerBag>>,
@@ -85,6 +126,7 @@ impl Conversation<ExplorerBag>
 }
 
 impl SupportedCombinationConversation<SendingSupportedCombinationRequest> {
+    /// The constructor for [`SupportedCombinationConversation`] in the [`SendingSupportedCombinationRequest`] state
     fn new(id: ID, state: SendingSupportedCombinationRequest) -> Self {
         Self {
             id,
@@ -94,8 +136,9 @@ impl SupportedCombinationConversation<SendingSupportedCombinationRequest> {
     }
 }
 
+// WAITING SUPPORTED COMBINATION RESULT IMPLEMENTATION
 impl Conversation<ExplorerBag>
-    for SupportedCombinationConversation<WaitingSupportedCombinationResult>
+for SupportedCombinationConversation<WaitingSupportedCombinationResult>
 {
     fn get_id(&self) -> ID {
         self.id
@@ -109,16 +152,23 @@ impl Conversation<ExplorerBag>
         self.expected_message.clone()
     }
 
+    /// Transition Function for [`WaitingSupportedCombinationResult`] state:
+    ///
+    /// Returns:
+    ///
+    /// [None] if the [`ExplorerToOrchestrator::SupportedCombinationResult`] is successfully received, closing the conversation.
+    ///
+    /// [`ErrorState`] with [`CommonErrorTypes::WrongMessage`] if the received message does not match the expected result kind.
     fn transition(
         self: Box<Self>,
         msg_wrapped: Option<PossibleMessage<ExplorerBag>>,
     ) -> Option<Box<dyn Conversation<ExplorerBag> + Send + Sync>> {
         if let Some(PossibleMessage::ExplorerToOrch(
-            ExplorerToOrchestrator::SupportedCombinationResult {
-                explorer_id,
-                combination_list,
-            },
-        )) = msg_wrapped
+                        ExplorerToOrchestrator::SupportedCombinationResult {
+                            explorer_id,
+                            combination_list,
+                        },
+                    )) = msg_wrapped
         {
             println!(
                 "Supported combinations in explorer {explorer_id} current planet: {combination_list:?}"
@@ -137,6 +187,7 @@ impl Conversation<ExplorerBag>
 }
 
 impl SupportedCombinationConversation<WaitingSupportedCombinationResult> {
+    /// The constructor for [`SupportedCombinationConversation`] in the [`WaitingSupportedCombinationResult`] state
     fn new(id: ID, explorer_id: ID) -> Self {
         Self {
             id,
