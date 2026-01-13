@@ -19,6 +19,7 @@ use crossbeam_channel::{Receiver, Sender};
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::sync::{Arc, Mutex};
+use std::thread;
 
 type ExplorersLocationRef = Arc<Mutex<HashMap<ID, ID>>>;
 
@@ -300,11 +301,9 @@ impl Orchestrator {
             .find_matching_conversation(&message_kind, entity_id);
 
         match matching_conversation {
-            // If the message matches the expected kind, transition the conversation
-            Some(conversation) => {
-                if let Some(new_conv) = conversation.transition(Some(message)) {
-                    self.convo_scheduler.add_conversation(new_conv);
-                }
+            // If the message matches the expected kind, we let the message wait for the transition
+            Some(_conversation) => {
+                self.convo_scheduler.add_waiting_message(entity_id, message);
             }
             None => {
                 match message {
@@ -367,5 +366,33 @@ impl Orchestrator {
                 }
             }
         }
+    }
+
+    fn process_messages(&mut self) {
+        let convo_scheduler = self.convo_scheduler.clone();
+        thread::spawn(move || {
+            loop {
+                if convo_scheduler.is_empty() {
+                    // Wait for new messages to arrive
+                    thread::sleep(std::time::Duration::from_millis(10));
+                    continue;
+                }
+
+                let current_convo = convo_scheduler.get_next_conversation();
+
+                if current_convo.is_none() {
+                    continue;
+                }
+
+                let msg = convo_scheduler
+                    .get_waiting_message(current_convo.as_ref().unwrap().get_id());
+
+                if msg.is_some()
+                    && let Some(new_conv) = current_convo.unwrap().transition(msg)
+                {
+                    convo_scheduler.add_conversation(new_conv);
+                }
+            }
+        });
     }
 }

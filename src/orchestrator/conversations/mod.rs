@@ -93,7 +93,10 @@ pub(crate) struct ToPlanetStruct {
 
 impl ToPlanetStruct {
     pub(crate) fn new(planets_senders: SendersToPlanet, planet_id: ID) -> Self {
-        Self { planets_senders, planet_id }
+        Self {
+            planets_senders,
+            planet_id,
+        }
     }
 
     /// Sends a protocol message to the planet associated with this context.
@@ -104,7 +107,8 @@ impl ToPlanetStruct {
         };
 
         if let Some(s) = sender {
-            s.send(msg).map_err(|_| ToPlanetError::SendingMessageFailure(self.planet_id))
+            s.send(msg)
+                .map_err(|_| ToPlanetError::SendingMessageFailure(self.planet_id))
         } else {
             Err(ToPlanetError::SenderNotFound(self.planet_id))
         }
@@ -133,7 +137,8 @@ impl ToExplorerStruct {
         };
 
         if let Some(s) = sender {
-            s.send(msg).map_err(|_| ToExplorerError::SendingMessageFailure(self.explorer_id))
+            s.send(msg)
+                .map_err(|_| ToExplorerError::SendingMessageFailure(self.explorer_id))
         } else {
             Err(ToExplorerError::SenderNotFound(self.explorer_id))
         }
@@ -167,10 +172,18 @@ impl ErrorType for CommonErrorTypes {
     fn stringify(&self) -> String {
         match self {
             CommonErrorTypes::WrongMessage => "Wrong Message Received".to_string(),
-            CommonErrorTypes::PlanetSenderNotFound(id) => format!("sender to planet {id} not found"),
-            CommonErrorTypes::ExplorerSenderNotFound(id) => format!("sender to explorer {id} not found"),
-            CommonErrorTypes::MessageToExplorerFailed(id) => format!("failed to send message to explorer {id}"),
-            CommonErrorTypes::MessageToPlanetFailed(id) => format!("failed to send message to planet {id}"),
+            CommonErrorTypes::PlanetSenderNotFound(id) => {
+                format!("sender to planet {id} not found")
+            }
+            CommonErrorTypes::ExplorerSenderNotFound(id) => {
+                format!("sender to explorer {id} not found")
+            }
+            CommonErrorTypes::MessageToExplorerFailed(id) => {
+                format!("failed to send message to explorer {id}")
+            }
+            CommonErrorTypes::MessageToPlanetFailed(id) => {
+                format!("failed to send message to planet {id}")
+            }
         }
     }
 }
@@ -196,9 +209,15 @@ impl ErrorState {
 }
 
 impl Conversation<ExplorerBag> for ErrorState {
-    fn get_id(&self) -> ID { self.id }
-    fn get_entity_id(&self) -> ID { self.id }
-    fn get_expected_kind(&self) -> Option<PossibleExpectedKinds> { None }
+    fn get_id(&self) -> ID {
+        self.id
+    }
+    fn get_entity_id(&self) -> ID {
+        self.id
+    }
+    fn get_expected_kind(&self) -> Option<PossibleExpectedKinds> {
+        None
+    }
 
     fn transition(
         self: Box<Self>,
@@ -212,5 +231,7 @@ impl Conversation<ExplorerBag> for ErrorState {
         None
     }
 
-    fn get_priority(&self) -> i32 { 5 }
+    fn get_priority(&self) -> i32 {
+        5
+    }
 }

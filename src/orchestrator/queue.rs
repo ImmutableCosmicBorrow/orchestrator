@@ -1,5 +1,7 @@
+use crate::orchestrator::ExplorerBag;
 use crate::orchestrator::conversations::Conversation;
 use crate::orchestrator::conversations::PossibleExpectedKinds;
+use crate::orchestrator::conversations::PossibleMessage;
 use common_game::utils::ID;
 use priority_queue::PriorityQueue;
 use std::collections::HashSet;
@@ -48,6 +50,7 @@ pub struct ConvoScheduler<T: Debug + Eq + Hash> {
     queue: PQueue,
     active_convos: ConversationMap<T>,
     by_expected_msg: Arc<Mutex<HashMap<PossibleExpectedKinds, HashSet<ID>>>>,
+    waiting_msgs: Arc<Mutex<HashMap<ID, PossibleMessage<ExplorerBag>>>>,
     next_id: Mutex<ID>,
 }
 
@@ -57,6 +60,7 @@ impl<T: Debug + Eq + Hash> Clone for ConvoScheduler<T> {
             queue: self.queue.clone(),
             active_convos: Arc::clone(&self.active_convos),
             by_expected_msg: Arc::clone(&self.by_expected_msg),
+            waiting_msgs: Arc::clone(&self.waiting_msgs),
             next_id: Mutex::new(*self.next_id.lock().unwrap()),
         }
     }
@@ -68,12 +72,13 @@ impl<T: Debug + Eq + Hash> ConvoScheduler<T> {
             queue: PQueue::new(),
             active_convos: Arc::new(Mutex::new(HashMap::new())),
             by_expected_msg: Arc::new(Mutex::new(HashMap::new())),
+            waiting_msgs: Arc::new(Mutex::new(HashMap::new())),
             next_id: Mutex::new(1),
         }
     }
 
+    //must match both by expected kind and entity id
     pub fn find_matching_conversation(
-        //must match both by expected kind and entity id
         &self,
         message_kind: &PossibleExpectedKinds,
         entity_id: ID,
@@ -163,5 +168,13 @@ impl<T: Debug + Eq + Hash> ConvoScheduler<T> {
 
     fn is_active_conversation(&self, id: ID) -> bool {
         self.active_convos.lock().unwrap().contains_key(&id)
+    }
+
+    pub fn add_waiting_message(&self, convo_id: ID, message: PossibleMessage<ExplorerBag>) {
+        self.waiting_msgs.lock().unwrap().insert(convo_id, message);
+    }
+
+    pub fn get_waiting_message(&self, convo_id: ID) -> Option<PossibleMessage<ExplorerBag>> {
+        self.waiting_msgs.lock().unwrap().remove(&convo_id)
     }
 }
