@@ -193,3 +193,148 @@ impl InternalStateConversation<WaitingInternalStateResponse> {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use common_game::components::planet::DummyPlanetState;
+    use crossbeam_channel::unbounded;
+    use std::collections::HashMap;
+    use std::sync::{Arc, Mutex};
+
+    // IDs for testing
+    const CONV_ID: ID = 1;
+    const PLANET_ID: ID = 2;
+
+    #[test]
+    fn test_internal_state_sending_correct() {
+        let (tx, _rx) = unbounded::<OrchestratorToPlanet>();
+        let senders_to_planets = Arc::new(Mutex::new(HashMap::from([(PLANET_ID, tx)])));
+
+        let to_planet = ToPlanetStruct {
+            planet_id: PLANET_ID,
+            planets_senders: senders_to_planets,
+        };
+        let state = SendingInternalStateRequest::new(to_planet);
+        let conv =
+            Box::new(InternalStateConversation::<SendingInternalStateRequest>::new(CONV_ID, state));
+
+        // Act: Transition sends the Request and moves to Waiting state
+        let next_conv = conv
+            .transition(None)
+            .expect("Should transition to Waiting state");
+
+        // Assert correct Expected kind, conversation id and no error_details
+        assert_eq!(
+            next_conv.get_expected_kind(),
+            Some(PlanetToOrchKind(
+                PlanetToOrchestratorKind::InternalStateResponse
+            ))
+        );
+        assert_eq!(next_conv.get_id(), CONV_ID);
+        assert!(next_conv.get_error_details().is_none());
+    }
+
+    #[test]
+    fn test_internal_state_sending_wrong_sender() {
+        //No senders in map
+        let senders_to_planets = Arc::new(Mutex::new(HashMap::new()));
+
+        let to_planet = ToPlanetStruct {
+            planet_id: PLANET_ID,
+            planets_senders: senders_to_planets,
+        };
+        let state = SendingInternalStateRequest::new(to_planet);
+        let conv =
+            Box::new(InternalStateConversation::<SendingInternalStateRequest>::new(CONV_ID, state));
+
+        //Transition should lead to an error
+        let next_conv = conv.transition(None).expect("Should return ErrorState");
+
+        // Assert correct expected kind and error_details
+        assert!(next_conv.get_expected_kind().is_none());
+        assert_eq!(
+            next_conv.get_error_details(),
+            Some(format!("sender to planet {} not found", PLANET_ID))
+        );
+        //Assert: Error transitions to None, finishing the Conversation
+        assert!(next_conv.transition(None).is_none());
+    }
+
+    #[test]
+    fn test_internal_state_sending_message_failure() {
+        let (tx, rx) = unbounded::<OrchestratorToPlanet>();
+        drop(rx); // Break the channel
+
+        let senders_to_planets = Arc::new(Mutex::new(HashMap::from([(PLANET_ID, tx)])));
+        let to_planet = ToPlanetStruct {
+            planet_id: PLANET_ID,
+            planets_senders: senders_to_planets,
+        };
+
+        let state = SendingInternalStateRequest::new(to_planet);
+        let conv =
+            Box::new(InternalStateConversation::<SendingInternalStateRequest>::new(CONV_ID, state));
+
+        //Transition should lead to an Error
+        let next_conv = conv.transition(None).expect("Should return ErrorState");
+
+        // Assert correct error_details
+        let error_msg = next_conv
+            .get_error_details()
+            .expect("Should have error details");
+        assert_eq!(
+            error_msg,
+            format!("failed to send message to planet {}", PLANET_ID)
+        );
+        //Assert: Error transitions to None, finishing the Conversation
+        assert!(next_conv.transition(None).is_none());
+    }
+
+    #[test]
+    fn test_internal_state_waiting_correct_response() {
+        let conv = Box::new(
+            InternalStateConversation::<WaitingInternalStateResponse>::new(CONV_ID, PLANET_ID),
+        );
+
+        let msg = PossibleMessage::PlanetToOrch(PlanetToOrchestrator::InternalStateResponse {
+            planet_id: PLANET_ID,
+            planet_state: DummyPlanetState {
+                energy_cells: vec![],
+                charged_cells_count: 0,
+                has_rocket: false,
+            },
+        });
+
+        // Act: Valid message should end the conversation
+        let result = conv.transition(Some(msg));
+
+        // Assert: Conversation should finish correctly
+        assert!(result.is_none(), "Conversation should finish successfully");
+    }
+
+    #[test]
+    fn test_internal_state_waiting_wrong_message() {
+        let conv = Box::new(
+            InternalStateConversation::<WaitingInternalStateResponse>::new(CONV_ID, PLANET_ID),
+        );
+
+        // Sending an unrelated message variant
+        let wrong_msg = PossibleMessage::PlanetToOrch(PlanetToOrchestrator::StartPlanetAIResult {
+            planet_id: PLANET_ID,
+        });
+
+        // Transition should lead to an Error state
+        let result = conv
+            .transition(Some(wrong_msg))
+            .expect("Should return ErrorState");
+
+        // Assert correct error_details
+        assert_eq!(
+            result.get_error_details(),
+            Some("Wrong Message Received".to_string())
+        );
+        //Assert: Error transitions to None, finishing the Conversation
+        assert!(result.transition(None).is_none());
+    }
+}

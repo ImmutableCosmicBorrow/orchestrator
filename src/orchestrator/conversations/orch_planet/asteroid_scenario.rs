@@ -248,3 +248,203 @@ impl AsteroidConversation<WaitingAsteroidAck> {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use common_game::components::rocket::Rocket;
+    use common_game::protocols::orchestrator_planet::PlanetToOrchestratorKind;
+    use common_game::protocols::orchestrator_planet::PlanetToOrchestratorKind::KillPlanetResult;
+    use crossbeam_channel::unbounded;
+    use std::collections::HashMap;
+    use std::sync::{Arc, Mutex, OnceLock};
+
+    // IDs for testing
+    const CONV_ID: ID = 1;
+    const PLANET_ID: ID = 2;
+
+    /// Helper to get the shared test forge singleton
+    fn get_test_forge() -> Arc<Forge> {
+        static FORGE: OnceLock<Arc<Forge>> = OnceLock::new();
+        FORGE
+            .get_or_init(|| Arc::new(Forge::new().expect("Failed to init Forge for tests")))
+            .clone()
+    }
+
+    #[test]
+    fn test_sending_state_correct() {
+        let (tx, _rx) = unbounded::<OrchestratorToPlanet>();
+        let senders_to_planets = Arc::new(Mutex::new(HashMap::from([(PLANET_ID, tx.clone())])));
+
+        let to_planet = ToPlanetStruct {
+            planet_id: PLANET_ID,
+            planets_senders: senders_to_planets,
+        };
+
+        let forge = get_test_forge();
+        let explorers_location = Arc::new(Mutex::new(HashMap::new()));
+        let explorers_senders = Arc::new(Mutex::new(HashMap::new()));
+
+        let state = SendingAsteroid::new(to_planet, forge, explorers_location, explorers_senders);
+        let conv = Box::new(AsteroidConversation::<SendingAsteroid>::new(CONV_ID, state));
+
+        //Transition to Waiting state
+        let next_conv = conv
+            .transition(None)
+            .expect("Should transition to next state");
+
+        //Assert: correct expected message kind
+        assert_eq!(
+            next_conv.get_expected_kind(),
+            Some(PossibleExpectedKinds::PlanetToOrchKind(
+                PlanetToOrchestratorKind::AsteroidAck
+            ))
+        );
+        //Assert: correct conversation id
+        assert_eq!(next_conv.get_id(), CONV_ID);
+        //Assert: No error details, not in error state
+        assert!(next_conv.get_error_details().is_none());
+    }
+
+    #[test]
+    fn test_sending_state_wrong_planet_sender() {
+        //Void senders
+        let senders_to_planets = Arc::new(Mutex::new(HashMap::new()));
+
+        let to_planet = ToPlanetStruct {
+            planet_id: PLANET_ID,
+            planets_senders: senders_to_planets,
+        };
+
+        let forge = get_test_forge();
+        let explorers_location = Arc::new(Mutex::new(HashMap::new()));
+        let explorers_senders = Arc::new(Mutex::new(HashMap::new()));
+
+        let state = SendingAsteroid::new(to_planet, forge, explorers_location, explorers_senders);
+        let conv = Box::new(AsteroidConversation::<SendingAsteroid>::new(CONV_ID, state));
+
+        //Transition should lead to an error
+        let next_conv = conv
+            .transition(None)
+            .expect("Should transition to error state");
+
+        //Assert: No expected message
+        assert!(next_conv.get_expected_kind().is_none());
+        //Assert: correct error details
+        assert_eq!(
+            next_conv.get_error_details(),
+            Some(format!("sender to planet {} not found", PLANET_ID))
+        );
+        //Assert: Error transitions to None, closing the conversation
+        assert!(next_conv.transition(None).is_none());
+    }
+
+    #[test]
+    fn test_sending_state_message_failure() {
+        let (tx, rx) = unbounded::<OrchestratorToPlanet>();
+        drop(rx);
+
+        let senders_to_planets = Arc::new(Mutex::new(HashMap::from([(PLANET_ID, tx)])));
+        let to_planet = ToPlanetStruct {
+            planet_id: PLANET_ID,
+            planets_senders: senders_to_planets,
+        };
+
+        let forge = get_test_forge();
+        let explorers_location = Arc::new(Mutex::new(HashMap::new()));
+        let explorers_senders = Arc::new(Mutex::new(HashMap::new()));
+
+        let state = SendingAsteroid::new(to_planet, forge, explorers_location, explorers_senders);
+        let conv = Box::new(AsteroidConversation::<SendingAsteroid>::new(CONV_ID, state));
+
+        let next_conv = conv.transition(None).expect("Should return an ErrorState");
+
+        let error_msg = next_conv
+            .get_error_details()
+            .expect("Should have error details");
+        assert_eq!(
+            error_msg,
+            format!("failed to send message to planet {}", PLANET_ID)
+        );
+        assert!(next_conv.transition(None).is_none());
+    }
+
+    //Todo: How to construct a Rocket? Only doable in the planet
+    /*#[test]
+    fn test_waiting_state_correct_transition_with_rocket() {
+        let to_planet = ToPlanetStruct {
+            planet_id: PLANET_ID,
+            planets_senders: Arc::new(Mutex::new(HashMap::new()))
+        };
+        let explorers_location = Arc::new(Mutex::new(HashMap::new()));
+        let explorers_senders = Arc::new(Mutex::new(HashMap::new()));
+
+        let state = WaitingAsteroidAck::new(to_planet, explorers_senders, explorers_location);
+        let conv = Box::new(AsteroidConversation::<WaitingAsteroidAck>::new(CONV_ID, state));
+
+        let msg = PossibleMessage::PlanetToOrch(PlanetToOrchestrator::AsteroidAck {
+            planet_id: PLANET_ID,
+            rocket: Some(Rocket{
+
+            }),
+        });
+
+        let result = conv.transition(Some(msg));
+        assert!(result.is_none());
+    }*/
+
+    #[test]
+    fn test_waiting_state_correct_transition_no_rocket() {
+        let to_planet = ToPlanetStruct {
+            planet_id: PLANET_ID,
+            planets_senders: Arc::new(Mutex::new(HashMap::new())),
+        };
+        let explorers_location = Arc::new(Mutex::new(HashMap::new()));
+        let explorers_senders = Arc::new(Mutex::new(HashMap::new()));
+
+        let state = WaitingAsteroidAck::new(to_planet, explorers_senders, explorers_location);
+        let conv = Box::new(AsteroidConversation::<WaitingAsteroidAck>::new(
+            CONV_ID, state,
+        ));
+
+        let msg = PossibleMessage::PlanetToOrch(PlanetToOrchestrator::AsteroidAck {
+            planet_id: PLANET_ID,
+            rocket: None,
+        });
+
+        //Transition should lead to a Kill Planet Conversation
+        let result = conv
+            .transition(Some(msg))
+            .expect("Should transition to KillPlanetConversation");
+        //Assert: Correct Conversation ID
+        assert_eq!(result.get_id(), CONV_ID);
+    }
+
+    #[test]
+    fn test_waiting_state_wrong_message() {
+        let to_planet = ToPlanetStruct {
+            planet_id: PLANET_ID,
+            planets_senders: Arc::new(Mutex::new(HashMap::new())),
+        };
+        let explorers_location = Arc::new(Mutex::new(HashMap::new()));
+        let explorers_senders = Arc::new(Mutex::new(HashMap::new()));
+
+        let state = WaitingAsteroidAck::new(to_planet, explorers_senders, explorers_location);
+        let conv = Box::new(AsteroidConversation::<WaitingAsteroidAck>::new(
+            CONV_ID, state,
+        ));
+
+        let wrong_msg = PossibleMessage::PlanetToOrch(PlanetToOrchestrator::StartPlanetAIResult {
+            planet_id: PLANET_ID,
+        });
+
+        let result = conv
+            .transition(Some(wrong_msg))
+            .expect("Should return an ErrorState");
+        assert_eq!(
+            result.get_error_details(),
+            Some("Wrong Message Received".to_string())
+        );
+        assert!(result.transition(None).is_none());
+    }
+}
