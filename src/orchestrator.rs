@@ -2,6 +2,7 @@
 
 use crate::galaxy_setup::{PlanetMap, galaxy_loader};
 use common_game::components::forge::Forge;
+use common_game::logging::{ActorType, Channel, EventType, LogEvent, Participant, Payload};
 use common_game::protocols::orchestrator_explorer::{
     ExplorerToOrchestrator, OrchestratorToExplorer,
 };
@@ -12,7 +13,6 @@ use crossbeam_channel::unbounded;
 use crossbeam_channel::{Receiver, Sender};
 use std::collections::HashMap;
 use std::fmt::Debug;
-use common_game::logging::{ActorType, Channel, EventType, LogEvent, Participant, Payload};
 
 pub(crate) struct Orchestrator<T: Debug> {
     planets_senders: HashMap<ID, Sender<OrchestratorToPlanet>>,
@@ -84,7 +84,8 @@ impl<T: Debug> Orchestrator<T> {
         let mut payload = Payload::new();
         payload.insert("message".into(), format!("{msg:?}"));
 
-        let result = self.planets_senders
+        let result = self
+            .planets_senders
             .get(&planet_id)
             .ok_or(format!("Planet {planet_id} not found"))?
             .send(msg)
@@ -104,7 +105,8 @@ impl<T: Debug> Orchestrator<T> {
             EventType::MessageOrchestratorToPlanet,
             channel,
             payload,
-        ).emit();
+        )
+        .emit();
 
         result
     }
@@ -114,7 +116,8 @@ impl<T: Debug> Orchestrator<T> {
         let mut payload = Payload::new();
         payload.insert("message".into(), format!("{msg:?}"));
 
-        let result = self.explorer_senders
+        let result = self
+            .explorer_senders
             .get(&explorer_id)
             .ok_or(format!("Explorer {explorer_id} not found"))?
             .send(msg)
@@ -134,7 +137,8 @@ impl<T: Debug> Orchestrator<T> {
             EventType::MessageOrchestratorToExplorer,
             channel,
             payload,
-        ).emit();
+        )
+        .emit();
 
         result
     }
@@ -151,7 +155,12 @@ impl<T: Debug> Orchestrator<T> {
                 payload.insert("event".into(), "Planet is stopped".into());
                 payload.insert("planet_id".into(), planet_id.to_string());
 
-                LogEvent::system(EventType::InternalOrchestratorAction, Channel::Warning, payload).emit();
+                LogEvent::system(
+                    EventType::InternalOrchestratorAction,
+                    Channel::Warning,
+                    payload,
+                )
+                .emit();
                 None
             }
 
@@ -160,10 +169,18 @@ impl<T: Debug> Orchestrator<T> {
                 self.planets_senders.remove(&planet_id);
 
                 let mut payload = Payload::new();
-                payload.insert("event".to_string(), "Planet has been correctly killed".into());
+                payload.insert(
+                    "event".to_string(),
+                    "Planet has been correctly killed".into(),
+                );
                 payload.insert("planet_id".into(), planet_id.to_string());
 
-                LogEvent::system(EventType::InternalOrchestratorAction, Channel::Info, payload).emit();
+                LogEvent::system(
+                    EventType::InternalOrchestratorAction,
+                    Channel::Info,
+                    payload,
+                )
+                .emit();
                 None
             }
 
@@ -171,7 +188,12 @@ impl<T: Debug> Orchestrator<T> {
                 let mut payload = Payload::new();
                 payload.insert("event".into(), "Planet has been correctly started".into());
                 payload.insert("planet_id".into(), planet_id.to_string());
-                LogEvent::system(EventType::InternalOrchestratorAction, Channel::Info, payload).emit();
+                LogEvent::system(
+                    EventType::InternalOrchestratorAction,
+                    Channel::Info,
+                    payload,
+                )
+                .emit();
                 None
             }
 
@@ -180,7 +202,12 @@ impl<T: Debug> Orchestrator<T> {
                 payload.insert("event".into(), "Planet has been correctly stopped".into());
                 payload.insert("planet_id".into(), planet_id.to_string());
 
-                LogEvent::system(EventType::InternalOrchestratorAction, Channel::Info, payload).emit();
+                LogEvent::system(
+                    EventType::InternalOrchestratorAction,
+                    Channel::Info,
+                    payload,
+                )
+                .emit();
                 None
             }
 
@@ -255,17 +282,33 @@ impl<T: Debug> Orchestrator<T> {
                 match generated {
                     Ok(()) => {
                         let mut payload = Payload::new();
-                        payload.insert("event".into(), "Explorer successfully crafted the requested complex resource".into());
+                        payload.insert(
+                            "event".into(),
+                            "Explorer successfully crafted the requested complex resource".into(),
+                        );
                         payload.insert("explorer_id".into(), explorer_id.to_string());
-                        LogEvent::system(EventType::InternalOrchestratorAction, Channel::Debug, payload).emit();
+                        LogEvent::system(
+                            EventType::InternalOrchestratorAction,
+                            Channel::Debug,
+                            payload,
+                        )
+                        .emit();
                     }
                     Err(s) => {
                         let mut payload = Payload::new();
-                        payload.insert("event".into(), "Explorer could not craft resource".to_string());
+                        payload.insert(
+                            "event".into(),
+                            "Explorer could not craft resource".to_string(),
+                        );
                         payload.insert("explorer_id".into(), explorer_id.to_string());
                         payload.insert("resource".into(), s.to_string());
 
-                        LogEvent::system(EventType::InternalOrchestratorAction, Channel::Debug, payload).emit();
+                        LogEvent::system(
+                            EventType::InternalOrchestratorAction,
+                            Channel::Debug,
+                            payload,
+                        )
+                        .emit();
                     }
                 }
                 None
@@ -297,7 +340,12 @@ impl<T: Debug> Orchestrator<T> {
                 payload.insert("explorer_id".to_string(), explorer_id.to_string());
                 payload.insert("bag_content".to_string(), format!("{bag_content:?}"));
 
-                LogEvent::system(EventType::InternalOrchestratorAction, Channel::Debug, payload).emit();
+                LogEvent::system(
+                    EventType::InternalOrchestratorAction,
+                    Channel::Debug,
+                    payload,
+                )
+                .emit();
                 None
             }
 
@@ -310,7 +358,12 @@ impl<T: Debug> Orchestrator<T> {
                 payload.insert("explorer_id".into(), explorer_id.to_string());
                 payload.insert("combination_list".into(), format!("{combination_list:?}"));
 
-                LogEvent::system(EventType::InternalOrchestratorAction, Channel::Debug, payload).emit();
+                LogEvent::system(
+                    EventType::InternalOrchestratorAction,
+                    Channel::Debug,
+                    payload,
+                )
+                .emit();
                 None
             }
 
@@ -321,9 +374,17 @@ impl<T: Debug> Orchestrator<T> {
                 let mut payload = Payload::new();
                 payload.insert("event".into(), "Explorer's supported resources'".into());
                 payload.insert("explorer_id".into(), explorer_id.to_string());
-                payload.insert("supported_resources".into(), format!("{supported_resources:?}"));
+                payload.insert(
+                    "supported_resources".into(),
+                    format!("{supported_resources:?}"),
+                );
 
-                LogEvent::system(EventType::InternalOrchestratorAction, Channel::Debug, payload).emit();
+                LogEvent::system(
+                    EventType::InternalOrchestratorAction,
+                    Channel::Debug,
+                    payload,
+                )
+                .emit();
                 None
             }
 
@@ -336,43 +397,80 @@ impl<T: Debug> Orchestrator<T> {
                 payload.insert("explorer_id".into(), explorer_id.to_string());
                 payload.insert("current_planet_id".into(), planet_id.to_string());
 
-                LogEvent::system(EventType::InternalOrchestratorAction,Channel::Debug, payload).emit();
+                LogEvent::system(
+                    EventType::InternalOrchestratorAction,
+                    Channel::Debug,
+                    payload,
+                )
+                .emit();
                 None
             }
 
             ExplorerToOrchestrator::StartExplorerAIResult { explorer_id } => {
                 let mut payload = Payload::new();
-                payload.insert("event".into(), "Explorer has been successfully started".into());
+                payload.insert(
+                    "event".into(),
+                    "Explorer has been successfully started".into(),
+                );
                 payload.insert("explorer_id".into(), explorer_id.to_string());
 
-                LogEvent::system(EventType::InternalOrchestratorAction, Channel::Info, payload).emit();
+                LogEvent::system(
+                    EventType::InternalOrchestratorAction,
+                    Channel::Info,
+                    payload,
+                )
+                .emit();
                 None
             }
 
             ExplorerToOrchestrator::StopExplorerAIResult { explorer_id } => {
                 let mut payload = Payload::new();
-                payload.insert("event".into(), "Explorer has been successfully stopped".into());
+                payload.insert(
+                    "event".into(),
+                    "Explorer has been successfully stopped".into(),
+                );
                 payload.insert("explorer_id".into(), explorer_id.to_string());
 
-                LogEvent::system(EventType::InternalOrchestratorAction, Channel::Info, payload).emit();
+                LogEvent::system(
+                    EventType::InternalOrchestratorAction,
+                    Channel::Info,
+                    payload,
+                )
+                .emit();
                 None
             }
 
             ExplorerToOrchestrator::ResetExplorerAIResult { explorer_id } => {
                 let mut payload = Payload::new();
-                payload.insert("event".into(), "Explorer has been successfully reset".into());
+                payload.insert(
+                    "event".into(),
+                    "Explorer has been successfully reset".into(),
+                );
                 payload.insert("explorer_id".into(), explorer_id.to_string());
 
-                LogEvent::system(EventType::InternalOrchestratorAction, Channel::Debug, payload).emit();
+                LogEvent::system(
+                    EventType::InternalOrchestratorAction,
+                    Channel::Debug,
+                    payload,
+                )
+                .emit();
                 None
             }
 
             ExplorerToOrchestrator::KillExplorerResult { explorer_id } => {
                 let mut payload = Payload::new();
-                payload.insert("event".into(), "Explorer has been successfully killed".into());
+                payload.insert(
+                    "event".into(),
+                    "Explorer has been successfully killed".into(),
+                );
                 payload.insert("explorer_id".into(), explorer_id.to_string());
 
-                LogEvent::system(EventType::InternalOrchestratorAction, Channel::Info, payload).emit();
+                LogEvent::system(
+                    EventType::InternalOrchestratorAction,
+                    Channel::Info,
+                    payload,
+                )
+                .emit();
                 None
             }
 
@@ -387,7 +485,12 @@ impl<T: Debug> Orchestrator<T> {
                 payload.insert("current_planet_id".into(), current_planet_id.to_string());
                 payload.insert("destination_planet_id".into(), dst_planet_id.to_string());
 
-                LogEvent::system(EventType::InternalOrchestratorAction, Channel::Debug, payload).emit();
+                LogEvent::system(
+                    EventType::InternalOrchestratorAction,
+                    Channel::Debug,
+                    payload,
+                )
+                .emit();
                 None
             }
 
@@ -397,7 +500,12 @@ impl<T: Debug> Orchestrator<T> {
                 payload.insert("event".to_string(), "Explorer moved to Planet".into());
                 payload.insert("explorer_id".into(), explorer_id.to_string());
 
-                LogEvent::system(EventType::InternalOrchestratorAction, Channel::Info, payload).emit();
+                LogEvent::system(
+                    EventType::InternalOrchestratorAction,
+                    Channel::Info,
+                    payload,
+                )
+                .emit();
                 None
             }
         }
@@ -437,6 +545,11 @@ impl<T: Debug> Orchestrator<T> {
         payload.insert("explorer_id".to_string(), explorer_id.to_string());
         payload.insert("into_planet_id".to_string(), planet_id.to_string());
 
-        LogEvent::system(EventType::InternalOrchestratorAction, Channel::Info, payload).emit();
+        LogEvent::system(
+            EventType::InternalOrchestratorAction,
+            Channel::Info,
+            payload,
+        )
+        .emit();
     }
 }

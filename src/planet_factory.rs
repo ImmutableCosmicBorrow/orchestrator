@@ -40,9 +40,13 @@ pub fn create_luna4_planet(
     luna4::create_planet(id, rx_orchestrator, tx_orchestrator, rx_explorer)
 }
 
-pub fn create_rusty_crab_planet() -> Result<Planet, String> {
-    // Implementation for creating a Rusty Crab Planet
-    todo!()
+pub fn create_rusty_crab_planet(
+    id: ID,
+    rx_orchestrator: Receiver<OrchestratorToPlanet>,
+    tx_orchestrator: Sender<PlanetToOrchestrator>,
+    rx_explorer: Receiver<ExplorerToPlanet>,
+) -> Result<Planet, String> {
+    rusty_crab_ap2025::create_planet(id, rx_orchestrator, tx_orchestrator, rx_explorer)
 }
 
 pub fn create_enterprise_planet(

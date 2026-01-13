@@ -1,3 +1,5 @@
+use crate::planet::{Alive, PlanetNode};
+use common_game::logging::{ActorType, Channel, EventType, LogEvent, Participant, Payload};
 use common_game::protocols::orchestrator_planet::{OrchestratorToPlanet, PlanetToOrchestrator};
 use common_game::protocols::planet_explorer::ExplorerToPlanet;
 use common_game::utils::ID;
@@ -6,8 +8,6 @@ use crossbeam_channel::{Receiver, Sender};
 use std::collections::HashMap;
 use std::path::Path;
 use std::sync::{Arc, Mutex};
-use common_game::logging::{ActorType, Channel, EventType, LogEvent, Participant, Payload};
-use crate::planet::{Alive, PlanetNode};
 
 type OrchPlanSenderMap = HashMap<ID, Sender<OrchestratorToPlanet>>;
 type ExplPlanSenderMap = HashMap<ID, Sender<ExplorerToPlanet>>;
@@ -46,7 +46,12 @@ fn create_planet_with_channels(
             tx_orch_out,
             rx_expl_in,
         ),
-        3 => crate::planet_factory::create_rusty_crab_planet(),
+        3 => crate::planet_factory::create_rusty_crab_planet(
+            planet_id,
+            rx_orch_in,
+            tx_orch_out,
+            rx_expl_in,
+        ),
         4 => crate::planet_factory::create_enterprise_planet(
             planet_id,
             rx_orch_in,
@@ -172,7 +177,12 @@ pub fn galaxy_loader(
     payload.insert("event".into(), "Galaxy loaded".into());
     payload.insert("file_path".into(), file_path.display().to_string());
 
-    LogEvent::system(EventType::InternalOrchestratorAction, Channel::Debug, payload).emit();
+    LogEvent::system(
+        EventType::InternalOrchestratorAction,
+        Channel::Debug,
+        payload,
+    )
+    .emit();
 
     (
         Arc::new(Mutex::new(out)),
