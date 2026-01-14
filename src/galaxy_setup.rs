@@ -15,6 +15,7 @@ use crate::payload;
 use crate::planet::{Alive, PlanetNode};
 
 pub(crate) type OrchPlanSenderMap = HashMap<ID, Sender<OrchestratorToPlanet>>;
+//TODO: Allow the PlanetMap to have dead planets so that they can be revived later
 pub(crate) type PlanetMap = Arc<Mutex<HashMap<ID, Arc<Mutex<PlanetNode<Alive>>>>>>;
 
 // TODO: add a parameter to customize planet creation with other groups planets
