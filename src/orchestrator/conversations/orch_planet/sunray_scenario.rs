@@ -41,7 +41,7 @@ impl WaitingSunrayAck {
 ///
 /// The conversation starts in the [`SendSunray`] state, which generates a Sunray via the [`Forge`]
 /// and sends an [`OrchestratorToPlanet::Sunray`] when the [`Conversation::transition`] method is called.
-struct SendSunray {
+pub(crate) struct SendSunray {
     /// A struct containing fields to send messages to the indicated planet
     to_planet_struct: ToPlanetStruct,
     /// Atomic Reference to the forge used to generate the Sunray
@@ -50,7 +50,7 @@ struct SendSunray {
 
 impl SendSunray {
     /// Constructor for [`SendSunray`] state struct
-    fn new(to_planet_struct: ToPlanetStruct, forge_ref: Arc<Forge>) -> Self {
+    pub(crate) fn new(to_planet_struct: ToPlanetStruct, forge_ref: Arc<Forge>) -> Self {
         Self {
             to_planet_struct,
             forge_ref,
@@ -62,7 +62,7 @@ impl SendSunray {
 ///
 /// This is the generic FSM struct that takes the generic type `State` to ensure only methods
 /// of that specific state can be called during the conversation.
-struct SunrayConversation<State> {
+pub(crate) struct SunrayConversation<State> {
     /// Conversation ID
     id: ID,
     /// Optional expected message to trigger the conversation

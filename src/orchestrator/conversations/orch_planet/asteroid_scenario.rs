@@ -26,7 +26,7 @@ use std::sync::Arc;
 ///
 /// The conversation starts in the [`SendingAsteroid`] state, this state does not expect any message as it sends a [`OrchestratorToPlanet::Asteroid`]
 /// when the [`Conversation::transition`] method is called
-struct SendingAsteroid {
+pub(crate) struct SendingAsteroid {
     ///A struct containing fields to send messages to a planet, used if a planet cannot defend and has to be killed
     to_planet_struct: ToPlanetStruct,
     ///Atomic Reference to the forge to create [Asteroid]
@@ -39,7 +39,7 @@ struct SendingAsteroid {
 
 impl SendingAsteroid {
     ///Constructor for [`SendingAsteroid`] state struct
-    fn new(
+    pub(crate) fn new(
         to_planet_struct: ToPlanetStruct,
         forge: Arc<Forge>,
         explorers_location_ref: ExplorersLocationRef,
@@ -83,7 +83,7 @@ impl WaitingAsteroidAck {
 }
 
 ///This is the generic FSM struct, it takes the generic type State to ensure only methods of that state can be called
-struct AsteroidConversation<State> {
+pub(crate) struct AsteroidConversation<State> {
     ///Conversation ID
     id: ID,
     ///Optional expected message to trigger the conversation
