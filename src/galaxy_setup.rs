@@ -1,4 +1,5 @@
-use common_game::logging::Channel;
+use crate::planet::{Alive, PlanetNode};
+use common_game::logging::{ActorType, Channel, EventType, LogEvent, Participant, Payload};
 use common_game::protocols::orchestrator_planet::{OrchestratorToPlanet, PlanetToOrchestrator};
 use common_game::protocols::planet_explorer::ExplorerToPlanet;
 use common_game::utils::ID;
@@ -14,29 +15,86 @@ use crate::logging_utils::log_internal;
 use crate::payload;
 use crate::planet::{Alive, PlanetNode};
 
-pub(crate) type OrchPlanSenderMap = HashMap<ID, Sender<OrchestratorToPlanet>>;
 //TODO: Allow the PlanetMap to have dead planets so that they can be revived later
+pub(crate) type OrchPlanSenderMap = HashMap<ID, Sender<OrchestratorToPlanet>>;
+pub(crate) type ExplPlanSenderMap = HashMap<ID, Sender<ExplorerToPlanet>>;
 pub(crate) type PlanetMap = Arc<Mutex<HashMap<ID, Arc<Mutex<PlanetNode<Alive>>>>>>;
 
 // TODO: add a parameter to customize planet creation with other groups planets
 fn create_planet_with_channels(
-    sender_map: &mut OrchPlanSenderMap,
+    orch_sender_map: &mut OrchPlanSenderMap,
+    expl_sender_map: &mut ExplPlanSenderMap,
     planet_id: ID,
     tx_orch_out: Sender<PlanetToOrchestrator>,
-    rx_expl_in: Receiver<ExplorerToPlanet>,
 ) -> PlanetNode<Alive> {
     let (tx_orch_in, rx_orch_in) = unbounded::<OrchestratorToPlanet>();
-    sender_map.insert(planet_id, tx_orch_in);
+    orch_sender_map.insert(planet_id, tx_orch_in);
 
-    let ai = Ai::new(
-        false,
-        0.4,
-        0.3,
-        Duration::from_millis(500),
-        Duration::from_millis(2000),
-    );
+    let (tx_expl_in, rx_expl_in) = unbounded::<ExplorerToPlanet>();
+    expl_sender_map.insert(planet_id, tx_expl_in);
 
-    let planet = create_planet(ai, planet_id, (rx_orch_in, tx_orch_out), rx_expl_in);
+    let planet = match planet_id % 7 {
+        0 => crate::planet_factory::create_trip_planet(
+            planet_id,
+            rx_orch_in,
+            tx_orch_out,
+            rx_expl_in,
+        ),
+        1 => crate::planet_factory::create_rustrelli_planet(
+            planet_id,
+            rx_orch_in,
+            tx_orch_out,
+            rx_expl_in,
+            rustrelli::ExplorerRequestLimit::FairShare,
+        ),
+        2 => crate::planet_factory::create_luna4_planet(
+            planet_id,
+            rx_orch_in,
+            tx_orch_out,
+            rx_expl_in,
+        ),
+        3 => crate::planet_factory::create_rusty_crab_planet(
+            planet_id,
+            rx_orch_in,
+            tx_orch_out,
+            rx_expl_in,
+        ),
+        4 => crate::planet_factory::create_enterprise_planet(
+            planet_id,
+            rx_orch_in,
+            tx_orch_out,
+            rx_expl_in,
+        ),
+        5 => crate::planet_factory::create_orbitron_planet(
+            planet_id,
+            rx_orch_in,
+            tx_orch_out,
+            rx_expl_in,
+        ),
+        6 => crate::planet_factory::create_houston_we_have_a_borrow_planet(
+            rx_orch_in,
+            tx_orch_out,
+            rx_expl_in,
+            planet_id,
+            houston_we_have_a_borrow::RocketStrategy::Safe,
+            None,
+        ),
+        _ => unreachable!(),
+    };
+
+    // Emit log event
+    let mut payload = Payload::new();
+    payload.insert("event".into(), "Planet creation".into());
+    payload.insert("planet_id".into(), planet_id.to_string());
+    payload.insert("success".into(), planet.is_ok().to_string());
+
+    let mut channel = Channel::Info;
+    if let Err(ref error) = planet {
+        payload.insert("error".into(), error.into());
+        channel = Channel::Error;
+    }
+
+    LogEvent::system(EventType::InternalOrchestratorAction, channel, payload).emit();
 
     log_internal(
         Channel::Info,
@@ -49,10 +107,14 @@ fn create_planet_with_channels(
     PlanetNode::<Alive>::new(planet.expect("Failed to create planet"))
 }
 
-#[allow(dead_code)]
 pub fn galaxy_loader(
     file_path: &Path,
-) -> (PlanetMap, Receiver<PlanetToOrchestrator>, OrchPlanSenderMap) {
+) -> (
+    PlanetMap,
+    Receiver<PlanetToOrchestrator>,
+    OrchPlanSenderMap,
+    ExplPlanSenderMap,
+) {
     use std::fs::File;
     use std::io::{BufRead, BufReader};
 
@@ -62,7 +124,6 @@ pub fn galaxy_loader(
     }
 
     let (tx_orch_out, rx_orch_out) = unbounded::<PlanetToOrchestrator>();
-    let (_tx_expl_in, rx_expl_in) = unbounded::<ExplorerToPlanet>();
 
     // First pass: create all planet nodes
     let file = File::open(file_path).expect("Failed to open galaxy file");
@@ -73,6 +134,7 @@ pub fn galaxy_loader(
     let mut edges: Vec<(ID, Vec<ID>)> = Vec::new();
 
     let mut orch_to_plan_send = HashMap::new();
+    let mut expl_to_plan_send = HashMap::new();
     for line in reader.lines() {
         let line = line.expect("Failed to read line");
         if line.trim().is_empty() {
@@ -96,9 +158,9 @@ pub fn galaxy_loader(
         out.entry(id).or_insert_with(|| {
             Arc::new(Mutex::new(create_planet_with_channels(
                 &mut orch_to_plan_send,
+                &mut expl_to_plan_send,
                 id,
                 tx_orch_out.clone(),
-                rx_expl_in.clone(),
             )))
         });
 
@@ -107,9 +169,9 @@ pub fn galaxy_loader(
             out.entry(neighbor_id).or_insert_with(|| {
                 Arc::new(Mutex::new(create_planet_with_channels(
                     &mut orch_to_plan_send,
+                    &mut expl_to_plan_send,
                     neighbor_id,
                     tx_orch_out.clone(),
-                    rx_expl_in.clone(),
                 )))
             });
         }
@@ -132,5 +194,10 @@ pub fn galaxy_loader(
         ),
     );
 
-    (Arc::new(Mutex::new(out)), rx_orch_out, orch_to_plan_send)
+    (
+        Arc::new(Mutex::new(out)),
+        rx_orch_out,
+        orch_to_plan_send,
+        expl_to_plan_send,
+    )
 }
