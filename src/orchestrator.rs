@@ -1,6 +1,7 @@
 #![allow(dead_code)]
 
 mod conversations;
+mod event_senders;
 mod queue;
 
 use crate::galaxy_setup::{PlanetMap, galaxy_loader};
@@ -40,7 +41,7 @@ pub(crate) struct Orchestrator {
     explorer_senders: SendersToExplorer,
     planets_receiver: Receiver<PlanetToOrchestrator>,
     explorers_receiver: Receiver<OrchestratorToExplorer>,
-    forge: Forge,
+    forge: Arc<Forge>,
     convo_scheduler: ConvoScheduler<ExplorerBag>,
     galaxy: PlanetMap,
     planet_explorer_channels: PlanetExplorerChannels,
@@ -52,7 +53,7 @@ impl Orchestrator {
         let (galaxy, planets_receiver, planets_senders) = galaxy_loader(file_path);
         let (explorers_receiver, explorer_senders) =
             (unbounded::<OrchestratorToExplorer>().1, HashMap::new());
-        let forge = Forge::new().expect("Couldn't create forge!");
+        let forge = Arc::new(Forge::new().expect("Couldn't create forge!"));
 
         let planet_explorer_channels = PlanetExplorerChannels {
             planet_to_explorer_senders: Arc::new(Mutex::new(HashMap::new())),
@@ -185,6 +186,29 @@ impl Orchestrator {
                 }
             }
         }
+    }
+
+    /// Starts a background thread that periodically sends asteroids to random planets.
+    pub fn start_asteroid_sender(&self) {
+        event_senders::start_asteroid_sender(
+            self.planets_senders.clone(),
+            self.forge.clone(),
+            self.explorers_location.clone(),
+            self.explorer_senders.clone(),
+            self.convo_scheduler.clone(),
+            self.galaxy.clone(),
+        );
+    }
+
+    /// Starts a background thread that periodically sends sunrays to random planets.
+    pub fn start_sunray_sender(&self) {
+        event_senders::start_sunray_sender(
+            self.planets_senders.clone(),
+            self.forge.clone(),
+            self.explorers_location.clone(),
+            self.convo_scheduler.clone(),
+            self.galaxy.clone(),
+        );
     }
 
     fn process_messages(&mut self) {
