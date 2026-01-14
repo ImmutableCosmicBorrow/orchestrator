@@ -5,6 +5,11 @@ edition = "2024"
 
 [dependencies]
 common-game = { git = "https://www.github.com/unitn-ap-2025/common.git", rev = "f10376f9" }
+crossbeam-channel = "0.5.15"
+strum = "0.27.2"
+priority-queue = "2.7.0"
+rayon = "1.10"
+env_logger = "0.11.8"
 
 luna4 = {git = "https://github.com/luna4-ap2025/Planet_Luna4"}
 rustrelli = {git = "https://github.com/Rustrelli/rustrelli"}
@@ -13,8 +18,6 @@ houston-we-have-a-borrow = { package = "Planet", git = "https://github.com/Houst
 orbitron = {git = "https://github.com/Advanced-Programming-2025-Orbitron/Orbitron/"}
 trip = { git = "https://github.com/Totally-Reliable-Imaginary-Planets/TRIP.git", branch = "main" }
 rusty-crab-ap2025 = "2.0.0-beta.3"
-
-crossbeam-channel = "0.5.15"
 
 dummy_explorer = {git = "https://github.com/ImmutableCosmicBorrow/dummy_explorer/"}
 

@@ -5,12 +5,19 @@ use common_game::protocols::planet_explorer::ExplorerToPlanet;
 use common_game::utils::ID;
 use crossbeam_channel::unbounded;
 use crossbeam_channel::{Receiver, Sender};
+use immutable_cosmic_borrow::{Ai, create_planet};
 use std::collections::HashMap;
 use std::path::Path;
 use std::sync::{Arc, Mutex};
+use std::time::Duration;
 
-type OrchPlanSenderMap = HashMap<ID, Sender<OrchestratorToPlanet>>;
-type ExplPlanSenderMap = HashMap<ID, Sender<ExplorerToPlanet>>;
+use crate::logging_utils::log_internal;
+use crate::payload;
+use crate::planet::{Alive, PlanetNode};
+
+//TODO: Allow the PlanetMap to have dead planets so that they can be revived later
+pub(crate) type OrchPlanSenderMap = HashMap<ID, Sender<OrchestratorToPlanet>>;
+pub(crate) type ExplPlanSenderMap = HashMap<ID, Sender<ExplorerToPlanet>>;
 pub(crate) type PlanetMap = Arc<Mutex<HashMap<ID, Arc<Mutex<PlanetNode<Alive>>>>>>;
 
 // TODO: add a parameter to customize planet creation with other groups planets
@@ -88,6 +95,14 @@ fn create_planet_with_channels(
     }
 
     LogEvent::system(EventType::InternalOrchestratorAction, channel, payload).emit();
+
+    log_internal(
+        Channel::Info,
+        payload!(
+            action : "Created Planet",
+            planet_id : planet_id,
+        ),
+    );
 
     PlanetNode::<Alive>::new(planet.expect("Failed to create planet"))
 }
@@ -172,17 +187,12 @@ pub fn galaxy_loader(
         }
     }
 
-    // Emit log event
-    let mut payload = Payload::new();
-    payload.insert("event".into(), "Galaxy loaded".into());
-    payload.insert("file_path".into(), file_path.display().to_string());
-
-    LogEvent::system(
-        EventType::InternalOrchestratorAction,
-        Channel::Debug,
-        payload,
-    )
-    .emit();
+    log_internal(
+        Channel::Info,
+        payload!(
+            action : "Loaded galaxy from file"
+        ),
+    );
 
     (
         Arc::new(Mutex::new(out)),
