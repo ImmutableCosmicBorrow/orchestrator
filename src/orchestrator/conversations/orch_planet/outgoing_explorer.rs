@@ -1,3 +1,4 @@
+use crate::logging_utils::log_internal;
 use crate::orchestrator::ExplorerBag;
 use crate::orchestrator::conversations::PossibleExpectedKinds::PlanetToOrchKind;
 use crate::orchestrator::conversations::orch_explorer::kill_explorers_manager::KillExplorersManager;
@@ -5,6 +6,8 @@ use crate::orchestrator::conversations::{
     CommonErrorTypes, Conversation, ErrorState, ErrorType, PossibleExpectedKinds, PossibleMessage,
     ToPlanetError, ToPlanetStruct,
 };
+use crate::payload;
+use common_game::logging::Channel;
 use common_game::protocols::orchestrator_planet::{
     OrchestratorToPlanet, PlanetToOrchestrator, PlanetToOrchestratorKind,
 };
@@ -201,8 +204,14 @@ impl Conversation<ExplorerBag> for OutgoingExplorer<WaitingOutgoingResponse> {
         )) = msg_wrapped
         {
             return if res.is_ok() {
-                println!(
-                    "Planet {planet_id} correctly handled outgoing explorer {explorer_id}, going back to manager"
+                log_internal(
+                    Channel::Debug,
+                    payload!(
+                        action : "Planet correctly handled outgoing explorer, conversation is going back to manager",
+                        planet_id : planet_id,
+                        outgoing_explorer_id : explorer_id,
+                        conversation_id : self.id,
+                    ),
                 );
                 Some(self.state.kill_explorers_manager)
             } else {

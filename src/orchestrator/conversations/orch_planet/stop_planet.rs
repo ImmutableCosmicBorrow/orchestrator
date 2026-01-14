@@ -1,9 +1,12 @@
+use crate::logging_utils::log_internal;
 use crate::orchestrator::ExplorerBag;
 use crate::orchestrator::conversations::PossibleExpectedKinds::PlanetToOrchKind;
 use crate::orchestrator::conversations::{
     CommonErrorTypes, Conversation, ErrorState, PossibleExpectedKinds, PossibleMessage,
     ToPlanetError, ToPlanetStruct,
 };
+use crate::payload;
+use common_game::logging::Channel;
 use common_game::protocols::orchestrator_planet::{
     OrchestratorToPlanet, PlanetToOrchestrator, PlanetToOrchestratorKind,
 };
@@ -158,7 +161,14 @@ impl Conversation<ExplorerBag> for StopPlanetConversation<WaitingPlanetStopResul
             planet_id,
         })) = msg_wrapped
         {
-            println!("Stopped Planet: {planet_id:?}");
+            log_internal(
+                Channel::Info,
+                payload!(
+                    action : "Stopped Planet, closing conversation",
+                    planet_id : planet_id,
+                    conversation_id : self.id
+                ),
+            );
             return None;
         }
 

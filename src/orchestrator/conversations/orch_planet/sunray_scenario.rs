@@ -1,10 +1,13 @@
+use crate::logging_utils::log_internal;
 use crate::orchestrator::ExplorerBag;
 use crate::orchestrator::conversations::PossibleExpectedKinds::PlanetToOrchKind;
 use crate::orchestrator::conversations::{
     CommonErrorTypes, Conversation, ErrorState, PossibleExpectedKinds, PossibleMessage,
     ToPlanetError, ToPlanetStruct,
 };
+use crate::payload;
 use common_game::components::forge::Forge;
+use common_game::logging::Channel;
 use common_game::protocols::orchestrator_planet::PlanetToOrchestratorKind::SunrayAck;
 use common_game::protocols::orchestrator_planet::{OrchestratorToPlanet, PlanetToOrchestrator};
 use common_game::utils::ID;
@@ -163,7 +166,14 @@ impl Conversation<ExplorerBag> for SunrayConversation<WaitingSunrayAck> {
         if let Some(PossibleMessage::PlanetToOrch(PlanetToOrchestrator::SunrayAck { planet_id })) =
             msg_wrapped
         {
-            println!("Planet {planet_id:?} received the sunray");
+            log_internal(
+                Channel::Debug,
+                payload!(
+                    action : "Planet received the Sunray, closing conversation",
+                    planet_id : planet_id,
+                    conversation_id : self.id
+                ),
+            );
             return None;
         }
 

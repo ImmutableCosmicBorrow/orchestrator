@@ -1,9 +1,12 @@
+use crate::logging_utils::log_internal;
 use crate::orchestrator::ExplorerBag;
 use crate::orchestrator::conversations::PossibleExpectedKinds::PlanetToOrchKind;
 use crate::orchestrator::conversations::{
     CommonErrorTypes, Conversation, ErrorState, PossibleExpectedKinds, PossibleMessage,
     ToPlanetError, ToPlanetStruct,
 };
+use crate::payload;
+use common_game::logging::Channel;
 use common_game::protocols::orchestrator_planet::PlanetToOrchestratorKind::StartPlanetAIResult;
 use common_game::protocols::orchestrator_planet::{OrchestratorToPlanet, PlanetToOrchestrator};
 use common_game::utils::ID;
@@ -156,7 +159,14 @@ impl Conversation<ExplorerBag> for StartPlanetConversation<WaitingPlanetStartRes
             planet_id,
         })) = msg_wrapped
         {
-            println!("Started Planet: {planet_id:?}");
+            log_internal(
+                Channel::Info,
+                payload!(
+                    action : "Started Planet, closing conversation",
+                    planet_id : planet_id,
+                    conversation_id : self.id,
+                ),
+            );
             return None;
         }
 

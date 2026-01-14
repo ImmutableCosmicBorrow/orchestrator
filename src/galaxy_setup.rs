@@ -1,16 +1,17 @@
-use std::collections::HashMap;
-use std::path::Path;
-use std::sync::{Arc, Mutex};
-use std::time::Duration;
-
+use common_game::logging::Channel;
 use common_game::protocols::orchestrator_planet::{OrchestratorToPlanet, PlanetToOrchestrator};
 use common_game::protocols::planet_explorer::ExplorerToPlanet;
 use common_game::utils::ID;
 use crossbeam_channel::unbounded;
 use crossbeam_channel::{Receiver, Sender};
-
 use immutable_cosmic_borrow::{Ai, create_planet};
+use std::collections::HashMap;
+use std::path::Path;
+use std::sync::{Arc, Mutex};
+use std::time::Duration;
 
+use crate::logging_utils::log_internal;
+use crate::payload;
 use crate::planet::{Alive, PlanetNode};
 
 pub(crate) type OrchPlanSenderMap = HashMap<ID, Sender<OrchestratorToPlanet>>;
@@ -35,6 +36,14 @@ fn create_planet_with_channels(
     );
 
     let planet = create_planet(ai, planet_id, (rx_orch_in, tx_orch_out), rx_expl_in);
+
+    log_internal(
+        Channel::Info,
+        payload!(
+            action : "Created Planet",
+            planet_id : planet_id,
+        ),
+    );
 
     PlanetNode::<Alive>::new(planet.expect("Failed to create planet"))
 }
@@ -114,6 +123,13 @@ pub fn galaxy_loader(
             node.lock().unwrap().add_neighbor(Arc::downgrade(neighbor));
         }
     }
+
+    log_internal(
+        Channel::Info,
+        payload!(
+            action : "Loaded galaxy from file"
+        ),
+    );
 
     (Arc::new(Mutex::new(out)), rx_orch_out, orch_to_plan_send)
 }

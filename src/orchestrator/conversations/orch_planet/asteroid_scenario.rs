@@ -1,3 +1,4 @@
+use crate::logging_utils::log_internal;
 use crate::orchestrator::conversations::orch_planet::kill_planet::{
     KillPlanetConversation, SendPlanetKill,
 };
@@ -6,9 +7,11 @@ use crate::orchestrator::conversations::{
     SendersToExplorer, ToPlanetError, ToPlanetStruct,
 };
 use crate::orchestrator::{ExplorerBag, ExplorersLocationRef};
+use crate::payload;
 #[cfg(doc)]
 use common_game::components::asteroid::Asteroid;
 use common_game::components::forge::Forge;
+use common_game::logging::Channel;
 use common_game::protocols::orchestrator_planet::{
     OrchestratorToPlanet, PlanetToOrchestrator, PlanetToOrchestratorKind,
 };
@@ -192,14 +195,27 @@ impl Conversation<ExplorerBag> for AsteroidConversation<WaitingAsteroidAck> {
             rocket,
         })) = msg_wrapped
         {
-            if let Some(r) = rocket {
-                println!(
-                    "Planet {planet_id} received an asteroid and defends with the rocket {r:?}"
+            if rocket.is_some() {
+                log_internal(
+                    Channel::Debug,
+                    payload!(
+                        action : "Planet received an asteroid and defends with a rocket, closing conversation",
+                        planet_id : planet_id,
+                        conversation_id : self.id
+                    ),
                 );
                 return None;
             }
 
-            println!("Planet {planet_id} received an asteroid and will be killed");
+            log_internal(
+                Channel::Debug,
+                payload!(
+                    action : "Planet received an asteroid and did not defend, so it will be killed",
+                    planet_id : planet_id,
+                    conversation_id : self.id
+                ),
+            );
+
             //Transition to KillStateConversation
             let new_state = KillPlanetConversation::<SendPlanetKill>::new(
                 self.id,

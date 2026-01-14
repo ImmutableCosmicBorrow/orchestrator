@@ -1,8 +1,11 @@
+use crate::logging_utils::log_internal;
 use crate::orchestrator::ExplorerBag;
 use crate::orchestrator::conversations::{
     CommonErrorTypes, Conversation, ErrorState, PossibleExpectedKinds, PossibleMessage,
     ToExplorerError, ToExplorerStruct,
 };
+use crate::payload;
+use common_game::logging::Channel;
 use common_game::protocols::orchestrator_explorer::{
     ExplorerToOrchestrator, ExplorerToOrchestratorKind, OrchestratorToExplorer,
 };
@@ -161,7 +164,15 @@ impl Conversation<ExplorerBag> for BagContentConversation<WaitingBagContentRespo
         })) = msg_wrapped
         {
             //TODO: SEND THIS TO UI
-            println!("Explorer {explorer_id} bag content: {bag_content:?}");
+            log_internal(
+                Channel::Debug,
+                payload!(
+                    action : "Explorer sent its bag content, closing conversation",
+                    explorer_id : explorer_id,
+                    bag_content : format!{"{bag_content:?}"},
+                    conversation_id : self.id
+                ),
+            );
             return None;
         }
 

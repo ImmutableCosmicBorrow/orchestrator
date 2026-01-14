@@ -1,3 +1,4 @@
+use crate::logging_utils::log_internal;
 use crate::orchestrator::ExplorerBag;
 use crate::orchestrator::conversations::orch_explorer::kill_explorers_manager::KillExplorersManager;
 use crate::orchestrator::conversations::orch_planet::outgoing_explorer::{
@@ -7,6 +8,8 @@ use crate::orchestrator::conversations::{
     CommonErrorTypes, Conversation, ErrorState, PossibleExpectedKinds, PossibleMessage,
     ToExplorerError, ToExplorerStruct, ToPlanetStruct,
 };
+use crate::payload;
+use common_game::logging::Channel;
 use common_game::protocols::orchestrator_explorer::{
     ExplorerToOrchestrator, ExplorerToOrchestratorKind, OrchestratorToExplorer,
 };
@@ -203,7 +206,14 @@ impl Conversation<ExplorerBag> for KillExplorerConversation<WaitingKillExplorerR
             explorer_id,
         })) = msg_wrapped
         {
-            println!("Killed explorer {explorer_id}");
+            log_internal(
+                Channel::Info,
+                payload!(
+                    action : "Killed explorer, closing conversation",
+                    explorer_id : explorer_id,
+                    conversation_id : self.id
+                ),
+            );
             if self.state.handle_outgoing {
                 let state_struct = SendingOutgoingRequest::new(
                     self.state.to_planet_struct,
@@ -214,8 +224,13 @@ impl Conversation<ExplorerBag> for KillExplorerConversation<WaitingKillExplorerR
                     OutgoingExplorer::<SendingOutgoingRequest>::new(self.id, state_struct);
                 return Some(Box::new(next_state));
             }
-            println!(
-                "Conversation already took care of outgoing explorer {explorer_id}, going back to manager!"
+            log_internal(
+                Channel::Warning,
+                payload!(
+                    action : "Conversation already took care of this outgoing Explorer and is going back to manager.",
+                    explorer_id : explorer_id,
+                    conversation_id : self.id,
+                ),
             );
             return Some(self.state.manager);
         }

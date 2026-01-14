@@ -1,8 +1,11 @@
+use crate::logging_utils::log_internal;
 use crate::orchestrator::ExplorerBag;
 use crate::orchestrator::conversations::{
     CommonErrorTypes, Conversation, ErrorState, PossibleExpectedKinds, PossibleMessage,
     ToExplorerError, ToExplorerStruct,
 };
+use crate::payload;
+use common_game::logging::Channel;
 use common_game::protocols::orchestrator_explorer::{
     ExplorerToOrchestrator, ExplorerToOrchestratorKind, OrchestratorToExplorer,
 };
@@ -161,7 +164,14 @@ impl Conversation<ExplorerBag> for StartExplorerConversation<WaitingExplorerStar
             ExplorerToOrchestrator::StartExplorerAIResult { explorer_id },
         )) = msg_wrapped
         {
-            println!("Started Explorer {explorer_id}");
+            log_internal(
+                Channel::Info,
+                payload!(
+                    action : "Started Explorer, closing conversation",
+                    explorer_id : explorer_id,
+                    conversation_id : self.id
+                ),
+            );
             return None;
         }
 

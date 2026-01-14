@@ -1,10 +1,13 @@
 use crate::galaxy_setup::PlanetMap;
+use crate::logging_utils::log_internal;
 use crate::orchestrator::ExplorerBag;
 use crate::orchestrator::conversations::PossibleExpectedKinds::ExplorerToOrchKind;
 use crate::orchestrator::conversations::{
     CommonErrorTypes, Conversation, ErrorState, ErrorType, PossibleExpectedKinds, PossibleMessage,
     ToExplorerError, ToExplorerStruct,
 };
+use crate::payload;
+use common_game::logging::Channel;
 use common_game::protocols::orchestrator_explorer::{
     ExplorerToOrchestrator, ExplorerToOrchestratorKind, OrchestratorToExplorer,
 };
@@ -114,9 +117,13 @@ impl Conversation<ExplorerBag> for NeighborsDiscoveryConversation<SendingNeighbo
                 neighbors: self.state.neighbors,
             }) {
             Ok(()) => {
-                println!(
-                    "Explorer {} obtained its neighbors correctly",
-                    self.state.to_explorer_struct.explorer_id
+                log_internal(
+                    Channel::Debug,
+                    payload!(
+                        action : "Correctly sent its neighbors to Explorer, closing conversation",
+                        explorer_id : self.state.to_explorer_struct.explorer_id,
+                        conversation_id : self.id
+                    ),
                 );
                 None
             }

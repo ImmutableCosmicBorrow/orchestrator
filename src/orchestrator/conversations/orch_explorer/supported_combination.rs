@@ -1,8 +1,11 @@
+use crate::logging_utils::log_internal;
 use crate::orchestrator::ExplorerBag;
 use crate::orchestrator::conversations::{
     CommonErrorTypes, Conversation, ErrorState, PossibleExpectedKinds, PossibleMessage,
     ToExplorerError, ToExplorerStruct,
 };
+use crate::payload;
+use common_game::logging::Channel;
 use common_game::protocols::orchestrator_explorer::{
     ExplorerToOrchestrator, ExplorerToOrchestratorKind, OrchestratorToExplorer,
 };
@@ -169,8 +172,14 @@ impl Conversation<ExplorerBag>
             },
         )) = msg_wrapped
         {
-            println!(
-                "Supported combinations in explorer {explorer_id} current planet: {combination_list:?}"
+            log_internal(
+                Channel::Debug,
+                payload!(
+                    action : "Explorer sent supported combinations in its current Planet, closing conversation",
+                    explorer_id : explorer_id,
+                    supported_combinnations : format!("{combination_list:?}"),
+                    conversation_id : self.id
+                ),
             );
             return None;
         }

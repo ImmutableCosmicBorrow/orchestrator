@@ -1,3 +1,4 @@
+use crate::logging_utils::log_internal;
 use crate::orchestrator::ExplorerBag;
 use crate::orchestrator::conversations::orch_explorer::move_to_planet::errors::MoveToPlanetErrors;
 use crate::orchestrator::conversations::orch_explorer::move_to_planet::{
@@ -6,6 +7,8 @@ use crate::orchestrator::conversations::orch_explorer::move_to_planet::{
 use crate::orchestrator::conversations::{
     CommonErrorTypes, Conversation, ErrorState, PossibleExpectedKinds, PossibleMessage,
 };
+use crate::payload;
+use common_game::logging::Channel;
 use common_game::protocols::orchestrator_explorer::ExplorerToOrchestrator;
 use common_game::protocols::orchestrator_explorer::ExplorerToOrchestratorKind::MovedToPlanetResult;
 use common_game::utils::ID;
@@ -57,10 +60,27 @@ impl Conversation<ExplorerBag> for MoveToPlanetConversation<WaitMoveToPlanetResp
         {
             //Explorer is moving, need to change its location in Orchestrator reference
             if self.state.is_explorer_moving {
-                println!("Explorer {explorer_id} moved correctly to planet {planet_id}");
+                log_internal(
+                    Channel::Info,
+                    payload!(
+                        action : "Explorer correctly moved to Planet",
+                        explorer_id : explorer_id,
+                        destination_planet_id : planet_id,
+                        conversation_id : self.id,
+                    ),
+                );
+
                 return match self.move_explorer_location(explorer_id, planet_id) {
                     Ok(()) => {
-                        println!("Changed Explorer Location in list to planet {planet_id}");
+                        log_internal(
+                            Channel::Debug,
+                            payload!(
+                                action : "Changed Explorer location in List, closing conversation",
+                                explorer_id : explorer_id,
+                                changed_to_planet_id : planet_id,
+                                conversation_id : self.id
+                            ),
+                        );
                         None
                     }
                     Err(e) => {
@@ -70,8 +90,14 @@ impl Conversation<ExplorerBag> for MoveToPlanetConversation<WaitMoveToPlanetResp
                 };
             }
             //Explorer responded correctly and couldn't move
-            println!(
-                "Explorer {explorer_id} responded and cannot move due to dst planet not being a neighbor of current planet"
+            log_internal(
+                Channel::Warning,
+                payload!(
+                    action : "Explorer cannot move due to destination Planet not being a neighbor of current Planet, closing conversation",
+                    explorer_id : explorer_id,
+                    destination_planet_id : planet_id,
+                    conversation_id : self.id
+                ),
             );
             return None;
         }

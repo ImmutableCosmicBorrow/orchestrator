@@ -6,8 +6,11 @@ mod queue;
 use crate::galaxy_setup::{PlanetMap, galaxy_loader};
 use crate::orchestrator::conversations::{PossibleMessage, SendersToExplorer, SendersToPlanet};
 use crate::orchestrator::queue::ConvoScheduler;
+use crate::payload;
 
+use crate::logging_utils::{log_internal, log_msg_to};
 use common_game::components::forge::Forge;
+use common_game::logging::{ActorType, Channel, EventType};
 use common_game::protocols::orchestrator_explorer::{
     ExplorerToOrchestrator, OrchestratorToExplorer,
 };
@@ -71,6 +74,15 @@ impl Orchestrator {
 
     /// Sends an `OrchestratorToPlanet` to the correspondent `planet_id`. Returns nothing if successful, a String error otherwise
     fn to_planet(&self, planet_id: ID, msg: OrchestratorToPlanet) -> Result<(), String> {
+        log_msg_to(
+            Channel::Trace,
+            EventType::MessageOrchestratorToPlanet,
+            (ActorType::Planet, planet_id),
+            payload!(
+                message : format!("{:?}", msg)
+            ),
+        );
+
         self.planets_senders
             .lock()
             .unwrap()
@@ -82,6 +94,15 @@ impl Orchestrator {
 
     /// Sends an `OrchestratorToExplorer` to the correspondent `explorer_id`. Returns nothing if successful, a String error otherwise
     fn to_explorer(&self, explorer_id: ID, msg: OrchestratorToExplorer) -> Result<(), String> {
+        log_msg_to(
+            Channel::Trace,
+            EventType::MessageOrchestratorToPlanet,
+            (ActorType::Explorer, explorer_id),
+            payload!(
+                message : format!("{:?}", msg)
+            ),
+        );
+
         self.explorer_senders
             .lock()
             .unwrap()
@@ -91,208 +112,7 @@ impl Orchestrator {
             .map_err(|err| format!("Failed to send to Explorer {explorer_id}: {err}"))
     }
 
-    ///This function handles the incoming messages from a planet
-    ///Returns an optional tuple with the `planet_id` and the message to send to the planet as a response
-    fn handle_planet_message(
-        &mut self,
-        message: PlanetToOrchestrator,
-    ) -> Option<(ID, OrchestratorToPlanet)> {
-        match message {
-            PlanetToOrchestrator::Stopped { planet_id } => {
-                println!("Planet {planet_id} AI is currently stopped");
-                None
-            }
-
-            PlanetToOrchestrator::KillPlanetResult { planet_id } => {
-                //TODO: erase planet from map
-                self.planets_senders.lock().unwrap().remove(&planet_id);
-                println!("Planet {planet_id} has been killed");
-                None
-            }
-
-            PlanetToOrchestrator::StartPlanetAIResult { planet_id } => {
-                println!("Planet {planet_id} has been correctly started");
-                None
-            }
-
-            PlanetToOrchestrator::StopPlanetAIResult { planet_id } => {
-                println!("Planet {planet_id} has been correctly stopped");
-                None
-            }
-
-            PlanetToOrchestrator::SunrayAck { planet_id } => {
-                println!("Planet {planet_id} received a sunray");
-                None
-            }
-
-            PlanetToOrchestrator::InternalStateResponse { .. } => {
-                //TODO: send planet state to the UI
-                None
-            }
-
-            PlanetToOrchestrator::IncomingExplorerResponse {
-                planet_id,
-                res,
-                explorer_id,
-            } => {
-                //TODO: Change when the new common crate version will be released
-                match res {
-                    Ok(()) => {
-                        println!("Planet {planet_id} received incoming explorer {explorer_id}");
-                    }
-                    Err(s) => println!(
-                        "Error with incoming explorer {explorer_id} in planet {planet_id}: {s}",
-                    ),
-                }
-                None
-            }
-
-            PlanetToOrchestrator::OutgoingExplorerResponse {
-                planet_id,
-                res,
-                explorer_id,
-            } => {
-                //TODO: Change when the new common crate version will be released
-                match res {
-                    Ok(()) => println!("Explorer {explorer_id} left planet {planet_id}"),
-                    Err(s) => println!(
-                        "Error with outgoing explorer {explorer_id} in planet {planet_id}: {s}",
-                    ),
-                }
-                None
-            }
-
-            PlanetToOrchestrator::AsteroidAck { planet_id, rocket } => {
-                if rocket.is_some() {
-                    println!("Planet {planet_id} defended from an asteroid");
-                    None
-                } else {
-                    println!("Planet {planet_id} is going to be destroyed");
-                    Some((planet_id, OrchestratorToPlanet::KillPlanet))
-                }
-            }
-        }
-    }
-    ///This function handles the incoming messages from an Explorer
-    ///Returns an optional tuple with the `explorer_id` and the message to send to the planet as a response
-    fn handle_explorer_message(
-        &mut self,
-        message: ExplorerToOrchestrator<ExplorerBag>,
-    ) -> Option<(ID, OrchestratorToExplorer)> {
-        match message {
-            ExplorerToOrchestrator::CombineResourceResponse {
-                explorer_id,
-                generated,
-            }
-            | ExplorerToOrchestrator::GenerateResourceResponse {
-                explorer_id,
-                generated,
-            } => {
-                match generated {
-                    Ok(()) => {
-                        println!(
-                            "Explorer {explorer_id} successfully crafted the indicated complex resource"
-                        );
-                    }
-                    Err(s) => {
-                        println!("Error with explorer {explorer_id}, couldn't craft resource: {s}");
-                    }
-                }
-                None
-            }
-
-            ExplorerToOrchestrator::NeighborsRequest {
-                explorer_id,
-                current_planet_id,
-            } => {
-                let galaxy_guard = self.galaxy.lock().expect("Failed to lock galaxy mutex");
-                let neighbors = galaxy_guard
-                    .get(&current_planet_id)
-                    .expect("Selected Planet not in galaxy")
-                    .lock()
-                    .unwrap()
-                    .get_neighbors();
-                Some((
-                    explorer_id,
-                    OrchestratorToExplorer::NeighborsResponse { neighbors },
-                ))
-            }
-
-            ExplorerToOrchestrator::BagContentResponse {
-                explorer_id,
-                bag_content,
-            } => {
-                println!("Explorer {explorer_id} bag content:  {bag_content:?}");
-                None
-            }
-
-            ExplorerToOrchestrator::SupportedCombinationResult {
-                explorer_id,
-                combination_list,
-            } => {
-                println!("Explorer {explorer_id} can currently craft:  {combination_list:?}");
-                None
-            }
-
-            ExplorerToOrchestrator::SupportedResourceResult {
-                explorer_id,
-                supported_resources,
-            } => {
-                println!("Explorer {explorer_id} can currently craft:  {supported_resources:?}");
-                None
-            }
-
-            ExplorerToOrchestrator::CurrentPlanetResult {
-                explorer_id,
-                planet_id,
-            } => {
-                println!("Explorer {explorer_id} is currently in planet:  {planet_id}");
-                None
-            }
-
-            ExplorerToOrchestrator::StartExplorerAIResult { explorer_id } => {
-                println!("Explorer {explorer_id} has been successfully started");
-                None
-            }
-
-            ExplorerToOrchestrator::StopExplorerAIResult { explorer_id } => {
-                println!("Explorer {explorer_id} has been successfully stopped");
-                None
-            }
-
-            ExplorerToOrchestrator::ResetExplorerAIResult { explorer_id } => {
-                println!("Explorer {explorer_id} has been successfully reset");
-                None
-            }
-
-            ExplorerToOrchestrator::KillExplorerResult { explorer_id } => {
-                println!("Explorer {explorer_id} has been successfully killed");
-                None
-            }
-
-            ExplorerToOrchestrator::TravelToPlanetRequest {
-                explorer_id,
-                current_planet_id,
-                dst_planet_id,
-            } => {
-                println!(
-                    "Explorer {explorer_id} is requesting to travel from planet {current_planet_id} to planet {dst_planet_id}"
-                );
-                None
-            }
-
-            //TODO: MAYBE WE WANT TO SEND A ORCH_TO_PLANET_OUTGOING OUT OF THIS?
-            ExplorerToOrchestrator::MovedToPlanetResult {
-                explorer_id,
-                planet_id,
-            } => {
-                println!("Explorer {explorer_id} moved to planet {planet_id}");
-                None
-            }
-        }
-    }
-
-    fn handle_message(&mut self, message: conversations::PossibleMessage<ExplorerBag>) {
+    fn handle_message(&mut self, message: PossibleMessage<ExplorerBag>) {
         let message_kind = message.to_kind_type();
         let entity_id = message.get_entity_id();
 
@@ -338,29 +158,28 @@ impl Orchestrator {
                                 current_planet_id,
                                 dst_planet_id,
                             } => todo!(),
-                            // These messages are responses that do not start a conversation
-                            ExplorerToOrchestrator::StartExplorerAIResult { .. }
-                            | ExplorerToOrchestrator::KillExplorerResult { .. }
-                            | ExplorerToOrchestrator::ResetExplorerAIResult { .. }
-                            | ExplorerToOrchestrator::StopExplorerAIResult { .. }
-                            | ExplorerToOrchestrator::MovedToPlanetResult { .. }
-                            | ExplorerToOrchestrator::CurrentPlanetResult { .. }
-                            | ExplorerToOrchestrator::SupportedResourceResult { .. }
-                            | ExplorerToOrchestrator::SupportedCombinationResult { .. }
-                            | ExplorerToOrchestrator::GenerateResourceResponse { .. }
-                            | ExplorerToOrchestrator::CombineResourceResponse { .. }
-                            | ExplorerToOrchestrator::BagContentResponse { .. } => {
-                                println!(
-                                    "Received ExplorerToOrch message that does not start a conversation. Ignoring."
+                            // The other messages are responses that do not start a conversation
+                            _ => {
+                                log_internal(
+                                    Channel::Debug,
+                                    payload!(
+                                        action : "Received ExplorerToOrchestrator message that does not start a conversation. Ignoring.",
+                                        message_kind : format!{"{:?}", message_kind},
+                                        from_explorer : entity_id,
+                                    ),
                                 );
                             }
                         }
                     }
                     // Since the planet never starts a conversation, we just ignore these messages
                     PossibleMessage::PlanetToOrch(_) => {
-                        // TODO: log this properly
-                        println!(
-                            "Received PlanetToOrch message that does not match any existing conversation. Ignoring."
+                        log_internal(
+                            Channel::Debug,
+                            payload!(
+                                action : "Received PlanetToOrchestrator message that does not start a conversation. Ignoring.",
+                                message_kind : format!{"{message_kind:?}"},
+                                from_planet : entity_id,
+                            ),
                         );
                     }
                 }

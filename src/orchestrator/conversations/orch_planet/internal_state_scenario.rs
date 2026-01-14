@@ -1,9 +1,12 @@
+use crate::logging_utils::log_internal;
 use crate::orchestrator::ExplorerBag;
 use crate::orchestrator::conversations::PossibleExpectedKinds::PlanetToOrchKind;
 use crate::orchestrator::conversations::{
     CommonErrorTypes, Conversation, ErrorState, PossibleExpectedKinds, PossibleMessage,
     ToPlanetError, ToPlanetStruct,
 };
+use crate::payload;
+use common_game::logging::Channel;
 use common_game::protocols::orchestrator_planet::{
     OrchestratorToPlanet, PlanetToOrchestrator, PlanetToOrchestratorKind,
 };
@@ -157,7 +160,15 @@ impl Conversation<ExplorerBag> for InternalStateConversation<WaitingInternalStat
         })) = msg_wrapped
         {
             //TODO: SEND PLANET STATE TO UI
-            println!("Planet {planet_id} sent its internal state {planet_state:?}");
+            log_internal(
+                Channel::Debug,
+                payload!(
+                    action : "Planet sent its internal state",
+                    planet_id : planet_id,
+                    planet_state : format!("{planet_state:?}"),
+                    conversation_id : self.id
+                ),
+            );
             return None;
         }
 

@@ -1,9 +1,12 @@
+use crate::logging_utils::log_internal;
 use crate::orchestrator::ExplorerBag;
 use crate::orchestrator::conversations::{
     CommonErrorTypes, Conversation, ErrorState, ErrorType, PossibleExpectedKinds, PossibleMessage,
     ToExplorerError, ToExplorerStruct,
 };
+use crate::payload;
 use common_game::components::resource::BasicResourceType;
+use common_game::logging::Channel;
 use common_game::protocols::orchestrator_explorer::{
     ExplorerToOrchestrator, ExplorerToOrchestratorKind, OrchestratorToExplorer,
 };
@@ -200,7 +203,15 @@ impl Conversation<ExplorerBag> for CraftResourceConversation<WaitingCraftResourc
         {
             return match generated {
                 Ok(()) => {
-                    println!("Explorer {explorer_id} generated the requested resource correctly");
+                    log_internal(
+                        Channel::Debug,
+                        payload!(
+                            action : "Explorer generated a resource correctly, closing conversation",
+                            explorer_id : explorer_id,
+                            resource : format!("{:?}",self.state.to_craft),
+                            conversation_id : self.id
+                        ),
+                    );
                     None
                 }
                 Err(e) => {

@@ -1,3 +1,4 @@
+use crate::logging_utils::log_internal;
 use crate::orchestrator::conversations::PossibleExpectedKinds::PlanetToOrchKind;
 use crate::orchestrator::conversations::orch_explorer::kill_explorers_manager::KillExplorersManager;
 use crate::orchestrator::conversations::{
@@ -5,6 +6,8 @@ use crate::orchestrator::conversations::{
     SendersToExplorer, SendersToPlanet, ToPlanetError, ToPlanetStruct,
 };
 use crate::orchestrator::{ExplorerBag, ExplorersLocationRef};
+use crate::payload;
+use common_game::logging::Channel;
 use common_game::protocols::orchestrator_planet::PlanetToOrchestratorKind::KillPlanetResult;
 use common_game::protocols::orchestrator_planet::{OrchestratorToPlanet, PlanetToOrchestrator};
 use common_game::utils::ID;
@@ -189,7 +192,15 @@ impl Conversation<ExplorerBag> for KillPlanetConversation<WaitingPlanetKillResul
             planet_id,
         })) = msg_wrapped
         {
-            println!("Killed Planet: {planet_id:?}");
+            log_internal(
+                Channel::Info,
+                payload!(
+                    action : "Killed Planet",
+                    planet_id : planet_id,
+                    conversation_id : self.id
+                ),
+            );
+
             let to_kill_list = self.get_explorers_in_planet(planet_id);
             let next_state = KillExplorersManager::new(
                 self.id,

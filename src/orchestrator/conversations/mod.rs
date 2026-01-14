@@ -1,5 +1,8 @@
 use crate::galaxy_setup::OrchPlanSenderMap;
+use crate::logging_utils::log_internal;
 use crate::orchestrator::ExplorerBag;
+use crate::payload;
+use common_game::logging::Channel;
 use common_game::protocols::orchestrator_explorer::{
     ExplorerToOrchestrator, ExplorerToOrchestratorKind, OrchestratorToExplorer,
 };
@@ -223,10 +226,13 @@ impl Conversation<ExplorerBag> for ErrorState {
         self: Box<Self>,
         _msg_wrapped: Option<PossibleMessage<ExplorerBag>>,
     ) -> Option<Box<dyn Conversation<ExplorerBag> + Send + Sync>> {
-        println!(
-            "Conversation {} reached an error {}, closing conversation!",
-            self.id,
-            self.error.stringify()
+        log_internal(
+            Channel::Warning,
+            payload!(
+                warning : "A Conversation reached an error and will be closed.",
+                conversation_id : self.id,
+                error : self.error.stringify(),
+            ),
         );
         None
     }
