@@ -25,7 +25,7 @@ struct MoveToPlanetConversation<State> {
 
 // --- States Definitions ---
 
-/// **State 1: WaitingTravelRequest**
+/// **State 1: `WaitingTravelRequest`**
 ///
 /// The initial state where the conversation waits for the Explorer to request movement.
 /// It contains all necessary references to validate the move against the galaxy map.
@@ -44,7 +44,7 @@ pub(crate) struct WaitingTravelRequest {
     explorers_location_ref: ExplorersLocationRef,
 }
 
-/// **State 2: WaitingIncomingResponse**
+/// **State 2: `WaitingIncomingResponse`**
 ///
 /// Set after the destination planet has been asked to accept the explorer.
 /// Holds references to the current planet to initiate the "release" phase next.
@@ -74,7 +74,7 @@ impl WaitingIncomingResponse {
     }
 }
 
-/// **State 3: WaitingOutgoingResponse**
+/// **State 3: `WaitingOutgoingResponse`**
 ///
 /// Set after the destination has accepted and the source planet has been asked to
 /// release the explorer. Once this resolves, the Orchestrator will hand the new
@@ -102,7 +102,7 @@ impl WaitingOutgoingResponse {
     }
 }
 
-/// **State 4: WaitMoveToPlanetResponse**
+/// **State 4: `WaitMoveToPlanetResponse`**
 ///
 /// The final confirmation state. It waits for the Explorer to acknowledge it
 /// has switched to the new planet's channel.

@@ -16,7 +16,6 @@ use common_game::utils::ID;
 ///
 /// The conversation flow starts by sending a stop request to the explorer and terminates once the
 /// [`ExplorerToOrchestrator::StopExplorerAIResult`] is received.
-
 /// Marker struct for FSM state
 ///
 /// The conversation starts in the [`SendingExplorerStop`] state, which sends an

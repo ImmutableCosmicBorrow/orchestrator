@@ -16,7 +16,6 @@ use common_game::utils::ID;
 ///
 /// The conversation flow starts by sending a reset request to the explorer and terminates once the
 /// [`ExplorerToOrchestrator::ResetExplorerAIResult`] is received.
-
 /// Marker struct for FSM state
 ///
 /// The conversation starts in the [`SendingExplorerReset`] state, which sends an

@@ -23,7 +23,6 @@ use crossbeam_channel::Sender;
 /// Once the current planet confirms (`OutgoingExplorerResponse`), the Orchestrator retrieves
 /// the communication channel for the new planet and sends it to the Explorer via a
 /// [`MoveToPlanet`] command, transitioning to the final [`WaitMoveToPlanetResponse`] state.
-
 // WAITING OUTGOING RESPONSE IMPLEMENTATION
 impl Conversation<ExplorerBag> for MoveToPlanetConversation<WaitingOutgoingResponse> {
     fn get_id(&self) -> ID {

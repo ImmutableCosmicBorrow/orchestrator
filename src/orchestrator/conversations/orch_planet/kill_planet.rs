@@ -15,7 +15,6 @@ use common_game::utils::ID;
 /// It uses an FSM to send the kill command, wait for confirmation, and then
 /// transition to a [`KillExplorersManager`] to handle the cleanup of any explorers
 /// that were stationed on that planet.
-
 /// Marker struct for FSM state
 ///
 /// The conversation starts in the [`SendPlanetKill`] state, which sends an
@@ -48,7 +47,7 @@ impl SendPlanetKill {
 ///
 /// In the [`WaitingPlanetKillResult`] state, the conversation expects a [`PlanetToOrchestrator::KillPlanetResult`].
 /// Once received, it identifies all explorers currently on that planet and transitions to the explorer cleanup phase
-/// in [KillExplorersManager].
+/// in [`KillExplorersManager`].
 struct WaitingPlanetKillResult {
     /// ID of the planet marked for destruction
     planet_id: ID,
@@ -181,7 +180,7 @@ impl Conversation<ExplorerBag> for KillPlanetConversation<WaitingPlanetKillResul
     ///
     /// [`KillExplorersManager`] state to begin cleaning up explorers on the destroyed planet.
     ///
-    /// [`ErrorState`] with [`CommonErrorTypes::WrongMessage`] if the trigger message is different then the expected [PlanetToOrchestrator::KillPlanetResult] .
+    /// [`ErrorState`] with [`CommonErrorTypes::WrongMessage`] if the trigger message is different then the expected [`PlanetToOrchestrator::KillPlanetResult`] .
     fn transition(
         self: Box<Self>,
         msg_wrapped: Option<PossibleMessage<ExplorerBag>>,

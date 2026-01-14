@@ -16,9 +16,8 @@ use common_game::utils::ID;
 /// It uses a Finite State Machine (FSM) to ensure that the request to combine resources
 /// and the subsequent result (success or failure) are handled in the correct order at compile time.
 ///
-/// The conversation flow starts by sending a [OrchestratorToExplorer::CombineResourceRequest] to the explorer and terminates
+/// The conversation flow starts by sending a [`OrchestratorToExplorer::CombineResourceRequest`] to the explorer and terminates
 /// once the [`ExplorerToOrchestrator::CombineResourceResponse`] is received.
-
 /// Custom error type for when an explorer fails to craft the requested complex resource.
 struct CraftingFailed {
     /// ID of the explorer who attempted the craft.

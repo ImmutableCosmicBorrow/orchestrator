@@ -16,7 +16,6 @@ use common_game::utils::ID;
 ///
 /// The conversation flow starts by sending a request to the explorer and terminates once the
 /// bag content is received (intended for UI reporting).
-
 /// Marker struct for FSM state
 ///
 /// The conversation starts in the [`SendingBagContentRequest`] state, which sends an

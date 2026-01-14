@@ -18,7 +18,6 @@ use std::sync::Arc;
 ///
 /// The conversation starts by generating and sending a Sunray, then waits for a confirmation
 /// from the target planet.
-
 /// Marker struct for FSM state
 ///
 /// In the [`WaitingSunrayAck`] state, the conversation expects a [`PlanetToOrchestrator::SunrayAck`]

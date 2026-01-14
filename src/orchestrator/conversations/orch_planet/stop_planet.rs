@@ -17,7 +17,6 @@ use common_game::utils::ID;
 ///
 /// The conversation flow starts by sending a stop request and terminates once the planet
 /// confirms the AI has successfully stopped.
-
 /// Marker struct for FSM state
 ///
 /// In the [`WaitingPlanetStopResult`] state, the conversation expects a

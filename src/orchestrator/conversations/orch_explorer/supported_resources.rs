@@ -17,7 +17,6 @@ use common_game::utils::ID;
 ///
 /// The conversation flow starts by sending a request to the explorer and terminates once the
 /// [`ExplorerToOrchestrator::SupportedResourceResult`] is received and processed.
-
 /// Marker struct for FSM state
 ///
 /// The conversation starts in the [`SendingSupportedResourcesRequest`] state, which sends an

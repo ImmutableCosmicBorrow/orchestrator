@@ -17,7 +17,6 @@ use common_game::utils::ID;
 ///
 /// If successful, the conversation transitions back to a [`KillExplorersManager`] to continue
 /// the killing of explores. If it fails, it transitions to an [`ErrorState`].
-
 /// Custom error type for when a planet fails to process an explorer departure.
 struct FailedToHandleOutgoingExplorer {
     /// The planet that failed the operation.

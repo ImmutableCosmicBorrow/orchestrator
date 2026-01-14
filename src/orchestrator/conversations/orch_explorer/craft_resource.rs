@@ -18,7 +18,6 @@ use common_game::utils::ID;
 ///
 /// The conversation flow starts by sending a generation request to the explorer and terminates
 /// once the [`ExplorerToOrchestrator::GenerateResourceResponse`] is received.
-
 /// Custom error type for when an explorer fails to generate the requested basic resource.
 struct CraftingFailed {
     /// ID of the explorer who attempted the generation.

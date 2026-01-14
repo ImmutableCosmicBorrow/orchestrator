@@ -20,7 +20,6 @@ use common_game::utils::ID;
 /// If the destination planet accepts (`Ok`), this state transitions the conversation to
 /// [`WaitingOutgoingResponse`] after requesting the current planet to "release" the explorer.
 /// If the destination planet rejects the explorer, the conversation terminates in an [`ErrorState`].
-
 // WAITING INCOMING RESPONSE IMPLEMENTATION
 impl Conversation<ExplorerBag> for MoveToPlanetConversation<WaitingIncomingResponse> {
     fn get_id(&self) -> ID {

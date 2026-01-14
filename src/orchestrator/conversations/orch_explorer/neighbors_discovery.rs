@@ -15,7 +15,6 @@ use common_game::utils::ID;
 /// This module manages the process of an Explorer discovering the adjacent planets (neighbors)
 /// of its current location.
 /// It uses a Finite State Machine (FSM) to ensure that the exchange of messages happens in the appropriate order
-
 /// Custom error type for when a planet ID provided by an explorer does not exist in the galaxy.
 struct PlanetNotFound(ID);
 impl ErrorType for PlanetNotFound {

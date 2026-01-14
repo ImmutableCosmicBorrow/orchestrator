@@ -20,7 +20,6 @@ use common_game::utils::ID;
 /// updates the global explorer location list. If the explorer was flagged as unable to
 /// move (e.g., non-neighbor destination), the conversation closes gracefully without
 /// updating the location.
-
 // WAIT MOVE TO PLANET RESPONSE IMPLEMENTATION
 impl Conversation<ExplorerBag> for MoveToPlanetConversation<WaitMoveToPlanetResponse> {
     fn get_id(&self) -> ID {

@@ -384,8 +384,8 @@ impl Orchestrator {
                     continue;
                 }
 
-                let msg = convo_scheduler
-                    .get_waiting_message(current_convo.as_ref().unwrap().get_id());
+                let msg =
+                    convo_scheduler.get_waiting_message(current_convo.as_ref().unwrap().get_id());
 
                 if msg.is_some()
                     && let Some(new_conv) = current_convo.unwrap().transition(msg)

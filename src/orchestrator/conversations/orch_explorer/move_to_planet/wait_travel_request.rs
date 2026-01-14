@@ -29,7 +29,6 @@ use crossbeam_channel::Sender;
 ///    to [`WaitingIncomingResponse`].
 /// 3. If invalid (not neighbors), it informs the explorer movement is impossible and transitions
 ///    directly to [`WaitMoveToPlanetResponse`] to gracefully close the attempt.
-
 // WAITING TRAVEL REQUEST IMPLEMENTATION
 impl Conversation<ExplorerBag> for MoveToPlanetConversation<WaitingTravelRequest> {
     fn get_id(&self) -> ID {
