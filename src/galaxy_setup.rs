@@ -1,19 +1,16 @@
 use crate::planet::{Alive, PlanetNode};
-use common_game::logging::{ActorType, Channel, EventType, LogEvent, Participant, Payload};
+use common_game::logging::{Channel, EventType, LogEvent, Payload};
 use common_game::protocols::orchestrator_planet::{OrchestratorToPlanet, PlanetToOrchestrator};
 use common_game::protocols::planet_explorer::ExplorerToPlanet;
 use common_game::utils::ID;
 use crossbeam_channel::unbounded;
 use crossbeam_channel::{Receiver, Sender};
-use immutable_cosmic_borrow::{Ai, create_planet};
 use std::collections::HashMap;
 use std::path::Path;
 use std::sync::{Arc, Mutex};
-use std::time::Duration;
 
 use crate::logging_utils::log_internal;
 use crate::payload;
-use crate::planet::{Alive, PlanetNode};
 
 //TODO: Allow the PlanetMap to have dead planets so that they can be revived later
 pub(crate) type OrchPlanSenderMap = HashMap<ID, Sender<OrchestratorToPlanet>>;

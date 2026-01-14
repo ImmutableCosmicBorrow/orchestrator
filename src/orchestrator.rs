@@ -11,7 +11,7 @@ use crate::payload;
 
 use crate::logging_utils::{log_internal, log_msg_to};
 use common_game::components::forge::Forge;
-use common_game::logging::{ActorType, Channel, EventType, LogEvent, Participant, Payload};
+use common_game::logging::{ActorType, Channel, EventType, LogEvent, Payload};
 use common_game::protocols::orchestrator_explorer::{
     ExplorerToOrchestrator, OrchestratorToExplorer,
 };
@@ -48,33 +48,28 @@ pub(crate) struct Orchestrator {
     explorers_location: ExplorersLocationRef,
 }
 
-struct PlanetExplorerChannels {
-    planet_to_explorer_senders: HashMap<ID, Sender<PlanetToExplorer>>, //here ID is explorer_id
-    explorer_to_planet_senders: HashMap<ID, Sender<ExplorerToPlanet>>, //here ID is planet_id
-}
-
 impl PlanetExplorerChannels {
     pub fn new() -> Self {
         Self {
-            planet_to_explorer_senders: HashMap::new(),
-            explorer_to_planet_senders: HashMap::new(),
+            planet_to_explorer_senders: Arc::new(Mutex::new(HashMap::new())),
+            explorer_to_planet_senders: Arc::new(Mutex::new(HashMap::new())),
         }
     }
 
     pub fn add_plan_to_expl_sender(&mut self, explorer_id: ID, sender: Sender<PlanetToExplorer>) {
-        self.planet_to_explorer_senders.insert(explorer_id, sender);
+        self.planet_to_explorer_senders.lock().unwrap().insert(explorer_id, sender);
     }
 
     pub fn add_expl_to_plan_sender(&mut self, planet_id: ID, sender: Sender<ExplorerToPlanet>) {
-        self.explorer_to_planet_senders.insert(planet_id, sender);
+        self.explorer_to_planet_senders.lock().unwrap().insert(planet_id, sender);
     }
 
-    pub fn get_plan_to_expl_sender(&self, explorer_id: &ID) -> Option<&Sender<PlanetToExplorer>> {
-        self.planet_to_explorer_senders.get(explorer_id)
+    pub fn get_plan_to_expl_sender(&self, explorer_id: &ID) -> Option<Sender<PlanetToExplorer>> {
+        self.planet_to_explorer_senders.lock().unwrap().get(explorer_id).cloned()
     }
 
-    pub fn get_expl_to_plan_sender(&self, planet_id: &ID) -> Option<&Sender<ExplorerToPlanet>> {
-        self.explorer_to_planet_senders.get(planet_id)
+    pub fn get_expl_to_plan_sender(&self, planet_id: &ID) -> Option<Sender<ExplorerToPlanet>> {
+        self.explorer_to_planet_senders.lock().unwrap().get(planet_id).cloned()
     }
 }
 
@@ -117,30 +112,14 @@ impl Orchestrator {
             ),
         );
 
-        let result = self.planets_senders
+        let result = self
+            .planets_senders
             .lock()
             .unwrap()
             .get(&planet_id)
             .ok_or(format!("Planet {planet_id} not found"))?
             .send(msg)
             .map_err(|err| format!("Failed to send to Planet {planet_id}: {err}"));
-
-        payload.insert("success".into(), result.is_ok().to_string());
-
-        let mut channel = Channel::Trace;
-        if let Err(ref error) = result {
-            payload.insert("error".into(), error.to_string());
-            channel = Channel::Error;
-        }
-
-        LogEvent::new(
-            Some(Participant::new(ActorType::Orchestrator, 0u32)),
-            Some(Participant::new(ActorType::Planet, planet_id)),
-            EventType::MessageOrchestratorToPlanet,
-            channel,
-            payload,
-        )
-        .emit();
 
         result
     }
@@ -156,30 +135,14 @@ impl Orchestrator {
             ),
         );
 
-        let result = self.explorer_senders
+        let result = self
+            .explorer_senders
             .lock()
             .unwrap()
             .get(&explorer_id)
             .ok_or(format!("Explorer {explorer_id} not found"))?
             .send(msg)
             .map_err(|err| format!("Failed to send to Explorer {explorer_id}: {err}"));
-
-        payload.insert("success".into(), result.is_ok().to_string());
-
-        let mut channel = Channel::Trace;
-        if let Err(ref error) = result {
-            payload.insert("error".into(), error.to_string());
-            channel = Channel::Error;
-        }
-
-        LogEvent::new(
-            Some(Participant::new(ActorType::Orchestrator, 0u32)),
-            Some(Participant::new(ActorType::Explorer, explorer_id)),
-            EventType::MessageOrchestratorToExplorer,
-            channel,
-            payload,
-        )
-        .emit();
 
         result
     }
@@ -253,13 +216,6 @@ impl Orchestrator {
                                 from_planet : entity_id,
                             ),
                         );
-                        payload.insert("explorer_id".into(), explorer_id.to_string());
-                        LogEvent::system(
-                            EventType::InternalOrchestratorAction,
-                            Channel::Debug,
-                            payload,
-                        )
-                        .emit();
                     }
                 }
             }
@@ -323,7 +279,7 @@ impl Orchestrator {
         self.planet_explorer_channels
             .add_plan_to_expl_sender(planet_id, tx_expl_out.clone());
 
-        let mut explorer: dummy_explorer::Explorer<T> = dummy_explorer::Explorer::new();
+        let mut explorer: dummy_explorer::Explorer<ExplorerBag> = dummy_explorer::Explorer::new();
         //TODO: set explorer - orchestrator channels
         explorer.set_planet_channels(
             rx_expl_out,
