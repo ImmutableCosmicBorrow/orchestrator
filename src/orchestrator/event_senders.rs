@@ -128,7 +128,7 @@ pub fn start_asteroid_sender(
                 );
             } else {
                 log_internal(
-                    Channel::Debug,
+                    Channel::Warning,
                     payload!(
                         action : "No planets available to send asteroid to"
                     ),
@@ -171,7 +171,7 @@ pub fn start_sunray_sender(
                 send_sunray_to_planet(target_planet, &planets_senders, &forge, &convo_scheduler);
             } else {
                 log_internal(
-                    Channel::Debug,
+                    Channel::Warning,
                     payload!(
                         action : "No planets available to send sunray to"
                     ),
