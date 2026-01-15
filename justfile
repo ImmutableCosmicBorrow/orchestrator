@@ -10,5 +10,8 @@ test:
 ci:
     just fmt && just lint && just test
 
+coverage:
+    make coverage
+
 doc:
     make doc

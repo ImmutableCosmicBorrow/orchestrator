@@ -9,6 +9,9 @@ lint:
 test:
 	cargo test
 
+coverage:
+	cargo tarpaulin --out Lcov
+
 all: fmt lint test
 
 doc:
