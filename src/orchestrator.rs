@@ -11,7 +11,7 @@ use crate::payload;
 
 use crate::logging_utils::{log_internal, log_msg_to};
 use common_game::components::forge::Forge;
-use common_game::logging::{ActorType, Channel, EventType, LogEvent, Payload};
+use common_game::logging::{ActorType, Channel, EventType};
 use common_game::protocols::orchestrator_explorer::{
     ExplorerToOrchestrator, OrchestratorToExplorer,
 };
@@ -91,7 +91,7 @@ impl Orchestrator {
     pub fn new(file_path: &std::path::Path) -> Self {
         let mut _planet_explorer_channels = PlanetExplorerChannels::new();
 
-        //TODO: fix recievers and senders initialization
+        //TODO: fix receivers and senders initialization
         let (galaxy, planets_receiver, orch_to_plan_senders, _expl_to_plan_senders) =
             galaxy_loader(file_path);
         let (explorers_receiver, explorer_senders) =
@@ -307,16 +307,13 @@ impl Orchestrator {
         });
 
         // Emit log event
-        let mut payload = Payload::new();
-        payload.insert("event".to_string(), "Explorer creation".to_string());
-        payload.insert("explorer_id".to_string(), explorer_id.to_string());
-        payload.insert("into_planet_id".to_string(), planet_id.to_string());
-
-        LogEvent::system(
-            EventType::InternalOrchestratorAction,
+        log_internal(
             Channel::Info,
-            payload,
-        )
-        .emit();
+            payload!(
+                action : "Created Explorer",
+                explorer_id: explorer_id,
+                into_planet_id : planet_id,
+            ),
+        );
     }
 }
