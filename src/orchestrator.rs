@@ -70,19 +70,19 @@ impl PlanetExplorerChannels {
             .insert(planet_id, sender);
     }
 
-    pub fn get_plan_to_expl_sender(&self, explorer_id: &ID) -> Option<Sender<PlanetToExplorer>> {
+    pub fn get_plan_to_expl_sender(&self, explorer_id: ID) -> Option<Sender<PlanetToExplorer>> {
         self.planet_to_explorer_senders
             .lock()
             .unwrap()
-            .get(explorer_id)
+            .get(&explorer_id)
             .cloned()
     }
 
-    pub fn get_expl_to_plan_sender(&self, planet_id: &ID) -> Option<Sender<ExplorerToPlanet>> {
+    pub fn get_expl_to_plan_sender(&self, planet_id: ID) -> Option<Sender<ExplorerToPlanet>> {
         self.explorer_to_planet_senders
             .lock()
             .unwrap()
-            .get(planet_id)
+            .get(&planet_id)
             .cloned()
     }
 }
@@ -127,39 +127,33 @@ impl Orchestrator {
             ),
         );
 
-        let result = self
-            .planets_senders
+        self.planets_senders
             .lock()
             .unwrap()
             .get(&planet_id)
             .ok_or(format!("Planet {planet_id} not found"))?
             .send(msg)
-            .map_err(|err| format!("Failed to send to Planet {planet_id}: {err}"));
-
-        result
+            .map_err(|err| format!("Failed to send to Planet {planet_id}: {err}"))
     }
 
     /// Sends an `OrchestratorToExplorer` to the correspondent `explorer_id`. Returns nothing if successful, a String error otherwise
     fn to_explorer(&self, explorer_id: ID, msg: OrchestratorToExplorer) -> Result<(), String> {
         log_msg_to(
             Channel::Trace,
-            EventType::MessageOrchestratorToPlanet,
+            EventType::MessageOrchestratorToExplorer,
             (ActorType::Explorer, explorer_id),
             payload!(
                 message : format!("{:?}", msg)
             ),
         );
 
-        let result = self
-            .explorer_senders
+        self.explorer_senders
             .lock()
             .unwrap()
             .get(&explorer_id)
             .ok_or(format!("Explorer {explorer_id} not found"))?
             .send(msg)
-            .map_err(|err| format!("Failed to send to Explorer {explorer_id}: {err}"));
-
-        result
+            .map_err(|err| format!("Failed to send to Explorer {explorer_id}: {err}"))
     }
 
     fn handle_message(&mut self, message: PossibleMessage<ExplorerBag>) {
@@ -299,7 +293,7 @@ impl Orchestrator {
         explorer.set_planet_channels(
             rx_expl_out,
             self.planet_explorer_channels
-                .get_expl_to_plan_sender(&planet_id)
+                .get_expl_to_plan_sender(planet_id)
                 .expect("Failed to get explorer to planet sender")
                 .clone(),
         );
@@ -308,13 +302,9 @@ impl Orchestrator {
             explorer_id,
             new_sender: tx_expl_out.clone(),
         };
-        self.to_planet(planet_id, msg).expect(
-            format!(
-                "Failed to send IncomingExplorerRequest to planet {}",
-                planet_id
-            )
-            .as_str(),
-        );
+        self.to_planet(planet_id, msg).unwrap_or_else(|_| {
+            panic!("Failed to send IncomingExplorerRequest to planet {planet_id}")
+        });
 
         // Emit log event
         let mut payload = Payload::new();
