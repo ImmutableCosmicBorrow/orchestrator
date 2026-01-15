@@ -57,27 +57,42 @@ impl PlanetExplorerChannels {
     }
 
     pub fn add_plan_to_expl_sender(&mut self, explorer_id: ID, sender: Sender<PlanetToExplorer>) {
-        self.planet_to_explorer_senders.lock().unwrap().insert(explorer_id, sender);
+        self.planet_to_explorer_senders
+            .lock()
+            .unwrap()
+            .insert(explorer_id, sender);
     }
 
     pub fn add_expl_to_plan_sender(&mut self, planet_id: ID, sender: Sender<ExplorerToPlanet>) {
-        self.explorer_to_planet_senders.lock().unwrap().insert(planet_id, sender);
+        self.explorer_to_planet_senders
+            .lock()
+            .unwrap()
+            .insert(planet_id, sender);
     }
 
     pub fn get_plan_to_expl_sender(&self, explorer_id: &ID) -> Option<Sender<PlanetToExplorer>> {
-        self.planet_to_explorer_senders.lock().unwrap().get(explorer_id).cloned()
+        self.planet_to_explorer_senders
+            .lock()
+            .unwrap()
+            .get(explorer_id)
+            .cloned()
     }
 
     pub fn get_expl_to_plan_sender(&self, planet_id: &ID) -> Option<Sender<ExplorerToPlanet>> {
-        self.explorer_to_planet_senders.lock().unwrap().get(planet_id).cloned()
+        self.explorer_to_planet_senders
+            .lock()
+            .unwrap()
+            .get(planet_id)
+            .cloned()
     }
 }
 
 impl Orchestrator {
     pub fn new(file_path: &std::path::Path) -> Self {
-        let mut planet_explorer_channels = PlanetExplorerChannels::new();
+        let mut _planet_explorer_channels = PlanetExplorerChannels::new();
 
-        let (galaxy, planets_receiver, orch_to_plan_senders, expl_to_plan_senders) =
+        //TODO: fix recievers and senders initialization
+        let (galaxy, planets_receiver, orch_to_plan_senders, _expl_to_plan_senders) =
             galaxy_loader(file_path);
         let (explorers_receiver, explorer_senders) =
             (unbounded::<OrchestratorToExplorer>().1, HashMap::new());
@@ -89,7 +104,7 @@ impl Orchestrator {
         };
 
         Self {
-            planets_senders: Arc::new(Mutex::new(planets_senders)),
+            planets_senders: Arc::new(Mutex::new(orch_to_plan_senders)),
             explorer_senders: Arc::new(Mutex::new(explorer_senders)),
             planets_receiver,
             explorers_receiver,

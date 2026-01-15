@@ -17,12 +17,9 @@ enterprise = {git = "https://github.com/Thompspsps/Enterprise_planet/"}
 houston-we-have-a-borrow = { package = "Planet", git = "https://github.com/Houston-we-have-a-borrow/Planet/"}
 orbitron = {git = "https://github.com/Advanced-Programming-2025-Orbitron/Orbitron/"}
 trip = { git = "https://github.com/Totally-Reliable-Imaginary-Planets/TRIP.git", branch = "main" }
-rusty-crab-ap2025 = "2.0.0-beta.3"
+rusty-crab-ap2025 = "=2.0.0-beta.3"
 
 dummy_explorer = {git = "https://github.com/ImmutableCosmicBorrow/dummy_explorer/"}
 
-[patch.crates-io]
-common-game = { git = "https://www.github.com/unitn-ap-2025/common.git", rev = "f10376f9" }
-
 [patch.'https://github.com/unitn-ap-2025/common']
-common-game = { git = "https://www.github.com/unitn-ap-2025/common.git", rev = "f10376f9" }
+common-game = "=3.0.0"
