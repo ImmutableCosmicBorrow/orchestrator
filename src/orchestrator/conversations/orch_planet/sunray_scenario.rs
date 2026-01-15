@@ -201,7 +201,9 @@ impl SunrayConversation<WaitingSunrayAck> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::orchestrator;
     use common_game::components::forge::Forge;
+    use common_game::logging::ActorType::Orchestrator;
     use crossbeam_channel::unbounded;
     use std::collections::HashMap;
     use std::sync::{Arc, Mutex, OnceLock};
@@ -269,7 +271,7 @@ mod tests {
         assert!(next_conv.get_expected_kind().is_none());
         assert_eq!(
             next_conv.get_error_details(),
-            Some(format!("sender to planet {} not found", PLANET_ID))
+            Some(format!("sender to planet {PLANET_ID} not found"))
         );
     }
 
@@ -299,7 +301,7 @@ mod tests {
             .expect("Should return an Error Details String");
         assert_eq!(
             error_msg,
-            format!("failed to send message to planet {}", PLANET_ID)
+            format!("failed to send message to planet {PLANET_ID}")
         );
     }
 

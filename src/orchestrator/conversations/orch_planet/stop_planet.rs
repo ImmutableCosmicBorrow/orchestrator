@@ -263,7 +263,7 @@ mod tests {
         // Assert: Specific error details match (using the formatting logic from CommonErrorTypes)
         assert_eq!(
             next_conv.get_error_details(),
-            Some(format!("sender to planet {} not found", PLANET_ID))
+            Some(format!("sender to planet {PLANET_ID} not found"))
         );
     }
 
@@ -298,7 +298,7 @@ mod tests {
             .expect("Should return an Error Details String");
         assert_eq!(
             error_msg,
-            format!("failed to send message to planet {}", PLANET_ID)
+            format!("failed to send message to planet {PLANET_ID}")
         );
     }
 

@@ -39,8 +39,9 @@ pub trait Conversation<T: Debug + Eq + Hash>: Send + Sync {
     ) -> Option<Box<dyn Conversation<T> + Send + Sync>>;
     /// Returns the execution priority (higher values are processed first).
     fn get_priority(&self) -> i32;
+
     //Helper to get error strings for testing purposes
-    fn get_error_details(&self) -> Option<String>{
+    fn get_error_details(&self) -> Option<String> {
         None
     }
 }

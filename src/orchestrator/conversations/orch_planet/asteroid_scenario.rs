@@ -252,9 +252,7 @@ impl AsteroidConversation<WaitingAsteroidAck> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use common_game::components::rocket::Rocket;
     use common_game::protocols::orchestrator_planet::PlanetToOrchestratorKind;
-    use common_game::protocols::orchestrator_planet::PlanetToOrchestratorKind::KillPlanetResult;
     use crossbeam_channel::unbounded;
     use std::collections::HashMap;
     use std::sync::{Arc, Mutex, OnceLock};
@@ -333,7 +331,7 @@ mod tests {
         //Assert: correct error details
         assert_eq!(
             next_conv.get_error_details(),
-            Some(format!("sender to planet {} not found", PLANET_ID))
+            Some(format!("sender to planet {PLANET_ID} not found"))
         );
         //Assert: Error transitions to None, closing the conversation
         assert!(next_conv.transition(None).is_none());
@@ -364,7 +362,7 @@ mod tests {
             .expect("Should have error details");
         assert_eq!(
             error_msg,
-            format!("failed to send message to planet {}", PLANET_ID)
+            format!("failed to send message to planet {PLANET_ID}")
         );
         assert!(next_conv.transition(None).is_none());
     }

@@ -255,7 +255,7 @@ mod tests {
         assert!(next_conv.get_expected_kind().is_none());
         assert_eq!(
             next_conv.get_error_details(),
-            Some(format!("sender to planet {} not found", PLANET_ID))
+            Some(format!("sender to planet {PLANET_ID} not found"))
         );
         //Assert: Error transitions to None, finishing the Conversation
         assert!(next_conv.transition(None).is_none());
@@ -285,7 +285,7 @@ mod tests {
             .expect("Should have error details");
         assert_eq!(
             error_msg,
-            format!("failed to send message to planet {}", PLANET_ID)
+            format!("failed to send message to planet {PLANET_ID}")
         );
         //Assert: Error transitions to None, finishing the Conversation
         assert!(next_conv.transition(None).is_none());
