@@ -201,9 +201,7 @@ impl SunrayConversation<WaitingSunrayAck> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::orchestrator;
     use common_game::components::forge::Forge;
-    use common_game::logging::ActorType::Orchestrator;
     use crossbeam_channel::unbounded;
     use std::collections::HashMap;
     use std::sync::{Arc, Mutex, OnceLock};
