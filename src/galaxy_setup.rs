@@ -1,5 +1,5 @@
 use crate::planet::{Alive, PlanetNode};
-use common_game::logging::{Channel, EventType, LogEvent, Payload};
+use common_game::logging::Channel;
 use common_game::protocols::orchestrator_planet::{OrchestratorToPlanet, PlanetToOrchestrator};
 use common_game::protocols::planet_explorer::ExplorerToPlanet;
 use common_game::utils::ID;
@@ -79,27 +79,24 @@ fn create_planet_with_channels(
         _ => unreachable!(),
     };
 
-    // Emit log event
-    let mut payload = Payload::new();
-    payload.insert("event".into(), "Planet creation".into());
-    payload.insert("planet_id".into(), planet_id.to_string());
-    payload.insert("success".into(), planet.is_ok().to_string());
-
-    let mut channel = Channel::Info;
-    if let Err(ref error) = planet {
-        payload.insert("error".into(), error.into());
-        channel = Channel::Error;
+    if let Err(ref e) = planet {
+        log_internal(
+            Channel::Error,
+            payload!(
+                action : "Planet creation failed",
+                planet_id : planet_id,
+                error : e,
+            ),
+        );
+    } else {
+        log_internal(
+            Channel::Info,
+            payload!(
+                action : "Created Planet",
+                planet_id : planet_id,
+            ),
+        );
     }
-
-    LogEvent::system(EventType::InternalOrchestratorAction, channel, payload).emit();
-
-    log_internal(
-        Channel::Info,
-        payload!(
-            action : "Created Planet",
-            planet_id : planet_id,
-        ),
-    );
 
     PlanetNode::<Alive>::new(planet.expect("Failed to create planet"))
 }
