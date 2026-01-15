@@ -8,8 +8,6 @@ use crate::orchestrator::conversations::{
 };
 use crate::orchestrator::{ExplorerBag, ExplorersLocationRef};
 use crate::payload;
-#[cfg(doc)]
-use common_game::components::asteroid::Asteroid;
 use common_game::components::forge::Forge;
 use common_game::logging::Channel;
 use common_game::protocols::orchestrator_planet::{
@@ -252,22 +250,15 @@ impl AsteroidConversation<WaitingAsteroidAck> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::orchestrator::conversations::util::get_test_forge;
     use common_game::protocols::orchestrator_planet::PlanetToOrchestratorKind;
     use crossbeam_channel::unbounded;
     use std::collections::HashMap;
-    use std::sync::{Arc, Mutex, OnceLock};
+    use std::sync::{Arc, Mutex};
 
     // IDs for testing
     const CONV_ID: ID = 1;
     const PLANET_ID: ID = 2;
-
-    /// Helper to get the shared test forge singleton
-    fn get_test_forge() -> Arc<Forge> {
-        static FORGE: OnceLock<Arc<Forge>> = OnceLock::new();
-        FORGE
-            .get_or_init(|| Arc::new(Forge::new().expect("Failed to init Forge for tests")))
-            .clone()
-    }
 
     #[test]
     fn test_sending_state_correct() {

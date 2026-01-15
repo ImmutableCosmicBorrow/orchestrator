@@ -201,30 +201,21 @@ impl SunrayConversation<WaitingSunrayAck> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use common_game::components::forge::Forge;
+    use crate::orchestrator::conversations::util::get_test_forge;
     use crossbeam_channel::unbounded;
     use std::collections::HashMap;
-    use std::sync::{Arc, Mutex, OnceLock};
+    use std::sync::{Arc, Mutex};
 
     const CONV_ID: ID = 1;
     const PLANET_ID: ID = 2;
 
-    fn get_forge_for_testing() -> Arc<Forge> {
-        static TEST_FORGE: OnceLock<Arc<Forge>> = OnceLock::new();
-        TEST_FORGE
-            .get_or_init(|| {
-                // This block only runs the very first time any test calls this function
-                Arc::new(Forge::new().expect("Forge singleton failed to initialize"))
-            })
-            .clone() // Returns a new pointer to the same instance
-    }
     #[test]
     fn test_sending_sunray_state_correct() {
         let (tx, _rx) = unbounded::<OrchestratorToPlanet>();
         let senders_to_planets = Arc::new(Mutex::new(HashMap::from([(PLANET_ID, tx.clone())])));
 
         // We need a forge for this state
-        let forge_ref = get_forge_for_testing();
+        let forge_ref = get_test_forge();
 
         let to_planet = ToPlanetStruct {
             planet_id: PLANET_ID,
@@ -251,7 +242,7 @@ mod tests {
     fn test_sending_sunray_state_wrong_planet_sender() {
         //Void senders_to_planet
         let senders_to_planets = Arc::new(Mutex::new(HashMap::new()));
-        let forge_ref = get_forge_for_testing();
+        let forge_ref = get_test_forge();
 
         let to_planet = ToPlanetStruct {
             planet_id: PLANET_ID,
@@ -280,7 +271,7 @@ mod tests {
         drop(rx);
 
         let senders_to_planets = Arc::new(Mutex::new(HashMap::from([(PLANET_ID, tx)])));
-        let forge_ref = get_forge_for_testing();
+        let forge_ref = get_test_forge();
 
         let to_planet = ToPlanetStruct {
             planet_id: PLANET_ID,
