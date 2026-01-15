@@ -189,3 +189,159 @@ impl StartPlanetConversation<WaitingPlanetStartResult> {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crossbeam_channel::unbounded;
+    use std::collections::HashMap;
+    use std::sync::{Arc, Mutex};
+
+    const CONV_ID: u32 = 1;
+    const PLANET_ID: u32 = 2;
+    #[test]
+    fn test_sending_state_correct() {
+        let (tx, _rx) = unbounded::<OrchestratorToPlanet>();
+        //adding the correct channel
+        let senders_to_planets = Arc::new(Mutex::new(HashMap::from([(PLANET_ID, tx.clone())])));
+
+        // We wrap this in the SendingPlanetStart state
+        // Note: You'll need to satisfy the ToPlanetStruct requirements
+        let to_planet = ToPlanetStruct {
+            planet_id: PLANET_ID,
+            planets_senders: senders_to_planets,
+        };
+        let state = SendingPlanetStart::new(to_planet);
+        let conv = Box::new(StartPlanetConversation::<SendingPlanetStart>::new(
+            CONV_ID, state,
+        ));
+
+        // Act: Transition from the first state
+        // The first transition sends the message and moves to 'Waiting'
+        let next_conv = conv
+            .transition(None)
+            .expect("Should transition to next state");
+
+        // Assert: Check if the expected message kind is now set correctly
+        assert_eq!(
+            next_conv.get_expected_kind(),
+            Some(PlanetToOrchKind(StartPlanetAIResult))
+        );
+        assert_eq!(next_conv.get_id(), CONV_ID);
+    }
+
+    #[test]
+    fn test_sending_state_wrong_planet_sender() {
+        //adding the correct channel
+        let senders_to_planets = Arc::new(Mutex::new(HashMap::new()));
+
+        // We wrap this in the SendingPlanetStart state
+        // Note: You'll need to satisfy the ToPlanetStruct requirements
+        let to_planet = ToPlanetStruct {
+            planet_id: PLANET_ID,
+            planets_senders: senders_to_planets,
+        };
+        let state = SendingPlanetStart::new(to_planet);
+        let conv = Box::new(StartPlanetConversation::<SendingPlanetStart>::new(
+            CONV_ID, state,
+        ));
+
+        // Act: Transition from the first state
+        // The first transition sends the message and moves to 'Waiting'
+        let next_conv = conv
+            .transition(None)
+            .expect("Should transition to next state");
+
+        // Assert: Error state no expected message
+        assert!(next_conv.get_expected_kind().is_none());
+        assert_eq!(next_conv.get_id(), CONV_ID);
+        //ASSERT: IT IS THE RIGHT ERROR
+        assert_eq!(
+            next_conv.get_error_details(),
+            Some(format!("sender to planet {PLANET_ID} not found"))
+        );
+    }
+
+    #[test]
+    fn test_sending_state_message_failure() {
+        // 1. Create the channel
+        let (tx, rx) = unbounded::<OrchestratorToPlanet>();
+
+        // 2. Drop the receiver immediately
+        // This makes the channel "disconnected". Any future send attempts will fail.
+        drop(rx);
+
+        let senders_to_planets = Arc::new(Mutex::new(HashMap::from([(PLANET_ID, tx)])));
+
+        let to_planet = ToPlanetStruct {
+            planet_id: PLANET_ID,
+            planets_senders: senders_to_planets,
+        };
+
+        let state = SendingPlanetStart::new(to_planet);
+        let conv = Box::new(StartPlanetConversation::<SendingPlanetStart>::new(
+            CONV_ID, state,
+        ));
+
+        // 3. Act: This should now trigger the Err(ToPlanetError::SendingMessageFailure) branch
+        let next_conv = conv.transition(None).expect("Should return an ErrorState");
+
+        // 4. Assert: Check for the specific MessageToPlanetFailed error
+        // Note: The string here depends on how your CommonErrorTypes handles the "MessageToPlanetFailed" variant
+        let error_msg = next_conv
+            .get_error_details()
+            .expect("Should return an Error Details String");
+        assert_eq!(
+            error_msg,
+            format!("failed to send message to planet {PLANET_ID}")
+        );
+    }
+
+    #[test]
+    fn test_waiting_state_correct_transition() {
+        // Start directly in the Waiting state to test the end of the FSM
+        let conv = Box::new(StartPlanetConversation::<WaitingPlanetStartResult>::new(
+            CONV_ID, PLANET_ID,
+        ));
+
+        // Mock the incoming message from the planet
+        let msg = PossibleMessage::PlanetToOrch(PlanetToOrchestrator::StartPlanetAIResult {
+            planet_id: PLANET_ID,
+        });
+
+        // Act: Transition with the correct message
+        let result = conv.transition(Some(msg));
+
+        // Assert: Successful completion should return None
+        assert!(
+            result.is_none(),
+            "Conversation should terminate successfully (None)"
+        );
+    }
+
+    #[test]
+    fn test_waiting_state_wrong_message() {
+        let conv = Box::new(StartPlanetConversation::<WaitingPlanetStartResult>::new(
+            CONV_ID, PLANET_ID,
+        ));
+
+        // Mock an irrelevant message (e.g., a different planet message if available)
+        // Using a dummy/wrong message variant here
+        let wrong_msg = PossibleMessage::PlanetToOrch(PlanetToOrchestrator::SunrayAck {
+            planet_id: PLANET_ID,
+        });
+
+        // Act
+        let result = conv
+            .transition(Some(wrong_msg))
+            .expect("Should return an ErrorState");
+
+        // Assert: We expect an ErrorState, not None
+        assert_eq!(result.get_id(), CONV_ID);
+        // Assert: It is the right kind of error
+        assert_eq!(
+            result.get_error_details(),
+            Some("Wrong Message Received".to_string())
+        );
+    }
+}

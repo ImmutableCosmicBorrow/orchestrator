@@ -28,7 +28,7 @@ pub(crate) struct KillExplorersManager {
     /// Senders used to communicate with planets for outgoing notifications
     planet_senders: SendersToPlanet,
     /// Whether individual kill conversations should notify the planet of an outgoing explorer
-    handle_outgoing: bool,
+    pub(crate) handle_outgoing: bool,
 }
 
 impl KillExplorersManager {

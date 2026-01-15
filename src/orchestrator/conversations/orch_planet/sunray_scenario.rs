@@ -197,3 +197,154 @@ impl SunrayConversation<WaitingSunrayAck> {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::orchestrator;
+    use common_game::components::forge::Forge;
+    use common_game::logging::ActorType::Orchestrator;
+    use crossbeam_channel::unbounded;
+    use std::collections::HashMap;
+    use std::sync::{Arc, Mutex, OnceLock};
+
+    const CONV_ID: ID = 1;
+    const PLANET_ID: ID = 2;
+
+    fn get_forge_for_testing() -> Arc<Forge> {
+        static TEST_FORGE: OnceLock<Arc<Forge>> = OnceLock::new();
+        TEST_FORGE
+            .get_or_init(|| {
+                // This block only runs the very first time any test calls this function
+                Arc::new(Forge::new().expect("Forge singleton failed to initialize"))
+            })
+            .clone() // Returns a new pointer to the same instance
+    }
+    #[test]
+    fn test_sending_sunray_state_correct() {
+        let (tx, _rx) = unbounded::<OrchestratorToPlanet>();
+        let senders_to_planets = Arc::new(Mutex::new(HashMap::from([(PLANET_ID, tx.clone())])));
+
+        // We need a forge for this state
+        let forge_ref = get_forge_for_testing();
+
+        let to_planet = ToPlanetStruct {
+            planet_id: PLANET_ID,
+            planets_senders: senders_to_planets,
+        };
+        let state = SendSunray::new(to_planet, forge_ref);
+        let conv = Box::new(SunrayConversation::<SendSunray>::new(CONV_ID, state));
+
+        // Act: Transition from the first state
+        let next_conv = conv
+            .transition(None)
+            .expect("Should transition to next state");
+
+        // Assert: Check if the expected message kind is now SunrayAck
+        assert_eq!(
+            next_conv.get_expected_kind(),
+            Some(PlanetToOrchKind(SunrayAck))
+        );
+        assert_eq!(next_conv.get_id(), CONV_ID);
+        assert!(next_conv.get_error_details().is_none());
+    }
+
+    #[test]
+    fn test_sending_sunray_state_wrong_planet_sender() {
+        //Void senders_to_planet
+        let senders_to_planets = Arc::new(Mutex::new(HashMap::new()));
+        let forge_ref = get_forge_for_testing();
+
+        let to_planet = ToPlanetStruct {
+            planet_id: PLANET_ID,
+            planets_senders: senders_to_planets,
+        };
+        let state = SendSunray::new(to_planet, forge_ref);
+        let conv = Box::new(SunrayConversation::<SendSunray>::new(CONV_ID, state));
+
+        // Transition should lead to an error
+        let next_conv = conv
+            .transition(None)
+            .expect("Should transition to error state");
+
+        // Assert correct Error Type
+        assert!(next_conv.get_expected_kind().is_none());
+        assert_eq!(
+            next_conv.get_error_details(),
+            Some(format!("sender to planet {PLANET_ID} not found"))
+        );
+    }
+
+    #[test]
+    fn test_sending_sunray_state_message_failure() {
+        let (tx, rx) = unbounded::<OrchestratorToPlanet>();
+        // Drop the receiver to force a SendError
+        drop(rx);
+
+        let senders_to_planets = Arc::new(Mutex::new(HashMap::from([(PLANET_ID, tx)])));
+        let forge_ref = get_forge_for_testing();
+
+        let to_planet = ToPlanetStruct {
+            planet_id: PLANET_ID,
+            planets_senders: senders_to_planets,
+        };
+
+        let state = SendSunray::new(to_planet, forge_ref);
+        let conv = Box::new(SunrayConversation::<SendSunray>::new(CONV_ID, state));
+
+        // Transition should lead to an error
+        let next_conv = conv.transition(None).expect("Should return an ErrorState");
+
+        // Assert correct Error
+        let error_msg = next_conv
+            .get_error_details()
+            .expect("Should return an Error Details String");
+        assert_eq!(
+            error_msg,
+            format!("failed to send message to planet {PLANET_ID}")
+        );
+    }
+
+    #[test]
+    fn test_waiting_sunray_ack_correct_transition() {
+        // Start directly in the Waiting state
+        let conv = Box::new(SunrayConversation::<WaitingSunrayAck>::new(
+            CONV_ID, PLANET_ID,
+        ));
+
+        // Mock the incoming SunrayAck
+        let msg = PossibleMessage::PlanetToOrch(PlanetToOrchestrator::SunrayAck {
+            planet_id: PLANET_ID,
+        });
+
+        // Transition should lead to None, concluding the conversation
+        let result = conv.transition(Some(msg));
+
+        // Assert: Successful completion
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn test_waiting_sunray_ack_wrong_message() {
+        let conv = Box::new(SunrayConversation::<WaitingSunrayAck>::new(
+            CONV_ID, PLANET_ID,
+        ));
+
+        // Mock a message that isn't the Ack (e.g., StartPlanetAIResult)
+        let wrong_msg = PossibleMessage::PlanetToOrch(PlanetToOrchestrator::StartPlanetAIResult {
+            planet_id: PLANET_ID,
+        });
+
+        // Transition should lead to an error
+        let result = conv
+            .transition(Some(wrong_msg))
+            .expect("Should return an ErrorState");
+
+        // Assert correct error
+        assert_eq!(result.get_id(), CONV_ID);
+        assert_eq!(
+            result.get_error_details(),
+            Some("Wrong Message Received".to_string())
+        );
+    }
+}
