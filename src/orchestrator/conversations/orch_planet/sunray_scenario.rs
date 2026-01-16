@@ -209,27 +209,59 @@ mod tests {
     const CONV_ID: ID = 1;
     const PLANET_ID: ID = 2;
 
+    struct MakeSendersWithResult(
+        Arc<Mutex<HashMap<ID, crossbeam_channel::Sender<OrchestratorToPlanet>>>>,
+        crossbeam_channel::Receiver<OrchestratorToPlanet>,
+    );
+
+    // --- Helper functions ---
+    fn make_senders_with(planet_id: ID) -> MakeSendersWithResult {
+        let (tx, rx) = unbounded::<OrchestratorToPlanet>();
+        MakeSendersWithResult(Arc::new(Mutex::new(HashMap::from([(planet_id, tx)]))), rx)
+    }
+
+    fn make_empty_senders()
+    -> Arc<Mutex<HashMap<ID, crossbeam_channel::Sender<OrchestratorToPlanet>>>> {
+        Arc::new(Mutex::new(HashMap::new()))
+    }
+
+    fn make_to_planet_struct(
+        planet_id: ID,
+        senders: Arc<Mutex<HashMap<ID, crossbeam_channel::Sender<OrchestratorToPlanet>>>>,
+    ) -> ToPlanetStruct {
+        ToPlanetStruct {
+            planet_id,
+            planets_senders: senders,
+        }
+    }
+
+    #[allow(clippy::unnecessary_box_returns)]
+    fn make_sunray_conversation_send(
+        forge_ref: Arc<Forge>,
+        senders: Arc<Mutex<HashMap<ID, crossbeam_channel::Sender<OrchestratorToPlanet>>>>,
+    ) -> Box<SunrayConversation<SendSunray>> {
+        let to_planet = make_to_planet_struct(PLANET_ID, senders);
+        let state = SendSunray::new(to_planet, forge_ref);
+        Box::new(SunrayConversation::<SendSunray>::new(CONV_ID, state))
+    }
+
+    #[allow(clippy::unnecessary_box_returns)]
+    fn make_sunray_conversation_wait() -> Box<SunrayConversation<WaitingSunrayAck>> {
+        Box::new(SunrayConversation::<WaitingSunrayAck>::new(
+            CONV_ID, PLANET_ID,
+        ))
+    }
+
+    // --- Tests ---
+
     #[test]
     fn send_success() {
-        let (tx, _rx) = unbounded::<OrchestratorToPlanet>();
-        let senders_to_planets = Arc::new(Mutex::new(HashMap::from([(PLANET_ID, tx.clone())])));
-
-        // We need a forge for this state
         let forge_ref = get_test_forge();
-
-        let to_planet = ToPlanetStruct {
-            planet_id: PLANET_ID,
-            planets_senders: senders_to_planets,
-        };
-        let state = SendSunray::new(to_planet, forge_ref);
-        let conv = Box::new(SunrayConversation::<SendSunray>::new(CONV_ID, state));
-
-        // Act: Transition from the first state
+        let MakeSendersWithResult(senders, _rx) = make_senders_with(PLANET_ID);
+        let conv = make_sunray_conversation_send(forge_ref, senders);
         let next_conv = conv
             .transition(None)
             .expect("Should transition to next state");
-
-        // Assert: Check if the expected message kind is now SunrayAck
         assert_eq!(
             next_conv.get_expected_kind(),
             Some(PlanetToOrchKind(SunrayAck))
@@ -240,23 +272,12 @@ mod tests {
 
     #[test]
     fn send_missing_sender() {
-        //Void senders_to_planet
-        let senders_to_planets = Arc::new(Mutex::new(HashMap::new()));
         let forge_ref = get_test_forge();
-
-        let to_planet = ToPlanetStruct {
-            planet_id: PLANET_ID,
-            planets_senders: senders_to_planets,
-        };
-        let state = SendSunray::new(to_planet, forge_ref);
-        let conv = Box::new(SunrayConversation::<SendSunray>::new(CONV_ID, state));
-
-        // Transition should lead to an error
+        let senders = make_empty_senders();
+        let conv = make_sunray_conversation_send(forge_ref, senders);
         let next_conv = conv
             .transition(None)
             .expect("Should transition to error state");
-
-        // Assert correct Error Type
         assert!(next_conv.get_expected_kind().is_none());
         assert_eq!(
             next_conv.get_error_details(),
@@ -266,25 +287,12 @@ mod tests {
 
     #[test]
     fn send_message_failure() {
-        let (tx, rx) = unbounded::<OrchestratorToPlanet>();
-        // Drop the receiver to force a SendError
-        drop(rx);
-
-        let senders_to_planets = Arc::new(Mutex::new(HashMap::from([(PLANET_ID, tx)])));
         let forge_ref = get_test_forge();
-
-        let to_planet = ToPlanetStruct {
-            planet_id: PLANET_ID,
-            planets_senders: senders_to_planets,
-        };
-
-        let state = SendSunray::new(to_planet, forge_ref);
-        let conv = Box::new(SunrayConversation::<SendSunray>::new(CONV_ID, state));
-
-        // Transition should lead to an error
+        let (tx, rx) = unbounded::<OrchestratorToPlanet>();
+        drop(rx);
+        let senders = Arc::new(Mutex::new(HashMap::from([(PLANET_ID, tx)])));
+        let conv = make_sunray_conversation_send(forge_ref, senders);
         let next_conv = conv.transition(None).expect("Should return an ErrorState");
-
-        // Assert correct Error
         let error_msg = next_conv
             .get_error_details()
             .expect("Should return an Error Details String");
@@ -295,45 +303,58 @@ mod tests {
     }
 
     #[test]
-    fn wait_correct_transition() {
-        // Start directly in the Waiting state
-        let conv = Box::new(SunrayConversation::<WaitingSunrayAck>::new(
-            CONV_ID, PLANET_ID,
-        ));
+    fn send_sunray_getters() {
+        let forge_ref = get_test_forge();
+        let MakeSendersWithResult(senders, _rx) = make_senders_with(PLANET_ID);
+        let to_planet = make_to_planet_struct(PLANET_ID, senders.clone());
+        let state = SendSunray::new(to_planet, forge_ref);
+        let conv = SunrayConversation::<SendSunray>::new(CONV_ID, state);
+        // get_id
+        assert_eq!(conv.get_id(), CONV_ID);
+        // get_entity_id
+        assert_eq!(conv.get_entity_id(), PLANET_ID);
+        // get_expected_kind (should be None in SendSunray state)
+        assert_eq!(conv.get_expected_kind(), None);
+        // get_priority
+        assert_eq!(conv.get_priority(), 1);
+    }
 
-        // Mock the incoming SunrayAck
+    #[test]
+    fn wait_correct_transition() {
+        let conv = make_sunray_conversation_wait();
         let msg = PossibleMessage::PlanetToOrch(PlanetToOrchestrator::SunrayAck {
             planet_id: PLANET_ID,
         });
-
-        // Transition should lead to None, concluding the conversation
         let result = conv.transition(Some(msg));
-
-        // Assert: Successful completion
         assert!(result.is_none());
     }
 
     #[test]
     fn wait_wrong_message() {
-        let conv = Box::new(SunrayConversation::<WaitingSunrayAck>::new(
-            CONV_ID, PLANET_ID,
-        ));
-
-        // Mock a message that isn't the Ack (e.g., StartPlanetAIResult)
+        let conv = make_sunray_conversation_wait();
         let wrong_msg = PossibleMessage::PlanetToOrch(PlanetToOrchestrator::StartPlanetAIResult {
             planet_id: PLANET_ID,
         });
-
-        // Transition should lead to an error
         let result = conv
             .transition(Some(wrong_msg))
             .expect("Should return an ErrorState");
-
-        // Assert correct error
         assert_eq!(result.get_id(), CONV_ID);
         assert_eq!(
             result.get_error_details(),
             Some("Wrong Message Received".to_string())
         );
+    }
+
+    #[test]
+    fn waiting_sunray_getters() {
+        let conv = SunrayConversation::<WaitingSunrayAck>::new(CONV_ID, PLANET_ID);
+        // get_id
+        assert_eq!(conv.get_id(), CONV_ID);
+        // get_entity_id
+        assert_eq!(conv.get_entity_id(), PLANET_ID);
+        // get_expected_kind (should be Some(SunrayAck))
+        assert_eq!(conv.get_expected_kind(), Some(PlanetToOrchKind(SunrayAck)));
+        // get_priority
+        assert_eq!(conv.get_priority(), 1);
     }
 }

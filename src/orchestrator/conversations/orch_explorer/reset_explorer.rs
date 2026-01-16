@@ -208,17 +208,56 @@ mod tests {
     const CONV_ID: u32 = 1;
     const EXPLORER_ID: u32 = 2;
 
+    type ExplorerSenders =
+        Arc<Mutex<HashMap<ID, crossbeam_channel::Sender<OrchestratorToExplorer>>>>;
+
+    struct MakeSendersResult(
+        ExplorerSenders,
+        crossbeam_channel::Receiver<OrchestratorToExplorer>,
+    );
+
+    // --- Helper functions ---
+    fn make_senders_with(explorer_id: ID) -> MakeSendersResult {
+        let (tx, rx) = unbounded::<OrchestratorToExplorer>();
+        MakeSendersResult(Arc::new(Mutex::new(HashMap::from([(explorer_id, tx)]))), rx)
+    }
+
+    fn make_empty_senders() -> ExplorerSenders {
+        Arc::new(Mutex::new(HashMap::new()))
+    }
+
+    fn make_to_explorer_struct(explorer_id: ID, senders: ExplorerSenders) -> ToExplorerStruct {
+        ToExplorerStruct {
+            explorer_id,
+            explorers_senders: senders,
+        }
+    }
+
+    #[allow(clippy::unnecessary_box_returns)]
+    fn make_send_conv(
+        senders: ExplorerSenders,
+    ) -> Box<ResetExplorerConversation<SendingExplorerReset>> {
+        let to_explorer = make_to_explorer_struct(EXPLORER_ID, senders);
+        let state = SendingExplorerReset::new(to_explorer);
+        Box::new(ResetExplorerConversation::<SendingExplorerReset>::new(
+            CONV_ID, state,
+        ))
+    }
+
+    #[allow(clippy::unnecessary_box_returns)]
+    fn make_wait_conv() -> Box<ResetExplorerConversation<WaitingExplorerResetResult>> {
+        Box::new(ResetExplorerConversation::<WaitingExplorerResetResult>::new(CONV_ID, EXPLORER_ID))
+    }
+
+    // --- Tests ---
+
     #[test]
     fn send_success() {
-        let (tx, _rx) = unbounded::<OrchestratorToExplorer>();
-        let senders_to_explorers = Arc::new(Mutex::new(HashMap::from([(EXPLORER_ID, tx.clone())])));
-        let to_explorer = ToExplorerStruct {
-            explorer_id: EXPLORER_ID,
-            explorers_senders: senders_to_explorers,
-        };
-        let state = SendingExplorerReset::new(to_explorer);
-        let conv = Box::new(ResetExplorerConversation::<SendingExplorerReset>::new(CONV_ID, state));
-        let next_conv = conv.transition(None).expect("Should transition to next state");
+        let MakeSendersResult(senders, _rx) = make_senders_with(EXPLORER_ID);
+        let conv = make_send_conv(senders);
+        let next_conv = conv
+            .transition(None)
+            .expect("Should transition to next state");
         assert_eq!(
             next_conv.get_expected_kind(),
             Some(PossibleExpectedKinds::ExplorerToOrchKind(
@@ -230,13 +269,8 @@ mod tests {
 
     #[test]
     fn send_missing_sender() {
-        let senders_to_explorers = Arc::new(Mutex::new(HashMap::new()));
-        let to_explorer = ToExplorerStruct {
-            explorer_id: EXPLORER_ID,
-            explorers_senders: senders_to_explorers,
-        };
-        let state = SendingExplorerReset::new(to_explorer);
-        let conv = Box::new(ResetExplorerConversation::<SendingExplorerReset>::new(CONV_ID, state));
+        let senders = make_empty_senders();
+        let conv = make_send_conv(senders);
         let next_conv = conv.transition(None).expect("Should return an ErrorState");
         assert!(next_conv.get_expected_kind().is_none());
         assert_eq!(next_conv.get_id(), CONV_ID);
@@ -250,13 +284,8 @@ mod tests {
     fn send_message_failure() {
         let (tx, rx) = unbounded::<OrchestratorToExplorer>();
         drop(rx);
-        let senders_to_explorers = Arc::new(Mutex::new(HashMap::from([(EXPLORER_ID, tx)])));
-        let to_explorer = ToExplorerStruct {
-            explorer_id: EXPLORER_ID,
-            explorers_senders: senders_to_explorers,
-        };
-        let state = SendingExplorerReset::new(to_explorer);
-        let conv = Box::new(ResetExplorerConversation::<SendingExplorerReset>::new(CONV_ID, state));
+        let senders = Arc::new(Mutex::new(HashMap::from([(EXPLORER_ID, tx)])));
+        let conv = make_send_conv(senders);
         let next_conv = conv.transition(None).expect("Should return an ErrorState");
         let error_msg = next_conv
             .get_error_details()
@@ -268,26 +297,59 @@ mod tests {
     }
 
     #[test]
+    fn send_getters() {
+        let MakeSendersResult(senders, _rx) = make_senders_with(EXPLORER_ID);
+        let to_explorer = make_to_explorer_struct(EXPLORER_ID, senders);
+        let state = SendingExplorerReset::new(to_explorer);
+        let conv = ResetExplorerConversation::<SendingExplorerReset>::new(CONV_ID, state);
+        assert_eq!(conv.get_id(), CONV_ID);
+        assert_eq!(conv.get_entity_id(), EXPLORER_ID);
+        assert_eq!(conv.get_expected_kind(), None);
+        assert_eq!(conv.get_priority(), 5);
+    }
+
+    #[test]
     fn wait_correct_transition() {
-        let conv = Box::new(ResetExplorerConversation::<WaitingExplorerResetResult>::new(CONV_ID, EXPLORER_ID));
+        let conv = make_wait_conv();
         let msg = PossibleMessage::ExplorerToOrch(ExplorerToOrchestrator::ResetExplorerAIResult {
             explorer_id: EXPLORER_ID,
         });
         let result = conv.transition(Some(msg));
-        assert!(result.is_none(), "Conversation should terminate upon receiving ResetExplorerAIResult");
+        assert!(
+            result.is_none(),
+            "Conversation should terminate upon receiving ResetExplorerAIResult"
+        );
     }
 
     #[test]
     fn wait_wrong_message() {
-        let conv = Box::new(ResetExplorerConversation::<WaitingExplorerResetResult>::new(CONV_ID, EXPLORER_ID));
-        let wrong_msg = PossibleMessage::ExplorerToOrch(ExplorerToOrchestrator::StartExplorerAIResult {
-            explorer_id: EXPLORER_ID,
-        });
-        let result = conv.transition(Some(wrong_msg)).expect("Should return an ErrorState");
+        let conv = make_wait_conv();
+        let wrong_msg =
+            PossibleMessage::ExplorerToOrch(ExplorerToOrchestrator::StartExplorerAIResult {
+                explorer_id: EXPLORER_ID,
+            });
+        let result = conv
+            .transition(Some(wrong_msg))
+            .expect("Should return an ErrorState");
         assert_eq!(result.get_id(), CONV_ID);
         assert_eq!(
             result.get_error_details(),
             Some("Wrong Message Received".to_string())
         );
+    }
+
+    #[test]
+    fn wait_getters() {
+        let conv =
+            ResetExplorerConversation::<WaitingExplorerResetResult>::new(CONV_ID, EXPLORER_ID);
+        assert_eq!(conv.get_id(), CONV_ID);
+        assert_eq!(conv.get_entity_id(), EXPLORER_ID);
+        assert_eq!(
+            conv.get_expected_kind(),
+            Some(PossibleExpectedKinds::ExplorerToOrchKind(
+                ExplorerToOrchestratorKind::ResetExplorerAIResult
+            ))
+        );
+        assert_eq!(conv.get_priority(), 5);
     }
 }

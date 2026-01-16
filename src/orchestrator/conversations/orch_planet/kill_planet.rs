@@ -257,30 +257,91 @@ mod tests {
     const EXPLORER_ID_1: ID = 301;
     const EXPLORER_ID_2: ID = 302;
 
+    type PlanetSenders = Arc<Mutex<HashMap<ID, crossbeam_channel::Sender<OrchestratorToPlanet>>>>;
+
+    struct MakeSendersResult(
+        PlanetSenders,
+        crossbeam_channel::Receiver<OrchestratorToPlanet>,
+    );
+
+    // --- Helper functions ---
+    fn make_senders_with(planet_id: ID) -> MakeSendersResult {
+        let (tx, rx) = unbounded::<OrchestratorToPlanet>();
+        MakeSendersResult(Arc::new(Mutex::new(HashMap::from([(planet_id, tx)]))), rx)
+    }
+
+    fn make_empty_senders() -> PlanetSenders {
+        Arc::new(Mutex::new(HashMap::new()))
+    }
+
+    fn make_to_planet_struct(planet_id: ID, senders: PlanetSenders) -> ToPlanetStruct {
+        ToPlanetStruct {
+            planet_id,
+            planets_senders: senders,
+        }
+    }
+
+    fn make_empty_explorer_refs() -> (ExplorersLocationRef, SendersToExplorer) {
+        (
+            Arc::new(Mutex::new(HashMap::new())),
+            Arc::new(Mutex::new(HashMap::new())),
+        )
+    }
+
+    #[allow(clippy::unnecessary_box_returns)]
+    fn make_send_conv(senders: PlanetSenders) -> Box<KillPlanetConversation<SendPlanetKill>> {
+        let to_planet = make_to_planet_struct(PLANET_ID, senders);
+        let (explorers_location, explorers_senders) = make_empty_explorer_refs();
+        let state = SendPlanetKill::new(to_planet, explorers_location, explorers_senders);
+        Box::new(KillPlanetConversation::<SendPlanetKill>::new(
+            CONV_ID, state,
+        ))
+    }
+
+    #[allow(clippy::unnecessary_box_returns)]
+    fn make_wait_conv() -> Box<KillPlanetConversation<WaitingPlanetKillResult>> {
+        let (explorers_location, explorers_senders) = make_empty_explorer_refs();
+        let planet_senders = make_empty_senders();
+        let state = WaitingPlanetKillResult::new(
+            PLANET_ID,
+            explorers_location,
+            explorers_senders,
+            planet_senders,
+        );
+        Box::new(KillPlanetConversation::<WaitingPlanetKillResult>::new(
+            CONV_ID, state,
+        ))
+    }
+
+    #[allow(clippy::unnecessary_box_returns)]
+    fn make_wait_conv_with_explorers() -> Box<KillPlanetConversation<WaitingPlanetKillResult>> {
+        let explorers_location = Arc::new(Mutex::new(HashMap::from([
+            (EXPLORER_ID_1, PLANET_ID),
+            (EXPLORER_ID_2, PLANET_ID),
+            (999, 888), // Explorer on a different planet (should be ignored)
+        ])));
+        let explorers_senders = Arc::new(Mutex::new(HashMap::new()));
+        let planet_senders = make_empty_senders();
+        let state = WaitingPlanetKillResult::new(
+            PLANET_ID,
+            explorers_location,
+            explorers_senders,
+            planet_senders,
+        );
+        Box::new(KillPlanetConversation::<WaitingPlanetKillResult>::new(
+            CONV_ID, state,
+        ))
+    }
+
+    // --- Tests ---
+
     #[test]
     fn send_success() {
-        let (tx, _rx) = unbounded::<OrchestratorToPlanet>();
-        let senders = Arc::new(Mutex::new(HashMap::from([(PLANET_ID, tx)])));
-
-        let to_planet = ToPlanetStruct {
-            planet_id: PLANET_ID,
-            planets_senders: senders,
-        };
-
-        let explorers_location = Arc::new(Mutex::new(HashMap::new()));
-        let explorers_senders = Arc::new(Mutex::new(HashMap::new()));
-
-        let state = SendPlanetKill::new(to_planet, explorers_location, explorers_senders);
-        let conv = Box::new(KillPlanetConversation::<SendPlanetKill>::new(
-            CONV_ID, state,
-        ));
-
-        // Transition to Waiting state
+        let MakeSendersResult(senders, _rx) = make_senders_with(PLANET_ID);
+        let conv = make_send_conv(senders);
         let next_conv = conv
             .transition(None)
             .expect("Should transition to WaitingPlanetKillResult");
-
-        // Assert: correct expected message kind
         assert_eq!(
             next_conv.get_expected_kind(),
             Some(PlanetToOrchKind(KillPlanetResult))
@@ -292,26 +353,11 @@ mod tests {
 
     #[test]
     fn send_missing_sender() {
-        let senders = Arc::new(Mutex::new(HashMap::new())); // Empty map
-        let to_planet = ToPlanetStruct {
-            planet_id: PLANET_ID,
-            planets_senders: senders,
-        };
-
-        let explorers_location = Arc::new(Mutex::new(HashMap::new()));
-        let explorers_senders = Arc::new(Mutex::new(HashMap::new()));
-
-        let state = SendPlanetKill::new(to_planet, explorers_location, explorers_senders);
-        let conv = Box::new(KillPlanetConversation::<SendPlanetKill>::new(
-            CONV_ID, state,
-        ));
-
-        // Transition: should lead to error
+        let senders = make_empty_senders();
+        let conv = make_send_conv(senders);
         let next_conv = conv
             .transition(None)
             .expect("Should transition to ErrorState");
-
-        // ASSERT: Correct error type
         assert!(next_conv.get_error_details().is_some());
         assert_eq!(
             next_conv.get_error_details().unwrap(),
@@ -322,26 +368,10 @@ mod tests {
     #[test]
     fn send_message_failure() {
         let (tx, rx) = unbounded::<OrchestratorToPlanet>();
-        // Drop receiver to trigger SendError
         drop(rx);
-
         let senders = Arc::new(Mutex::new(HashMap::from([(PLANET_ID, tx)])));
-        let to_planet = ToPlanetStruct {
-            planet_id: PLANET_ID,
-            planets_senders: senders,
-        };
-
-        let state = SendPlanetKill::new(
-            to_planet,
-            Arc::new(Mutex::new(HashMap::new())),
-            Arc::new(Mutex::new(HashMap::new())),
-        );
-        let conv = Box::new(KillPlanetConversation::<SendPlanetKill>::new(
-            CONV_ID, state,
-        ));
-
+        let conv = make_send_conv(senders);
         let next_conv = conv.transition(None).expect("Should return an ErrorState");
-
         let error_msg = next_conv
             .get_error_details()
             .expect("Should return an Error Details String");
@@ -352,71 +382,64 @@ mod tests {
     }
 
     #[test]
+    fn send_getters() {
+        let MakeSendersResult(senders, _rx) = make_senders_with(PLANET_ID);
+        let to_planet = make_to_planet_struct(PLANET_ID, senders);
+        let (explorers_location, explorers_senders) = make_empty_explorer_refs();
+        let state = SendPlanetKill::new(to_planet, explorers_location, explorers_senders);
+        let conv = KillPlanetConversation::<SendPlanetKill>::new(CONV_ID, state);
+        assert_eq!(conv.get_id(), CONV_ID);
+        assert_eq!(conv.get_entity_id(), PLANET_ID);
+        assert_eq!(conv.get_expected_kind(), None);
+        assert_eq!(conv.get_priority(), 5);
+    }
+
+    #[test]
     fn wait_success_and_cleanup() {
-        let explorers_senders = Arc::new(Mutex::new(HashMap::new()));
-        let planet_senders = Arc::new(Mutex::new(HashMap::new()));
-
-        // Mock explorers on the planet
-        let explorers_location = Arc::new(Mutex::new(HashMap::from([
-            (EXPLORER_ID_1, PLANET_ID),
-            (EXPLORER_ID_2, PLANET_ID),
-            (999, 888), // Explorer on a different planet (should be ignored)
-        ])));
-
-        let state = WaitingPlanetKillResult::new(
-            PLANET_ID,
-            explorers_location,
-            explorers_senders,
-            planet_senders,
-        );
-        let conv = Box::new(KillPlanetConversation::<WaitingPlanetKillResult>::new(
-            CONV_ID, state,
-        ));
-
+        let conv = make_wait_conv_with_explorers();
         let msg = PossibleMessage::PlanetToOrch(PlanetToOrchestrator::KillPlanetResult {
             planet_id: PLANET_ID,
         });
-
-        // Act: Transition to KillExplorersManager
         let next_conv = conv
             .transition(Some(msg))
             .expect("Should transition to KillExplorersManager");
-
-        // Assert: It is the manager and not an error
         assert_eq!(next_conv.get_id(), CONV_ID);
         assert!(next_conv.get_error_details().is_none());
     }
 
     #[test]
     fn wait_wrong_message() {
-        let explorers_location = Arc::new(Mutex::new(HashMap::new()));
-        let explorers_senders = Arc::new(Mutex::new(HashMap::new()));
-        let planet_senders = Arc::new(Mutex::new(HashMap::new()));
+        let conv = make_wait_conv();
+        let wrong_msg = PossibleMessage::PlanetToOrch(PlanetToOrchestrator::AsteroidAck {
+            planet_id: PLANET_ID,
+            rocket: None,
+        });
+        let next_conv = conv
+            .transition(Some(wrong_msg))
+            .expect("Should return an ErrorState");
+        assert_eq!(
+            next_conv.get_error_details(),
+            Some("Wrong Message Received".to_string())
+        );
+    }
 
+    #[test]
+    fn wait_getters() {
+        let (explorers_location, explorers_senders) = make_empty_explorer_refs();
+        let planet_senders = make_empty_senders();
         let state = WaitingPlanetKillResult::new(
             PLANET_ID,
             explorers_location,
             explorers_senders,
             planet_senders,
         );
-        let conv = Box::new(KillPlanetConversation::<WaitingPlanetKillResult>::new(
-            CONV_ID, state,
-        ));
-
-        // Send wrong message type (e.g., AsteroidAck instead of KillPlanetResult)
-        let wrong_msg = PossibleMessage::PlanetToOrch(PlanetToOrchestrator::AsteroidAck {
-            planet_id: PLANET_ID,
-            rocket: None,
-        });
-
-        let next_conv = conv
-            .transition(Some(wrong_msg))
-            .expect("Should return an ErrorState");
-
-        // Assert: FSM explicitly returns ErrorState for WrongMessage in this implementation
+        let conv = KillPlanetConversation::<WaitingPlanetKillResult>::new(CONV_ID, state);
+        assert_eq!(conv.get_id(), CONV_ID);
+        assert_eq!(conv.get_entity_id(), PLANET_ID);
         assert_eq!(
-            next_conv.get_error_details(),
-            Some("Wrong Message Received".to_string())
+            conv.get_expected_kind(),
+            Some(PlanetToOrchKind(KillPlanetResult))
         );
+        assert_eq!(conv.get_priority(), 5);
     }
 }

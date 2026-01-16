@@ -199,63 +199,73 @@ mod tests {
 
     const CONV_ID: u32 = 1;
     const PLANET_ID: u32 = 2;
+
+    type PlanetSenders = Arc<Mutex<HashMap<ID, crossbeam_channel::Sender<OrchestratorToPlanet>>>>;
+
+    struct MakeSendersResult(
+        PlanetSenders,
+        crossbeam_channel::Receiver<OrchestratorToPlanet>,
+    );
+
+    // --- Helper functions ---
+    fn make_senders_with(planet_id: ID) -> MakeSendersResult {
+        let (tx, rx) = unbounded::<OrchestratorToPlanet>();
+        MakeSendersResult(Arc::new(Mutex::new(HashMap::from([(planet_id, tx)]))), rx)
+    }
+
+    fn make_empty_senders() -> PlanetSenders {
+        Arc::new(Mutex::new(HashMap::new()))
+    }
+
+    fn make_to_planet_struct(planet_id: ID, senders: PlanetSenders) -> ToPlanetStruct {
+        ToPlanetStruct {
+            planet_id,
+            planets_senders: senders,
+        }
+    }
+
+    #[allow(clippy::unnecessary_box_returns)]
+    fn make_send_conv(senders: PlanetSenders) -> Box<StartPlanetConversation<SendingPlanetStart>> {
+        let to_planet = make_to_planet_struct(PLANET_ID, senders);
+        let state = SendingPlanetStart::new(to_planet);
+        Box::new(StartPlanetConversation::<SendingPlanetStart>::new(
+            CONV_ID, state,
+        ))
+    }
+
+    #[allow(clippy::unnecessary_box_returns)]
+    fn make_wait_conv() -> Box<StartPlanetConversation<WaitingPlanetStartResult>> {
+        Box::new(StartPlanetConversation::<WaitingPlanetStartResult>::new(
+            CONV_ID, PLANET_ID,
+        ))
+    }
+
+    // --- Tests ---
+
     #[test]
     fn send_success() {
-        let (tx, _rx) = unbounded::<OrchestratorToPlanet>();
-        //adding the correct channel
-        let senders_to_planets = Arc::new(Mutex::new(HashMap::from([(PLANET_ID, tx.clone())])));
-
-        // We wrap this in the SendingPlanetStart state
-        // Note: You'll need to satisfy the ToPlanetStruct requirements
-        let to_planet = ToPlanetStruct {
-            planet_id: PLANET_ID,
-            planets_senders: senders_to_planets,
-        };
-        let state = SendingPlanetStart::new(to_planet);
-        let conv = Box::new(StartPlanetConversation::<SendingPlanetStart>::new(
-            CONV_ID, state,
-        ));
-
-        // Act: Transition from the first state
-        // The first transition sends the message and moves to 'Waiting'
+        let MakeSendersResult(senders, _rx) = make_senders_with(PLANET_ID);
+        let conv = make_send_conv(senders);
         let next_conv = conv
             .transition(None)
             .expect("Should transition to next state");
-
-        // Assert: Check if the expected message kind is now set correctly
         assert_eq!(
             next_conv.get_expected_kind(),
             Some(PlanetToOrchKind(StartPlanetAIResult))
         );
         assert_eq!(next_conv.get_id(), CONV_ID);
+        assert!(next_conv.get_error_details().is_none());
     }
 
     #[test]
     fn send_missing_sender() {
-        //adding the correct channel
-        let senders_to_planets = Arc::new(Mutex::new(HashMap::new()));
-
-        // We wrap this in the SendingPlanetStart state
-        // Note: You'll need to satisfy the ToPlanetStruct requirements
-        let to_planet = ToPlanetStruct {
-            planet_id: PLANET_ID,
-            planets_senders: senders_to_planets,
-        };
-        let state = SendingPlanetStart::new(to_planet);
-        let conv = Box::new(StartPlanetConversation::<SendingPlanetStart>::new(
-            CONV_ID, state,
-        ));
-
-        // Act: Transition from the first state
-        // The first transition sends the message and moves to 'Waiting'
+        let senders = make_empty_senders();
+        let conv = make_send_conv(senders);
         let next_conv = conv
             .transition(None)
             .expect("Should transition to next state");
-
-        // Assert: Error state no expected message
         assert!(next_conv.get_expected_kind().is_none());
         assert_eq!(next_conv.get_id(), CONV_ID);
-        //ASSERT: IT IS THE RIGHT ERROR
         assert_eq!(
             next_conv.get_error_details(),
             Some(format!("sender to planet {PLANET_ID} not found"))
@@ -264,30 +274,11 @@ mod tests {
 
     #[test]
     fn send_message_failure() {
-        // 1. Create the channel
         let (tx, rx) = unbounded::<OrchestratorToPlanet>();
-
-        // 2. Drop the receiver immediately
-        // This makes the channel "disconnected". Any future send attempts will fail.
         drop(rx);
-
-        let senders_to_planets = Arc::new(Mutex::new(HashMap::from([(PLANET_ID, tx)])));
-
-        let to_planet = ToPlanetStruct {
-            planet_id: PLANET_ID,
-            planets_senders: senders_to_planets,
-        };
-
-        let state = SendingPlanetStart::new(to_planet);
-        let conv = Box::new(StartPlanetConversation::<SendingPlanetStart>::new(
-            CONV_ID, state,
-        ));
-
-        // 3. Act: This should now trigger the Err(ToPlanetError::SendingMessageFailure) branch
+        let senders = Arc::new(Mutex::new(HashMap::from([(PLANET_ID, tx)])));
+        let conv = make_send_conv(senders);
         let next_conv = conv.transition(None).expect("Should return an ErrorState");
-
-        // 4. Assert: Check for the specific MessageToPlanetFailed error
-        // Note: The string here depends on how your CommonErrorTypes handles the "MessageToPlanetFailed" variant
         let error_msg = next_conv
             .get_error_details()
             .expect("Should return an Error Details String");
@@ -298,21 +289,24 @@ mod tests {
     }
 
     #[test]
-    fn wait_correct_transition() {
-        // Start directly in the Waiting state to test the end of the FSM
-        let conv = Box::new(StartPlanetConversation::<WaitingPlanetStartResult>::new(
-            CONV_ID, PLANET_ID,
-        ));
+    fn send_getters() {
+        let MakeSendersResult(senders, _rx) = make_senders_with(PLANET_ID);
+        let to_planet = make_to_planet_struct(PLANET_ID, senders);
+        let state = SendingPlanetStart::new(to_planet);
+        let conv = StartPlanetConversation::<SendingPlanetStart>::new(CONV_ID, state);
+        assert_eq!(conv.get_id(), CONV_ID);
+        assert_eq!(conv.get_entity_id(), PLANET_ID);
+        assert_eq!(conv.get_expected_kind(), None);
+        assert_eq!(conv.get_priority(), 5);
+    }
 
-        // Mock the incoming message from the planet
+    #[test]
+    fn wait_correct_message() {
+        let conv = make_wait_conv();
         let msg = PossibleMessage::PlanetToOrch(PlanetToOrchestrator::StartPlanetAIResult {
             planet_id: PLANET_ID,
         });
-
-        // Act: Transition with the correct message
         let result = conv.transition(Some(msg));
-
-        // Assert: Successful completion should return None
         assert!(
             result.is_none(),
             "Conversation should terminate successfully (None)"
@@ -321,27 +315,29 @@ mod tests {
 
     #[test]
     fn wait_wrong_message() {
-        let conv = Box::new(StartPlanetConversation::<WaitingPlanetStartResult>::new(
-            CONV_ID, PLANET_ID,
-        ));
-
-        // Mock an irrelevant message (e.g., a different planet message if available)
-        // Using a dummy/wrong message variant here
+        let conv = make_wait_conv();
         let wrong_msg = PossibleMessage::PlanetToOrch(PlanetToOrchestrator::SunrayAck {
             planet_id: PLANET_ID,
         });
-
-        // Act
         let result = conv
             .transition(Some(wrong_msg))
             .expect("Should return an ErrorState");
-
-        // Assert: We expect an ErrorState, not None
         assert_eq!(result.get_id(), CONV_ID);
-        // Assert: It is the right kind of error
         assert_eq!(
             result.get_error_details(),
             Some("Wrong Message Received".to_string())
         );
+    }
+
+    #[test]
+    fn wait_getters() {
+        let conv = StartPlanetConversation::<WaitingPlanetStartResult>::new(CONV_ID, PLANET_ID);
+        assert_eq!(conv.get_id(), CONV_ID);
+        assert_eq!(conv.get_entity_id(), PLANET_ID);
+        assert_eq!(
+            conv.get_expected_kind(),
+            Some(PlanetToOrchKind(StartPlanetAIResult))
+        );
+        assert_eq!(conv.get_priority(), 5);
     }
 }

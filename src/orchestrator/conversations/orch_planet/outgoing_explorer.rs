@@ -258,8 +258,31 @@ mod tests {
     const PLANET_ID: ID = 20;
     const EXPLORER_ID: ID = 30;
 
+    type PlanetSenders = Arc<Mutex<HashMap<ID, crossbeam_channel::Sender<OrchestratorToPlanet>>>>;
+
+    struct MakeSendersResult(
+        PlanetSenders,
+        crossbeam_channel::Receiver<OrchestratorToPlanet>,
+    );
+
+    // --- Helper functions ---
+    fn make_senders_with(planet_id: ID) -> MakeSendersResult {
+        let (tx, rx) = unbounded::<OrchestratorToPlanet>();
+        MakeSendersResult(Arc::new(Mutex::new(HashMap::from([(planet_id, tx)]))), rx)
+    }
+
+    fn make_empty_senders() -> PlanetSenders {
+        Arc::new(Mutex::new(HashMap::new()))
+    }
+
+    fn make_to_planet_struct(planet_id: ID, senders: PlanetSenders) -> ToPlanetStruct {
+        ToPlanetStruct {
+            planet_id,
+            planets_senders: senders,
+        }
+    }
+
     fn mock_manager() -> KillExplorersManager {
-        // Assuming KillExplorersManager has a constructor or can be instantiated for tests
         KillExplorersManager::new(
             CONV_ID,
             Arc::new(Mutex::new(HashMap::new())),
@@ -269,27 +292,32 @@ mod tests {
         )
     }
 
+    #[allow(clippy::unnecessary_box_returns)]
+    fn make_send_conv(senders: PlanetSenders) -> Box<OutgoingExplorer<SendingOutgoingRequest>> {
+        let to_planet = make_to_planet_struct(PLANET_ID, senders);
+        let state = SendingOutgoingRequest::new(to_planet, EXPLORER_ID, Box::new(mock_manager()));
+        Box::new(OutgoingExplorer::<SendingOutgoingRequest>::new(
+            CONV_ID, state,
+        ))
+    }
+
+    #[allow(clippy::unnecessary_box_returns)]
+    fn make_wait_conv() -> Box<OutgoingExplorer<WaitingOutgoingResponse>> {
+        let state = WaitingOutgoingResponse::new(PLANET_ID, Box::new(mock_manager()));
+        Box::new(OutgoingExplorer::<WaitingOutgoingResponse>::new(
+            CONV_ID, state,
+        ))
+    }
+
+    // --- Tests ---
+
     #[test]
     fn send_success() {
-        let (tx, _rx) = unbounded::<OrchestratorToPlanet>();
-        let senders = Arc::new(Mutex::new(HashMap::from([(PLANET_ID, tx)])));
-
-        let to_planet = ToPlanetStruct {
-            planet_id: PLANET_ID,
-            planets_senders: senders,
-        };
-
-        let state = SendingOutgoingRequest::new(to_planet, EXPLORER_ID, Box::new(mock_manager()));
-        let conv = Box::new(OutgoingExplorer::<SendingOutgoingRequest>::new(
-            CONV_ID, state,
-        ));
-
-        // Transition to Waiting state
+        let MakeSendersResult(senders, _rx) = make_senders_with(PLANET_ID);
+        let conv = make_send_conv(senders);
         let next_conv = conv
             .transition(None)
             .expect("Should transition to WaitingOutgoingResponse");
-
-        // Assert: correct expected message kind
         assert_eq!(
             next_conv.get_expected_kind(),
             Some(PossibleExpectedKinds::PlanetToOrchKind(
@@ -303,23 +331,11 @@ mod tests {
 
     #[test]
     fn send_missing_sender() {
-        let senders = Arc::new(Mutex::new(HashMap::new())); // Empty map
-        let to_planet = ToPlanetStruct {
-            planet_id: PLANET_ID,
-            planets_senders: senders,
-        };
-
-        let state = SendingOutgoingRequest::new(to_planet, EXPLORER_ID, Box::new(mock_manager()));
-        let conv = Box::new(OutgoingExplorer::<SendingOutgoingRequest>::new(
-            CONV_ID, state,
-        ));
-
-        //Transition: should lead to error
+        let senders = make_empty_senders();
+        let conv = make_send_conv(senders);
         let next_conv = conv
             .transition(None)
             .expect("Should transition to ErrorState");
-
-        //ASSERT: Correct error type
         assert!(next_conv.get_error_details().is_some());
         assert_eq!(
             next_conv.get_error_details().unwrap(),
@@ -329,30 +345,11 @@ mod tests {
 
     #[test]
     fn send_message_failure() {
-        // 1. Create the channel
         let (tx, rx) = unbounded::<OrchestratorToPlanet>();
-
-        // 2. Drop the receiver immediately
-        // This makes the channel "disconnected". Any future send attempts will fail.
         drop(rx);
-
-        let senders_to_planets = Arc::new(Mutex::new(HashMap::from([(PLANET_ID, tx)])));
-
-        let to_planet = ToPlanetStruct {
-            planet_id: PLANET_ID,
-            planets_senders: senders_to_planets,
-        };
-
-        let state = SendingOutgoingRequest::new(to_planet, EXPLORER_ID, Box::new(mock_manager()));
-        let conv = Box::new(OutgoingExplorer::<SendingOutgoingRequest>::new(
-            CONV_ID, state,
-        ));
-
-        // 3. Act: This should now trigger the Err(ToPlanetError::SendingMessageFailure) branch
+        let senders = Arc::new(Mutex::new(HashMap::from([(PLANET_ID, tx)])));
+        let conv = make_send_conv(senders);
         let next_conv = conv.transition(None).expect("Should return an ErrorState");
-
-        // 4. Assert: Check for the specific MessageToPlanetFailed error
-        // Note: The string here depends on how your CommonErrorTypes handles the "MessageToPlanetFailed" variant
         let error_msg = next_conv
             .get_error_details()
             .expect("Should return an Error Details String");
@@ -363,45 +360,57 @@ mod tests {
     }
 
     #[test]
-    fn wait_success() {
-        let state = WaitingOutgoingResponse::new(PLANET_ID, Box::new(mock_manager()));
-        let conv = Box::new(OutgoingExplorer::<WaitingOutgoingResponse>::new(
-            CONV_ID, state,
-        ));
+    fn send_getters() {
+        let MakeSendersResult(senders, _rx) = make_senders_with(PLANET_ID);
+        let to_planet = make_to_planet_struct(PLANET_ID, senders);
+        let state = SendingOutgoingRequest::new(to_planet, EXPLORER_ID, Box::new(mock_manager()));
+        let conv = OutgoingExplorer::<SendingOutgoingRequest>::new(CONV_ID, state);
+        assert_eq!(conv.get_id(), CONV_ID);
+        assert_eq!(conv.get_entity_id(), PLANET_ID);
+        assert_eq!(conv.get_expected_kind(), None);
+        assert_eq!(conv.get_priority(), 4);
+    }
 
+    #[test]
+    fn wait_success() {
+        let conv = make_wait_conv();
         let msg = PossibleMessage::PlanetToOrch(PlanetToOrchestrator::OutgoingExplorerResponse {
             planet_id: PLANET_ID,
             explorer_id: EXPLORER_ID,
             res: Ok(()),
         });
-
         let next_conv = conv
             .transition(Some(msg))
             .expect("Should return to manager");
-
-        // Since we return the manager, we verify its ID and that is not an error
         assert_eq!(next_conv.get_id(), CONV_ID);
         assert!(next_conv.get_error_details().is_none());
     }
 
     #[test]
     fn wait_wrong_message() {
-        let state = WaitingOutgoingResponse::new(PLANET_ID, Box::new(mock_manager()));
-        let conv = Box::new(OutgoingExplorer::<WaitingOutgoingResponse>::new(
-            CONV_ID, state,
-        ));
-
-        // Send a completely different message
+        let conv = make_wait_conv();
         let wrong_msg = PossibleMessage::PlanetToOrch(PlanetToOrchestrator::AsteroidAck {
             planet_id: PLANET_ID,
             rocket: None,
         });
-
         let next_conv = conv
             .transition(Some(wrong_msg))
             .expect("Should return to manager as failsafe");
-
-        //This time on a wrong message, we keep going to kill other explorers
         assert!(next_conv.get_error_details().is_none());
+    }
+
+    #[test]
+    fn wait_getters() {
+        let state = WaitingOutgoingResponse::new(PLANET_ID, Box::new(mock_manager()));
+        let conv = OutgoingExplorer::<WaitingOutgoingResponse>::new(CONV_ID, state);
+        assert_eq!(conv.get_id(), CONV_ID);
+        assert_eq!(conv.get_entity_id(), PLANET_ID);
+        assert_eq!(
+            conv.get_expected_kind(),
+            Some(PlanetToOrchKind(
+                PlanetToOrchestratorKind::OutgoingExplorerResponse
+            ))
+        );
+        assert_eq!(conv.get_priority(), 4);
     }
 }
