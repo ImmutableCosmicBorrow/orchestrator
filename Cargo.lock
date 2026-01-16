@@ -7,7 +7,7 @@ name = "Planet"
 version = "0.1.0"
 source = "git+https://github.com/Houston-we-have-a-borrow/Planet/#6988b40ebca4ed9ec631435d58317f8acef334ab"
 dependencies = [
- "common-game 3.0.0",
+ "common-game",
  "crossbeam-channel",
 ]
 
@@ -213,21 +213,6 @@ dependencies = [
 
 [[package]]
 name = "common-game"
-version = "2.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b1d6009e12eeebcf2e91893fb174f92fe117c3c57703efdafe2a6862a04c0265"
-dependencies = [
- "crossbeam-channel",
- "enum-as-inner",
- "lazy_static",
- "log",
- "paste",
- "strum",
- "strum_macros",
-]
-
-[[package]]
-name = "common-game"
 version = "3.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "288def5b45036a2fe3d7ba745c0f0e40b18b5e96164cc139fa220485509e701e"
@@ -379,7 +364,7 @@ name = "dummy_explorer"
 version = "0.1.0"
 source = "git+https://github.com/ImmutableCosmicBorrow/dummy_explorer/#737794aa25ebe09f8b69c73c2b99f0dc2d52f040"
 dependencies = [
- "common-game 3.0.0",
+ "common-game",
  "crossbeam-channel",
 ]
 
@@ -403,7 +388,7 @@ name = "enterprise"
 version = "0.1.0"
 source = "git+https://github.com/Thompspsps/Enterprise_planet/#6d229115ad88c63f3a725a35f6cae520d99cc455"
 dependencies = [
- "common-game 3.0.0",
+ "common-game",
  "crossbeam-channel",
  "log",
 ]
@@ -653,7 +638,7 @@ name = "luna4"
 version = "2.0.0"
 source = "git+https://github.com/luna4-ap2025/Planet_Luna4#2d71d98f8665b7543621484e8fc7b877aa0d46ab"
 dependencies = [
- "common-game 3.0.0",
+ "common-game",
  "crossbeam-channel",
  "log",
  "thiserror",
@@ -691,7 +676,7 @@ name = "orbitron"
 version = "1.0.0"
 source = "git+https://github.com/Advanced-Programming-2025-Orbitron/Orbitron/#83a9db0fde01d6eafdabc8de72454e7dc05bca8a"
 dependencies = [
- "common-game 3.0.0",
+ "common-game",
  "crossbeam-channel",
 ]
 
@@ -700,7 +685,7 @@ name = "orchestrator"
 version = "0.2.0"
 dependencies = [
  "Planet",
- "common-game 3.0.0",
+ "common-game",
  "crossbeam-channel",
  "dummy_explorer",
  "enterprise",
@@ -900,9 +885,9 @@ dependencies = [
 [[package]]
 name = "rustrelli"
 version = "0.1.0"
-source = "git+https://github.com/Rustrelli/rustrelli#cd42d346798992aef49eb33b351724f1190004e7"
+source = "git+https://github.com/Rustrelli/rustrelli#3a12a4835a4c1964d6d2d76b7ec5fbb61847a2d6"
 dependencies = [
- "common-game 2.0.0",
+ "common-game",
  "crossbeam-channel",
 ]
 
@@ -920,7 +905,7 @@ checksum = "c9aa751e058b9ab4997792a25827c2f3e14386ddca6f192aeb8b3f26c101fad3"
 dependencies = [
  "chrono",
  "clap",
- "common-game 3.0.0",
+ "common-game",
  "config",
  "crossbeam-channel",
  "fern",
@@ -1109,7 +1094,7 @@ name = "trip"
 version = "0.6.0"
 source = "git+https://github.com/Totally-Reliable-Imaginary-Planets/TRIP.git?branch=main#344caf6b5f17b5ec85bd6f55f37b4813f9f3783c"
 dependencies = [
- "common-game 3.0.0",
+ "common-game",
  "crossbeam-channel",
  "log",
 ]

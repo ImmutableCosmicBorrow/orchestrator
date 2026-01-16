@@ -16,8 +16,8 @@ pub fn create_trip_planet(
     trip(id, rx_orchestrator, tx_orchestrator, rx_explorer)
 }
 
-// Temp allows to ignore unused variables and needless pass by value warnings while the planet is not updated
-#[allow(unused_variables, clippy::needless_pass_by_value)]
+// Wrapper allowed to return the same type for all planet creation functions
+#[allow(clippy::unnecessary_wraps)]
 pub fn create_rustrelli_planet(
     id: ID,
     rx_orchestrator: Receiver<OrchestratorToPlanet>,
@@ -25,17 +25,13 @@ pub fn create_rustrelli_planet(
     rx_explorer: Receiver<ExplorerToPlanet>,
     request_limit: rustrelli::ExplorerRequestLimit,
 ) -> Result<Planet, String> {
-    /*Ok(rustrelli::create_planet(
+    Ok(rustrelli::create_planet(
         id,
         rx_orchestrator,
         tx_orchestrator,
         rx_explorer,
         request_limit,
-    ))*/
-    Err(
-        "Rustrelli planet still uses 2.0.0 common-game crate, needs to be updated to 3.0.0"
-            .to_string(),
-    )
+    ))
 }
 
 pub fn create_luna4_planet(
