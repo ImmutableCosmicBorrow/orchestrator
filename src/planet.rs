@@ -19,7 +19,8 @@ impl State for Dead {}
 
 /// A planet node in the galaxy graph
 pub(crate) struct PlanetNode<S: State> {
-    planet: Planet,
+    pub(crate) planet: Planet,
+    pub(crate) id: ID,
     neighbors: RefCell<Vec<Weak<Mutex<PlanetNode<S>>>>>,
     _state: PhantomData<S>,
 }
@@ -28,8 +29,10 @@ pub(crate) struct PlanetNode<S: State> {
 impl PlanetNode<Alive> {
     /// Create a new alive planet node
     pub fn new(planet: Planet) -> Self {
+        let id = planet.state().id();
         PlanetNode {
             planet,
+            id,
             neighbors: RefCell::new(Vec::new()),
             _state: PhantomData,
         }
@@ -39,6 +42,7 @@ impl PlanetNode<Alive> {
     pub fn kill(self) -> PlanetNode<Dead> {
         PlanetNode {
             planet: self.planet,
+            id: self.id,
             neighbors: RefCell::new(Vec::new()),
             _state: PhantomData,
         }
@@ -63,7 +67,7 @@ impl PlanetNode<Alive> {
             .borrow()
             .iter()
             .filter_map(std::sync::Weak::upgrade)
-            .map(|neighbor| neighbor.lock().unwrap().planet().state().id())
+            .map(|neighbor| neighbor.lock().unwrap().id)
             .collect()
     }
 
@@ -84,6 +88,7 @@ impl PlanetNode<Dead> {
     pub fn revive(self) -> PlanetNode<Alive> {
         PlanetNode {
             planet: self.planet,
+            id: self.id,
             neighbors: RefCell::new(Vec::new()),
             _state: PhantomData,
         }

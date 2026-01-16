@@ -316,4 +316,32 @@ impl Orchestrator {
             ),
         );
     }
+
+    /// Spawns a thread for each planet node in the galaxy, running its main loop.
+    pub fn spawn_planet_threads(&self) -> Vec<std::thread::JoinHandle<()>> {
+        let mut handles = Vec::new();
+        let galaxy = self.galaxy.clone();
+        let map = galaxy.lock().unwrap();
+        for node_arc in map.values() {
+            let node_arc = Arc::clone(node_arc);
+            let handle = std::thread::spawn(move || {
+                let mut node = node_arc.lock().unwrap();
+                let planet = &mut node.planet;
+                let res = planet.run();
+
+                if let Err(e) = res {
+                    log_internal(
+                        Channel::Error,
+                        payload!(
+                            action : "Planet encountered an error during its main loop",
+                            planet_id : node.id,
+                            error : e,
+                        ),
+                    );
+                }
+            });
+            handles.push(handle);
+        }
+        handles
+    }
 }
