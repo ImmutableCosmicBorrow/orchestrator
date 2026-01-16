@@ -46,6 +46,7 @@ pub(crate) struct Orchestrator {
     galaxy: PlanetMap,
     planet_explorer_channels: PlanetExplorerChannels,
     explorers_location: ExplorersLocationRef,
+    planet_threads: Vec<std::thread::JoinHandle<()>>,
 }
 
 impl PlanetExplorerChannels {
@@ -103,6 +104,33 @@ impl Orchestrator {
             explorer_to_planet_senders: Arc::new(Mutex::new(HashMap::new())),
         };
 
+        // Spawn planet threads immediately
+        let planet_threads = {
+            let mut handles = Vec::new();
+            let map = galaxy.lock().unwrap();
+            for node_arc in map.values() {
+                let node_arc = Arc::clone(node_arc);
+                let handle = std::thread::spawn(move || {
+                    let mut node = node_arc.lock().unwrap();
+                    let planet = &mut node.planet;
+                    let res = planet.run();
+
+                    if let Err(e) = res {
+                        log_internal(
+                            Channel::Error,
+                            payload!(
+                                action : "Planet encountered an error during its main loop",
+                                planet_id : node.id,
+                                error : e,
+                            ),
+                        );
+                    }
+                });
+                handles.push(handle);
+            }
+            handles
+        };
+
         Self {
             planets_senders: Arc::new(Mutex::new(orch_to_plan_senders)),
             explorer_senders: Arc::new(Mutex::new(explorer_senders)),
@@ -113,6 +141,7 @@ impl Orchestrator {
             convo_scheduler: ConvoScheduler::new(),
             planet_explorer_channels,
             explorers_location: Arc::new(Mutex::new(HashMap::new())),
+            planet_threads,
         }
     }
 
@@ -315,33 +344,5 @@ impl Orchestrator {
                 into_planet_id : planet_id,
             ),
         );
-    }
-
-    /// Spawns a thread for each planet node in the galaxy, running its main loop.
-    pub fn spawn_planet_threads(&self) -> Vec<std::thread::JoinHandle<()>> {
-        let mut handles = Vec::new();
-        let galaxy = self.galaxy.clone();
-        let map = galaxy.lock().unwrap();
-        for node_arc in map.values() {
-            let node_arc = Arc::clone(node_arc);
-            let handle = std::thread::spawn(move || {
-                let mut node = node_arc.lock().unwrap();
-                let planet = &mut node.planet;
-                let res = planet.run();
-
-                if let Err(e) = res {
-                    log_internal(
-                        Channel::Error,
-                        payload!(
-                            action : "Planet encountered an error during its main loop",
-                            planet_id : node.id,
-                            error : e,
-                        ),
-                    );
-                }
-            });
-            handles.push(handle);
-        }
-        handles
     }
 }
