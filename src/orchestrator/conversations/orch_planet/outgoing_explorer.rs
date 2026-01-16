@@ -270,7 +270,7 @@ mod tests {
     }
 
     #[test]
-    fn test_sending_request_success() {
+    fn send_success() {
         let (tx, _rx) = unbounded::<OrchestratorToPlanet>();
         let senders = Arc::new(Mutex::new(HashMap::from([(PLANET_ID, tx)])));
 
@@ -302,7 +302,7 @@ mod tests {
     }
 
     #[test]
-    fn test_sending_request_sender_not_found() {
+    fn send_missing_sender() {
         let senders = Arc::new(Mutex::new(HashMap::new())); // Empty map
         let to_planet = ToPlanetStruct {
             planet_id: PLANET_ID,
@@ -328,7 +328,7 @@ mod tests {
     }
 
     #[test]
-    fn test_sending_state_message_failure() {
+    fn send_message_failure() {
         // 1. Create the channel
         let (tx, rx) = unbounded::<OrchestratorToPlanet>();
 
@@ -363,7 +363,7 @@ mod tests {
     }
 
     #[test]
-    fn test_waiting_response_success() {
+    fn wait_success() {
         let state = WaitingOutgoingResponse::new(PLANET_ID, Box::new(mock_manager()));
         let conv = Box::new(OutgoingExplorer::<WaitingOutgoingResponse>::new(
             CONV_ID, state,
@@ -385,7 +385,7 @@ mod tests {
     }
 
     #[test]
-    fn test_waiting_response_wrong_message() {
+    fn wait_wrong_message() {
         let state = WaitingOutgoingResponse::new(PLANET_ID, Box::new(mock_manager()));
         let conv = Box::new(OutgoingExplorer::<WaitingOutgoingResponse>::new(
             CONV_ID, state,

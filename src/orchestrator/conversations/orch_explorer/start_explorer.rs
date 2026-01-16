@@ -208,7 +208,7 @@ mod tests {
     const CONV_ID: u32 = 1;
     const EXPLORER_ID: u32 = 2;
     #[test]
-    fn test_sending_state_correct() {
+    fn send_success() {
         let (tx, _rx) = unbounded::<OrchestratorToExplorer>();
         //adding the correct channel
         let senders_to_explorers = Arc::new(Mutex::new(HashMap::from([(EXPLORER_ID, tx.clone())])));
@@ -241,7 +241,7 @@ mod tests {
     }
 
     #[test]
-    fn test_sending_state_wrong_explorer_sender() {
+    fn send_missing_sender() {
         // Empty senders map to test missing sender error
         let senders_to_explorers = Arc::new(Mutex::new(HashMap::new()));
 
@@ -272,7 +272,7 @@ mod tests {
     }
 
     #[test]
-    fn test_sending_state_message_failure() {
+    fn send_message_failure() {
         // 1. Create the channel
         let (tx, rx) = unbounded::<OrchestratorToExplorer>();
 
@@ -307,7 +307,7 @@ mod tests {
     }
 
     #[test]
-    fn test_waiting_state_correct_transition() {
+    fn wait_correct_transition() {
         // Start directly in the Waiting state to test the end of the FSM
         let conv = Box::new(
             StartExplorerConversation::<WaitingExplorerStartResult>::new(CONV_ID, EXPLORER_ID),
@@ -329,7 +329,7 @@ mod tests {
     }
 
     #[test]
-    fn test_waiting_state_wrong_message() {
+    fn wait_wrong_message() {
         let conv = Box::new(
             StartExplorerConversation::<WaitingExplorerStartResult>::new(CONV_ID, EXPLORER_ID),
         );

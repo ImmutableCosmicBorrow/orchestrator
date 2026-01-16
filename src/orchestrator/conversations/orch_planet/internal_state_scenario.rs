@@ -207,7 +207,7 @@ mod tests {
     const PLANET_ID: ID = 2;
 
     #[test]
-    fn test_internal_state_sending_correct() {
+    fn send_success() {
         let (tx, _rx) = unbounded::<OrchestratorToPlanet>();
         let senders_to_planets = Arc::new(Mutex::new(HashMap::from([(PLANET_ID, tx)])));
 
@@ -236,7 +236,7 @@ mod tests {
     }
 
     #[test]
-    fn test_internal_state_sending_wrong_sender() {
+    fn send_missing_sender() {
         //No senders in map
         let senders_to_planets = Arc::new(Mutex::new(HashMap::new()));
 
@@ -262,7 +262,7 @@ mod tests {
     }
 
     #[test]
-    fn test_internal_state_sending_message_failure() {
+    fn send_message_failure() {
         let (tx, rx) = unbounded::<OrchestratorToPlanet>();
         drop(rx); // Break the channel
 
@@ -292,7 +292,7 @@ mod tests {
     }
 
     #[test]
-    fn test_internal_state_waiting_correct_response() {
+    fn wait_correct_response() {
         let conv = Box::new(
             InternalStateConversation::<WaitingInternalStateResponse>::new(CONV_ID, PLANET_ID),
         );
@@ -314,7 +314,7 @@ mod tests {
     }
 
     #[test]
-    fn test_internal_state_waiting_wrong_message() {
+    fn wait_wrong_message() {
         let conv = Box::new(
             InternalStateConversation::<WaitingInternalStateResponse>::new(CONV_ID, PLANET_ID),
         );

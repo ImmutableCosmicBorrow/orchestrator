@@ -261,7 +261,7 @@ mod tests {
     const PLANET_ID: ID = 2;
 
     #[test]
-    fn test_sending_state_correct() {
+    fn send_success() {
         let (tx, _rx) = unbounded::<OrchestratorToPlanet>();
         let senders_to_planets = Arc::new(Mutex::new(HashMap::from([(PLANET_ID, tx.clone())])));
 
@@ -296,7 +296,7 @@ mod tests {
     }
 
     #[test]
-    fn test_sending_state_wrong_planet_sender() {
+    fn send_missing_sender() {
         //Void senders
         let senders_to_planets = Arc::new(Mutex::new(HashMap::new()));
 
@@ -329,7 +329,7 @@ mod tests {
     }
 
     #[test]
-    fn test_sending_state_message_failure() {
+    fn send_message_failure() {
         let (tx, rx) = unbounded::<OrchestratorToPlanet>();
         drop(rx);
 
@@ -360,7 +360,7 @@ mod tests {
 
     //Todo: How to construct a Rocket? Only doable in the planet
     /*#[test]
-    fn test_waiting_state_correct_transition_with_rocket() {
+    fn wait_correct_with_rocket() {
         let to_planet = ToPlanetStruct {
             planet_id: PLANET_ID,
             planets_senders: Arc::new(Mutex::new(HashMap::new()))
@@ -383,7 +383,7 @@ mod tests {
     }*/
 
     #[test]
-    fn test_waiting_state_correct_transition_no_rocket() {
+    fn wait_correct_no_rocket() {
         let to_planet = ToPlanetStruct {
             planet_id: PLANET_ID,
             planets_senders: Arc::new(Mutex::new(HashMap::new())),
@@ -410,7 +410,7 @@ mod tests {
     }
 
     #[test]
-    fn test_waiting_state_wrong_message() {
+    fn wait_wrong_message() {
         let to_planet = ToPlanetStruct {
             planet_id: PLANET_ID,
             planets_senders: Arc::new(Mutex::new(HashMap::new())),

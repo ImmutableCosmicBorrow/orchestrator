@@ -208,7 +208,7 @@ mod tests {
     const PLANET_ID: ID = 200;
 
     #[test]
-    fn test_stop_sending_state_correct() {
+    fn send_success() {
         let (tx, _rx) = unbounded::<OrchestratorToPlanet>();
 
         // Set up the sender map with the correct planet ID
@@ -241,7 +241,7 @@ mod tests {
     }
 
     #[test]
-    fn test_stop_sending_state_missing_sender() {
+    fn send_missing_sender() {
         // Empty sender map to trigger a SenderNotFound error
         let senders_to_planets = Arc::new(Mutex::new(HashMap::new()));
 
@@ -268,7 +268,7 @@ mod tests {
     }
 
     #[test]
-    fn test_sending_state_message_failure() {
+    fn send_message_failure() {
         // 1. Create the channel
         let (tx, rx) = unbounded::<OrchestratorToPlanet>();
 
@@ -303,7 +303,7 @@ mod tests {
     }
 
     #[test]
-    fn test_waiting_state_correct_message() {
+    fn wait_correct_message() {
         // Start directly in the Waiting state
         let conv = Box::new(StopPlanetConversation::<WaitingPlanetStopResult>::new(
             CONV_ID, PLANET_ID,
@@ -325,7 +325,7 @@ mod tests {
     }
 
     #[test]
-    fn test_stop_waiting_state_wrong_message() {
+    fn wait_wrong_message() {
         let conv = Box::new(StopPlanetConversation::<WaitingPlanetStopResult>::new(
             CONV_ID, PLANET_ID,
         ));

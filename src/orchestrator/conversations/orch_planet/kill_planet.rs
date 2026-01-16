@@ -258,7 +258,7 @@ mod tests {
     const EXPLORER_ID_2: ID = 302;
 
     #[test]
-    fn test_send_kill_state_success() {
+    fn send_success() {
         let (tx, _rx) = unbounded::<OrchestratorToPlanet>();
         let senders = Arc::new(Mutex::new(HashMap::from([(PLANET_ID, tx)])));
 
@@ -291,7 +291,7 @@ mod tests {
     }
 
     #[test]
-    fn test_send_kill_state_sender_not_found() {
+    fn send_missing_sender() {
         let senders = Arc::new(Mutex::new(HashMap::new())); // Empty map
         let to_planet = ToPlanetStruct {
             planet_id: PLANET_ID,
@@ -320,7 +320,7 @@ mod tests {
     }
 
     #[test]
-    fn test_send_kill_state_message_failure() {
+    fn send_message_failure() {
         let (tx, rx) = unbounded::<OrchestratorToPlanet>();
         // Drop receiver to trigger SendError
         drop(rx);
@@ -352,7 +352,7 @@ mod tests {
     }
 
     #[test]
-    fn test_waiting_kill_result_success_and_cleanup() {
+    fn wait_success_and_cleanup() {
         let explorers_senders = Arc::new(Mutex::new(HashMap::new()));
         let planet_senders = Arc::new(Mutex::new(HashMap::new()));
 
@@ -388,7 +388,7 @@ mod tests {
     }
 
     #[test]
-    fn test_waiting_kill_result_wrong_message() {
+    fn wait_wrong_message() {
         let explorers_location = Arc::new(Mutex::new(HashMap::new()));
         let explorers_senders = Arc::new(Mutex::new(HashMap::new()));
         let planet_senders = Arc::new(Mutex::new(HashMap::new()));

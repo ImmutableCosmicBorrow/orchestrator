@@ -210,7 +210,7 @@ mod tests {
     const PLANET_ID: ID = 2;
 
     #[test]
-    fn test_sending_sunray_state_correct() {
+    fn send_success() {
         let (tx, _rx) = unbounded::<OrchestratorToPlanet>();
         let senders_to_planets = Arc::new(Mutex::new(HashMap::from([(PLANET_ID, tx.clone())])));
 
@@ -239,7 +239,7 @@ mod tests {
     }
 
     #[test]
-    fn test_sending_sunray_state_wrong_planet_sender() {
+    fn send_missing_sender() {
         //Void senders_to_planet
         let senders_to_planets = Arc::new(Mutex::new(HashMap::new()));
         let forge_ref = get_test_forge();
@@ -265,7 +265,7 @@ mod tests {
     }
 
     #[test]
-    fn test_sending_sunray_state_message_failure() {
+    fn send_message_failure() {
         let (tx, rx) = unbounded::<OrchestratorToPlanet>();
         // Drop the receiver to force a SendError
         drop(rx);
@@ -295,7 +295,7 @@ mod tests {
     }
 
     #[test]
-    fn test_waiting_sunray_ack_correct_transition() {
+    fn wait_correct_transition() {
         // Start directly in the Waiting state
         let conv = Box::new(SunrayConversation::<WaitingSunrayAck>::new(
             CONV_ID, PLANET_ID,
@@ -314,7 +314,7 @@ mod tests {
     }
 
     #[test]
-    fn test_waiting_sunray_ack_wrong_message() {
+    fn wait_wrong_message() {
         let conv = Box::new(SunrayConversation::<WaitingSunrayAck>::new(
             CONV_ID, PLANET_ID,
         ));
