@@ -90,19 +90,16 @@ impl PlanetExplorerChannels {
 
 impl Orchestrator {
     pub fn new(file_path: &std::path::Path) -> Self {
-        let mut _planet_explorer_channels = PlanetExplorerChannels::new();
-
         //TODO: fix receivers and senders initialization
-        let (galaxy, planets_receiver, orch_to_plan_senders, _expl_to_plan_senders) =
+        let (galaxy, planets_receiver, orch_to_plan_senders, expl_to_plan_senders) =
             galaxy_loader(file_path);
         let (explorers_receiver, explorer_senders) =
             (unbounded::<OrchestratorToExplorer>().1, HashMap::new());
         let forge = Arc::new(Forge::new().expect("Couldn't create forge!"));
 
-        let planet_explorer_channels = PlanetExplorerChannels {
-            planet_to_explorer_senders: Arc::new(Mutex::new(HashMap::new())),
-            explorer_to_planet_senders: Arc::new(Mutex::new(HashMap::new())),
-        };
+        let mut planet_explorer_channels = PlanetExplorerChannels::new();
+        planet_explorer_channels.explorer_to_planet_senders =
+            Arc::new(Mutex::new(expl_to_plan_senders));
 
         // Spawn planet threads immediately
         let planet_threads = {
