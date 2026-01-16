@@ -18,7 +18,7 @@ pub(crate) type ExplPlanSenderMap = HashMap<ID, Sender<ExplorerToPlanet>>;
 pub(crate) type PlanetMap = Arc<Mutex<HashMap<ID, Arc<Mutex<PlanetNode<Alive>>>>>>;
 
 // TODO: add a parameter to customize planet creation with other groups planets
-fn create_planet_with_channels(
+pub (crate) fn create_planet_with_channels(
     orch_sender_map: &mut OrchPlanSenderMap,
     expl_sender_map: &mut ExplPlanSenderMap,
     planet_id: ID,

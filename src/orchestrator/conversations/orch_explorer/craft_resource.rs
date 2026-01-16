@@ -248,3 +248,154 @@ impl CraftResourceConversation<WaitingCraftResourceResult> {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crossbeam_channel::unbounded;
+    use std::collections::HashMap;
+    use std::sync::{Arc, Mutex};
+    use common_game::components::resource::BasicResourceType::Hydrogen;
+    use crate::orchestrator::conversations::orch_explorer::test_utils::{make_empty_senders, make_senders_with, make_to_explorer_struct, MakeSendersResult};
+    use crate::orchestrator::conversations::SendersToExplorer;
+
+    const CONV_ID: u32 = 1;
+    const EXPLORER_ID: u32 = 2;
+
+
+    // --- Helper functions ---
+
+    #[allow(clippy::unnecessary_box_returns)]
+    fn make_send_conv(
+        senders: SendersToExplorer,
+    ) -> Box<CraftResourceConversation<SendingCraftResourceRequest>> {
+        let to_explorer = make_to_explorer_struct(EXPLORER_ID, senders);
+        let state = SendingCraftResourceRequest::new(to_explorer, Hydrogen);
+        Box::new(CraftResourceConversation::<SendingCraftResourceRequest>::new(
+            CONV_ID, state,
+        ))
+    }
+
+    #[allow(clippy::unnecessary_box_returns)]
+    fn make_wait_conv() -> Box<CraftResourceConversation<WaitingCraftResourceResult>> {
+        let state = WaitingCraftResourceResult::new(EXPLORER_ID, Hydrogen);
+        Box::new(CraftResourceConversation::<WaitingCraftResourceResult>::new(CONV_ID, state))
+    }
+
+    // --- Tests ---
+
+    #[test]
+    fn send_success() {
+        let MakeSendersResult(senders, _rx) = make_senders_with(EXPLORER_ID);
+        let conv = make_send_conv(senders);
+        let next_conv = conv
+            .transition(None)
+            .expect("Should transition to next state");
+        assert_eq!(
+            next_conv.get_expected_kind(),
+            Some(PossibleExpectedKinds::ExplorerToOrchKind(
+                ExplorerToOrchestratorKind::GenerateResourceResponse
+            ))
+        );
+        assert_eq!(next_conv.get_id(), CONV_ID);
+    }
+
+    #[test]
+    fn send_missing_sender() {
+        let senders = make_empty_senders();
+        let conv = make_send_conv(senders);
+        let next_conv = conv.transition(None).expect("Should return an ErrorState");
+        assert!(next_conv.get_expected_kind().is_none());
+        assert_eq!(next_conv.get_id(), CONV_ID);
+        assert_eq!(
+            next_conv.get_error_details(),
+            Some(format!("sender to explorer {EXPLORER_ID} not found"))
+        );
+    }
+
+    #[test]
+    fn send_message_failure() {
+        let (tx, rx) = unbounded::<OrchestratorToExplorer>();
+        drop(rx);
+        let senders = Arc::new(Mutex::new(HashMap::from([(EXPLORER_ID, tx)])));
+        let conv = make_send_conv(senders);
+        let next_conv = conv.transition(None).expect("Should return an ErrorState");
+        let error_msg = next_conv
+            .get_error_details()
+            .expect("Should return an Error Details String");
+        assert_eq!(
+            error_msg,
+            format!("failed to send message to explorer {EXPLORER_ID}")
+        );
+    }
+
+    #[test]
+    fn send_getters() {
+        let MakeSendersResult(senders, _rx) = make_senders_with(EXPLORER_ID);
+        let to_explorer = make_to_explorer_struct(EXPLORER_ID, senders);
+        let state = SendingCraftResourceRequest::new(to_explorer, Hydrogen);
+        let conv = CraftResourceConversation::<SendingCraftResourceRequest>::new(CONV_ID, state);
+        assert_eq!(conv.get_id(), CONV_ID);
+        assert_eq!(conv.get_entity_id(), EXPLORER_ID);
+        assert_eq!(conv.get_expected_kind(), None);
+        assert_eq!(conv.get_priority(), 2);
+    }
+
+    #[test]
+    fn wait_correct_transition_generation_done() {
+        let conv = make_wait_conv();
+        let msg = PossibleMessage::ExplorerToOrch(ExplorerToOrchestrator::GenerateResourceResponse {
+            explorer_id: EXPLORER_ID,
+            generated: Ok(())
+        });
+        let result = conv.transition(Some(msg));
+        assert!(
+            result.is_none(),
+            "Conversation should terminate"
+        );
+    }
+    #[test]
+    fn wait_correct_transition_generation_failed() {
+        let conv = make_wait_conv();
+        let msg = PossibleMessage::ExplorerToOrch(ExplorerToOrchestrator::CombineResourceResponse {
+            explorer_id: EXPLORER_ID,
+            generated: Err("Resource Not generated".to_string())
+        });
+        let next_conv = conv.transition(Some(msg)).expect("Should transition to error state");
+        assert_eq!(next_conv.get_id(), CONV_ID);
+        assert!(next_conv.get_error_details().is_some());
+    }
+
+    #[test]
+    fn wait_wrong_message() {
+        let conv = make_wait_conv();
+        let wrong_msg =
+            PossibleMessage::ExplorerToOrch(ExplorerToOrchestrator::StartExplorerAIResult {
+                explorer_id: EXPLORER_ID,
+            });
+        let result = conv
+            .transition(Some(wrong_msg))
+            .expect("Should return an ErrorState");
+        assert_eq!(result.get_id(), CONV_ID);
+        assert_eq!(
+            result.get_error_details(),
+            Some("Wrong Message Received".to_string())
+        );
+    }
+
+    #[test]
+    fn wait_getters() {
+        let state = WaitingCraftResourceResult::new(EXPLORER_ID, Hydrogen);
+        let conv =
+            CraftResourceConversation::<WaitingCraftResourceResult>::new(CONV_ID, state);
+        assert_eq!(conv.get_id(), CONV_ID);
+        assert_eq!(conv.get_entity_id(), EXPLORER_ID);
+        assert_eq!(
+            conv.get_expected_kind(),
+            Some(PossibleExpectedKinds::ExplorerToOrchKind(
+                ExplorerToOrchestratorKind::GenerateResourceResponse
+            ))
+        );
+        assert_eq!(conv.get_priority(), 2);
+    }
+}

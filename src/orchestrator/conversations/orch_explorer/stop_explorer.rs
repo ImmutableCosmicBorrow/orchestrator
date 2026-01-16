@@ -205,38 +205,20 @@ mod tests {
     use crossbeam_channel::unbounded;
     use std::collections::HashMap;
     use std::sync::{Arc, Mutex};
+    use crate::orchestrator::conversations::orch_explorer::test_utils::{make_empty_senders, make_senders_with, make_to_explorer_struct, MakeSendersResult};
+    use crate::orchestrator::conversations::SendersToExplorer;
 
     const CONV_ID: ID = 100;
     const EXPLORER_ID: ID = 200;
 
-    type ExplorerSenders =
-        Arc<Mutex<HashMap<ID, crossbeam_channel::Sender<OrchestratorToExplorer>>>>;
 
-    struct MakeSendersResult(
-        ExplorerSenders,
-        crossbeam_channel::Receiver<OrchestratorToExplorer>,
-    );
+    
 
-    // --- Helper functions ---
-    fn make_senders_with(explorer_id: ID) -> MakeSendersResult {
-        let (tx, rx) = unbounded::<OrchestratorToExplorer>();
-        MakeSendersResult(Arc::new(Mutex::new(HashMap::from([(explorer_id, tx)]))), rx)
-    }
 
-    fn make_empty_senders() -> ExplorerSenders {
-        Arc::new(Mutex::new(HashMap::new()))
-    }
-
-    fn make_to_explorer_struct(explorer_id: ID, senders: ExplorerSenders) -> ToExplorerStruct {
-        ToExplorerStruct {
-            explorer_id,
-            explorers_senders: senders,
-        }
-    }
 
     #[allow(clippy::unnecessary_box_returns)]
     fn make_send_conv(
-        senders: ExplorerSenders,
+        senders: SendersToExplorer,
     ) -> Box<StopExplorerConversation<SendingExplorerStop>> {
         let to_explorer = make_to_explorer_struct(EXPLORER_ID, senders);
         let state = SendingExplorerStop::new(to_explorer);
