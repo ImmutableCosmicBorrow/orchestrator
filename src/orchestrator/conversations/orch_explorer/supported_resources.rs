@@ -206,3 +206,110 @@ impl SupportedResourcesConversation<WaitingSupportedResourcesResult> {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use common_game::protocols::orchestrator_explorer::ExplorerToOrchestratorKind;
+    use crossbeam_channel::unbounded;
+    use std::collections::HashMap;
+    use std::collections::HashSet;
+    use common_game::components::resource::BasicResourceType;
+    use std::sync::{Arc, Mutex};
+
+    // Using u32 as IDs assuming ID can be constructed from them or replaced by ID::generate()
+    const CONV_ID: ID = 100;
+    const EXPLORER_ID: ID = 200;    
+
+    #[test]
+    fn send_success() {
+        let (tx, _rx) = unbounded::<OrchestratorToExplorer>();
+        let senders_to_explorers = Arc::new(Mutex::new(HashMap::from([(EXPLORER_ID, tx)])));
+        let to_explorer = ToExplorerStruct {
+            explorer_id: EXPLORER_ID,
+            explorers_senders: senders_to_explorers,
+        };
+        let state = SendingSupportedResourcesRequest::new(to_explorer);
+        let conv = Box::new(SupportedResourcesConversation::<SendingSupportedResourcesRequest>::new(CONV_ID, state));
+        let next_conv = conv.transition(None).expect("Should transition to WaitingSupportedResourcesResult");
+        assert_eq!(
+            next_conv.get_expected_kind(),
+            Some(PossibleExpectedKinds::ExplorerToOrchKind(
+                ExplorerToOrchestratorKind::SupportedResourceResult
+            ))
+        );
+        assert_eq!(next_conv.get_id(), CONV_ID);
+        assert!(next_conv.get_error_details().is_none());
+    }
+
+    #[test]
+    fn send_missing_sender() {
+        let senders_to_explorers = Arc::new(Mutex::new(HashMap::new()));
+        let to_explorer = ToExplorerStruct {
+            explorer_id: EXPLORER_ID,
+            explorers_senders: senders_to_explorers,
+        };
+        let state = SendingSupportedResourcesRequest::new(to_explorer);
+        let conv = Box::new(SupportedResourcesConversation::<SendingSupportedResourcesRequest>::new(CONV_ID, state));
+        let next_conv = conv.transition(None).expect("Should return an ErrorState");
+        assert!(next_conv.get_expected_kind().is_none());
+        assert_eq!(
+            next_conv.get_error_details(),
+            Some(format!("sender to explorer {EXPLORER_ID} not found"))
+        );
+    }
+
+    #[test]
+    fn send_message_failure() {
+        let (tx, rx) = unbounded::<OrchestratorToExplorer>();
+        drop(rx);
+        let senders_to_explorers = Arc::new(Mutex::new(HashMap::from([(EXPLORER_ID, tx)])));
+        let to_explorer = ToExplorerStruct {
+            explorer_id: EXPLORER_ID,
+            explorers_senders: senders_to_explorers,
+        };
+        let state = SendingSupportedResourcesRequest::new(to_explorer);
+        let conv = Box::new(SupportedResourcesConversation::<SendingSupportedResourcesRequest>::new(CONV_ID, state));
+        let next_conv = conv.transition(None).expect("Should return an ErrorState");
+        let error_msg = next_conv.get_error_details().expect("Should return an Error Details String");
+        assert_eq!(
+            error_msg,
+            format!("failed to send message to explorer {EXPLORER_ID}")
+        );
+    }
+
+    #[test]
+    fn wait_correct_message() {
+        let conv = Box::new(SupportedResourcesConversation::<WaitingSupportedResourcesResult>::new(CONV_ID, EXPLORER_ID));
+
+        let mut supported_resources = HashSet::new();
+        // Replace these with actual valid BasicResourceType variants as appropriate
+        supported_resources.insert(BasicResourceType::Carbon);
+        supported_resources.insert(BasicResourceType::Oxygen);
+
+        let msg = PossibleMessage::ExplorerToOrch(
+            ExplorerToOrchestrator::SupportedResourceResult {
+                explorer_id: EXPLORER_ID,
+                supported_resources,
+            }
+        );
+        let result = conv.transition(Some(msg));
+        assert!(result.is_none(), "Conversation should terminate upon receiving SupportedResourceResult");
+    }
+
+    #[test]
+    fn wait_wrong_message() {
+        let conv = Box::new(SupportedResourcesConversation::<WaitingSupportedResourcesResult>::new(CONV_ID, EXPLORER_ID));
+        let wrong_msg = PossibleMessage::ExplorerToOrch(
+            ExplorerToOrchestrator::StopExplorerAIResult {
+                explorer_id: EXPLORER_ID,
+            }
+        );
+        let result = conv.transition(Some(wrong_msg)).expect("Should transition to ErrorState");
+        assert_eq!(result.get_id(), CONV_ID);
+        assert_eq!(
+            result.get_error_details(),
+            Some("Wrong Message Received".to_string())
+        );
+    }
+}
