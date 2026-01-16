@@ -9,6 +9,7 @@ use std::collections::HashMap;
 use std::path::Path;
 use std::sync::{Arc, Mutex};
 
+use crate::id::IdManager;
 use crate::logging_utils::log_internal;
 use crate::payload;
 
@@ -30,53 +31,50 @@ fn create_planet_with_channels(
     let (tx_expl_in, rx_expl_in) = unbounded::<ExplorerToPlanet>();
     expl_sender_map.insert(planet_id, tx_expl_in);
 
-    let planet = match planet_id % 7 {
-        0 => crate::planet_factory::create_trip_planet(
-            planet_id,
-            rx_orch_in,
-            tx_orch_out,
-            rx_expl_in,
-        ),
-        1 => crate::planet_factory::create_rustrelli_planet(
+    let planet = if IdManager::is_trip_id(planet_id) {
+        crate::planet_factory::create_trip_planet(planet_id, rx_orch_in, tx_orch_out, rx_expl_in)
+    } else if IdManager::is_rustrelli_id(planet_id) {
+        crate::planet_factory::create_rustrelli_planet(
             planet_id,
             rx_orch_in,
             tx_orch_out,
             rx_expl_in,
             rustrelli::ExplorerRequestLimit::FairShare,
-        ),
-        2 => crate::planet_factory::create_luna4_planet(
+        )
+    } else if IdManager::is_luna4_id(planet_id) {
+        crate::planet_factory::create_luna4_planet(planet_id, rx_orch_in, tx_orch_out, rx_expl_in)
+    } else if IdManager::is_rusty_crab_id(planet_id) {
+        crate::planet_factory::create_rusty_crab_planet(
             planet_id,
             rx_orch_in,
             tx_orch_out,
             rx_expl_in,
-        ),
-        3 => crate::planet_factory::create_rusty_crab_planet(
+        )
+    } else if IdManager::is_enterprise_id(planet_id) {
+        crate::planet_factory::create_enterprise_planet(
             planet_id,
             rx_orch_in,
             tx_orch_out,
             rx_expl_in,
-        ),
-        4 => crate::planet_factory::create_enterprise_planet(
+        )
+    } else if IdManager::is_orbitron_id(planet_id) {
+        crate::planet_factory::create_orbitron_planet(
             planet_id,
             rx_orch_in,
             tx_orch_out,
             rx_expl_in,
-        ),
-        5 => crate::planet_factory::create_orbitron_planet(
-            planet_id,
-            rx_orch_in,
-            tx_orch_out,
-            rx_expl_in,
-        ),
-        6 => crate::planet_factory::create_houston_we_have_a_borrow_planet(
+        )
+    } else if IdManager::is_houston_id(planet_id) {
+        crate::planet_factory::create_houston_we_have_a_borrow_planet(
             rx_orch_in,
             tx_orch_out,
             rx_expl_in,
             planet_id,
             houston_we_have_a_borrow::RocketStrategy::Safe,
             None,
-        ),
-        _ => unreachable!(),
+        )
+    } else {
+        panic!("Unknown planet type for id: {planet_id}")
     };
 
     if let Err(ref e) = planet {
