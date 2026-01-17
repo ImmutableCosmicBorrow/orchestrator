@@ -1,8 +1,8 @@
 use crate::logging_utils::log_internal;
 use crate::orchestrator::ExplorerBag;
 use crate::orchestrator::conversations::orch_explorer::kill_explorers_manager::KillExplorersManager;
-use crate::orchestrator::conversations::orch_planet::outgoing_explorer::{
-    OutgoingExplorer, SendingOutgoingRequest,
+use crate::orchestrator::conversations::orch_planet::adv_dead_explorer::{
+    AdvDeadExplorer, SendingDeadExpAdv,
 };
 use crate::orchestrator::conversations::{
     CommonErrorTypes, Conversation, ErrorState, PossibleExpectedKinds, PossibleMessage,
@@ -195,7 +195,7 @@ impl Conversation<ExplorerBag> for KillExplorerConversation<WaitingKillExplorerR
     ///
     /// Returns:
     ///
-    /// [`OutgoingExplorer<SendingOutgoingRequest>`] if `handle_outgoing` is true, to notify the planet of the dead explorer.
+    /// [`AdvDeadExplorer<SendingDeadExpAdv>`] if `handle_outgoing` is true, to notify the planet of the dead explorer.
     ///
     /// The original [`KillExplorersManager`] if `handle_outgoing` is false (we already took care of the dead explorer in its planet) or if an unexpected message is received.
     fn transition(
@@ -215,13 +215,12 @@ impl Conversation<ExplorerBag> for KillExplorerConversation<WaitingKillExplorerR
                 ),
             );
             if self.state.handle_outgoing {
-                let state_struct = SendingOutgoingRequest::new(
+                let state_struct = SendingDeadExpAdv::new(
                     self.state.to_planet_struct,
                     explorer_id,
                     self.state.manager,
                 );
-                let next_state =
-                    OutgoingExplorer::<SendingOutgoingRequest>::new(self.id, state_struct);
+                let next_state = AdvDeadExplorer::<SendingDeadExpAdv>::new(self.id, state_struct);
                 return Some(Box::new(next_state));
             }
             log_internal(
@@ -260,14 +259,16 @@ impl KillExplorerConversation<WaitingKillExplorerResult> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::orchestrator::conversations::orch_explorer::test_utils::{
+        MakeSendersResult, make_empty_senders, make_senders_with, make_to_explorer_struct,
+        make_to_planet_struct,
+    };
+    use crate::orchestrator::conversations::{SendersToExplorer, SendersToPlanet};
     use crossbeam_channel::unbounded;
     use std::collections::HashMap;
     use std::sync::{Arc, Mutex};
-    use crate::orchestrator::conversations::orch_explorer::test_utils::{make_empty_senders, make_senders_with, make_to_explorer_struct, make_to_planet_struct, MakeSendersResult};
-    use crate::orchestrator::conversations::{SendersToExplorer, SendersToPlanet};
     const CONV_ID: u32 = 1;
     const EXPLORER_ID: u32 = 2;
-
 
     // --- Helper functions ---
 
@@ -284,26 +285,37 @@ mod tests {
             exp_senders,
             pla_senders,
             handle_outgoing,
-            Vec::new()
+            Vec::new(),
         ));
-        let state = SendingKillExplorer::new(to_explorer, to_planet, false,dummy_kill_manager );
+        let state = SendingKillExplorer::new(to_explorer, to_planet, false, dummy_kill_manager);
         Box::new(KillExplorerConversation::<SendingKillExplorer>::new(
             CONV_ID, state,
         ))
     }
 
     #[allow(clippy::unnecessary_box_returns)]
-    fn make_wait_conv(planet_senders: SendersToPlanet, handle_outgoing: bool, exp_senders: SendersToExplorer) -> Box<KillExplorerConversation<WaitingKillExplorerResult>> {
+    fn make_wait_conv(
+        planet_senders: SendersToPlanet,
+        handle_outgoing: bool,
+        exp_senders: SendersToExplorer,
+    ) -> Box<KillExplorerConversation<WaitingKillExplorerResult>> {
         let to_planet_struct = make_to_planet_struct(5, planet_senders.clone());
         let dummy_kill_manager = Box::new(KillExplorersManager::new(
             CONV_ID,
             exp_senders,
             planet_senders,
             handle_outgoing,
-            Vec::new()
+            Vec::new(),
         ));
-        let state = WaitingKillExplorerResult::new(EXPLORER_ID,to_planet_struct, handle_outgoing,dummy_kill_manager );
-        Box::new(KillExplorerConversation::<WaitingKillExplorerResult>::new(CONV_ID, state))
+        let state = WaitingKillExplorerResult::new(
+            EXPLORER_ID,
+            to_planet_struct,
+            handle_outgoing,
+            dummy_kill_manager,
+        );
+        Box::new(KillExplorerConversation::<WaitingKillExplorerResult>::new(
+            CONV_ID, state,
+        ))
     }
 
     // --- Tests ---
@@ -312,7 +324,7 @@ mod tests {
     fn send_success() {
         let MakeSendersResult(senders, _rx) = make_senders_with(EXPLORER_ID);
         let planet_senders = Arc::new(Mutex::new(HashMap::new()));
-        let conv = make_send_conv(senders, planet_senders, false );
+        let conv = make_send_conv(senders, planet_senders, false);
         let next_conv = conv
             .transition(None)
             .expect("Should transition to next state");
@@ -329,7 +341,7 @@ mod tests {
     fn send_missing_sender() {
         let senders = make_empty_senders();
         let planet_senders = Arc::new(Mutex::new(HashMap::new()));
-        let conv = make_send_conv(senders, planet_senders, false );
+        let conv = make_send_conv(senders, planet_senders, false);
         let next_conv = conv.transition(None).expect("Should return an ErrorState");
         assert!(next_conv.get_expected_kind().is_none());
         assert_eq!(next_conv.get_id(), CONV_ID);
@@ -346,7 +358,7 @@ mod tests {
         let senders = Arc::new(Mutex::new(HashMap::from([(EXPLORER_ID, tx)])));
         let planet_senders = Arc::new(Mutex::new(HashMap::new()));
 
-        let conv = make_send_conv(senders, planet_senders, false );
+        let conv = make_send_conv(senders, planet_senders, false);
         let next_conv = conv.transition(None).expect("Should return an ErrorState");
         let error_msg = next_conv
             .get_error_details()
@@ -362,7 +374,7 @@ mod tests {
         let MakeSendersResult(senders, _rx) = make_senders_with(EXPLORER_ID);
         let planet_senders = Arc::new(Mutex::new(HashMap::new()));
 
-        let conv = make_send_conv(senders, planet_senders, false );
+        let conv = make_send_conv(senders, planet_senders, false);
 
         assert_eq!(conv.get_id(), CONV_ID);
         assert_eq!(conv.get_entity_id(), EXPLORER_ID);
@@ -379,7 +391,9 @@ mod tests {
         let msg = PossibleMessage::ExplorerToOrch(ExplorerToOrchestrator::KillExplorerResult {
             explorer_id: EXPLORER_ID,
         });
-        let next_conv = conv.transition(Some(msg)).expect("Should transition to next state");
+        let next_conv = conv
+            .transition(Some(msg))
+            .expect("Should transition to next state");
         assert_eq!(next_conv.get_id(), CONV_ID);
         assert!(next_conv.get_expected_kind().is_none());
         assert_eq!(next_conv.get_priority(), 5);
@@ -395,7 +409,9 @@ mod tests {
         let msg = PossibleMessage::ExplorerToOrch(ExplorerToOrchestrator::KillExplorerResult {
             explorer_id: EXPLORER_ID,
         });
-        let next_conv = conv.transition(Some(msg)).expect("Should transition to next state");
+        let next_conv = conv
+            .transition(Some(msg))
+            .expect("Should transition to next state");
         assert_eq!(next_conv.get_id(), CONV_ID);
         assert!(next_conv.get_expected_kind().is_none());
         assert_eq!(next_conv.get_priority(), 4);
@@ -413,7 +429,9 @@ mod tests {
                 explorer_id: EXPLORER_ID,
             });
 
-        let next_conv = conv.transition(Some(wrong_msg)).expect("Should transition to next state");
+        let next_conv = conv
+            .transition(Some(wrong_msg))
+            .expect("Should transition to next state");
         assert_eq!(next_conv.get_id(), CONV_ID);
         assert!(next_conv.get_expected_kind().is_none());
         assert_eq!(next_conv.get_priority(), 5);
@@ -424,22 +442,8 @@ mod tests {
     fn wait_getters() {
         let planet_senders = Arc::new(Mutex::new(HashMap::new()));
         let explorer_senders = Arc::new(Mutex::new(HashMap::new()));
-        let dummy_kill_manager = Box::new(KillExplorersManager::new(
-            CONV_ID,
-            explorer_senders.clone(),
-            planet_senders.clone(),
-            false,
-            Vec::new()
-        ));
 
-        let state = WaitingKillExplorerResult::new(
-            EXPLORER_ID,
-            make_to_planet_struct(5,planet_senders.clone()),
-            false,
-            dummy_kill_manager
-        );
-        let conv =
-            make_wait_conv(planet_senders, false, explorer_senders);
+        let conv = make_wait_conv(planet_senders, false, explorer_senders);
         assert_eq!(conv.get_id(), CONV_ID);
         assert_eq!(conv.get_entity_id(), EXPLORER_ID);
         assert_eq!(

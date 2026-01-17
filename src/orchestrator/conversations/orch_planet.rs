@@ -1,7 +1,7 @@
+pub(crate) mod adv_dead_explorer;
 mod asteroid_scenario;
 mod internal_state_scenario;
 mod kill_planet;
-pub(crate) mod outgoing_explorer;
 mod start_planet;
 mod stop_planet;
 mod sunray_scenario;

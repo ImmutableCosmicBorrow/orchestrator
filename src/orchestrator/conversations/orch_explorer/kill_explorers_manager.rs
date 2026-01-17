@@ -113,3 +113,71 @@ impl Conversation<ExplorerBag> for KillExplorersManager {
         5
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::collections::HashMap;
+    use std::sync::{Arc, Mutex};
+
+    const CONV_ID: u32 = 1;
+    const EXP_ID: u32 = 10;
+    const PLANET_ID: u32 = 100;
+    fn mock_senders() -> (SendersToExplorer, SendersToPlanet) {
+        (
+            Arc::new(Mutex::new(HashMap::new())),
+            Arc::new(Mutex::new(HashMap::new())),
+        )
+    }
+
+    #[test]
+    fn test_manager_initialization() {
+        let (e_senders, p_senders) = mock_senders();
+
+        let targets = vec![(EXP_ID, PLANET_ID)];
+
+        let manager = KillExplorersManager::new(CONV_ID, e_senders, p_senders, true, targets);
+
+        assert_eq!(manager.get_id(), CONV_ID);
+        assert_eq!(manager.explorers_to_kill.len(), 1);
+        assert_eq!(manager.get_expected_kind(), None);
+    }
+
+    #[test]
+    fn test_transition_with_empty_list_returns_none() {
+        let (e_senders, p_senders) = mock_senders();
+        let manager = Box::new(KillExplorersManager::new(
+            CONV_ID,
+            e_senders,
+            p_senders,
+            false,
+            vec![], // Empty list
+        ));
+
+        let result = manager.transition(None);
+        assert!(
+            result.is_none(),
+            "Manager should terminate when no explorers are left"
+        );
+    }
+
+    #[test]
+    fn test_transition_to_kill_conversation() {
+        let (e_senders, p_senders) = mock_senders();
+
+        let manager = Box::new(KillExplorersManager::new(
+            CONV_ID,
+            e_senders,
+            p_senders,
+            true,
+            vec![(EXP_ID, PLANET_ID)],
+        ));
+
+        let next_state = manager.transition(None);
+
+        assert!(
+            next_state.is_some(),
+            "Should transition to a KillExplorerConversation"
+        );
+    }
+}

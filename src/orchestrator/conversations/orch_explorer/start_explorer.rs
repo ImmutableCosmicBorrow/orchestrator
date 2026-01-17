@@ -201,18 +201,18 @@ impl StartExplorerConversation<WaitingExplorerStartResult> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::orchestrator::conversations::SendersToExplorer;
+    use crate::orchestrator::conversations::orch_explorer::test_utils::{
+        MakeSendersResult, make_empty_senders, make_senders_with, make_to_explorer_struct,
+    };
     use crossbeam_channel::unbounded;
     use std::collections::HashMap;
     use std::sync::{Arc, Mutex};
-    use crate::orchestrator::conversations::orch_explorer::test_utils::{make_empty_senders, make_senders_with, make_to_explorer_struct, MakeSendersResult};
-    use crate::orchestrator::conversations::SendersToExplorer;
 
     const CONV_ID: u32 = 1;
     const EXPLORER_ID: u32 = 2;
-    
-    
-    // --- Helper functions ---
 
+    // --- Helper functions ---
 
     #[allow(clippy::unnecessary_box_returns)]
     fn make_send_conv(

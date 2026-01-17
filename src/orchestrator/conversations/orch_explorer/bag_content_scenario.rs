@@ -202,11 +202,13 @@ impl BagContentConversation<WaitingBagContentResponse> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::orchestrator::conversations::SendersToExplorer;
+    use crate::orchestrator::conversations::orch_explorer::test_utils::{
+        MakeSendersResult, make_empty_senders, make_senders_with, make_to_explorer_struct,
+    };
     use crossbeam_channel::unbounded;
     use std::collections::HashMap;
     use std::sync::{Arc, Mutex};
-    use crate::orchestrator::conversations::orch_explorer::test_utils::{make_empty_senders, make_senders_with, make_to_explorer_struct, MakeSendersResult};
-    use crate::orchestrator::conversations::SendersToExplorer;
 
     const CONV_ID: u32 = 1;
     const EXPLORER_ID: u32 = 2;
@@ -228,7 +230,10 @@ mod tests {
 
     #[allow(clippy::unnecessary_box_returns)]
     fn make_wait_conv() -> Box<BagContentConversation<WaitingBagContentResponse>> {
-        Box::new(BagContentConversation::<WaitingBagContentResponse>::new(CONV_ID, EXPLORER_ID))
+        Box::new(BagContentConversation::<WaitingBagContentResponse>::new(
+            CONV_ID,
+            EXPLORER_ID,
+        ))
     }
 
     // --- Tests ---
@@ -295,7 +300,7 @@ mod tests {
         let conv = make_wait_conv();
         let msg = PossibleMessage::ExplorerToOrch(ExplorerToOrchestrator::BagContentResponse {
             explorer_id: EXPLORER_ID,
-            bag_content: ExplorerBag
+            bag_content: ExplorerBag,
         });
         let result = conv.transition(Some(msg));
         assert!(
@@ -323,8 +328,7 @@ mod tests {
 
     #[test]
     fn wait_getters() {
-        let conv =
-            BagContentConversation::<WaitingBagContentResponse>::new(CONV_ID, EXPLORER_ID);
+        let conv = BagContentConversation::<WaitingBagContentResponse>::new(CONV_ID, EXPLORER_ID);
         assert_eq!(conv.get_id(), CONV_ID);
         assert_eq!(conv.get_entity_id(), EXPLORER_ID);
         assert_eq!(

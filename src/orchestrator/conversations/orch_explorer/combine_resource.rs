@@ -252,16 +252,17 @@ impl CombineResourceConversation<WaitingCombineResourceResult> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::orchestrator::conversations::SendersToExplorer;
+    use crate::orchestrator::conversations::orch_explorer::test_utils::{
+        MakeSendersResult, make_empty_senders, make_senders_with, make_to_explorer_struct,
+    };
+    use common_game::components::resource::ComplexResourceType::AIPartner;
     use crossbeam_channel::unbounded;
     use std::collections::HashMap;
     use std::sync::{Arc, Mutex};
-    use common_game::components::resource::ComplexResourceType::AIPartner;
-    use crate::orchestrator::conversations::orch_explorer::test_utils::{make_empty_senders, make_senders_with, make_to_explorer_struct, MakeSendersResult};
-    use crate::orchestrator::conversations::SendersToExplorer;
 
     const CONV_ID: u32 = 1;
     const EXPLORER_ID: u32 = 2;
-
 
     // --- Helper functions ---
 
@@ -271,9 +272,7 @@ mod tests {
     ) -> Box<CombineResourceConversation<SendingCombineResourceRequest>> {
         let to_explorer = make_to_explorer_struct(EXPLORER_ID, senders);
         let state = SendingCombineResourceRequest::new(to_explorer, AIPartner);
-        Box::new(CombineResourceConversation::<SendingCombineResourceRequest>::new(
-            CONV_ID, state,
-        ))
+        Box::new(CombineResourceConversation::<SendingCombineResourceRequest>::new(CONV_ID, state))
     }
 
     #[allow(clippy::unnecessary_box_returns)]
@@ -334,7 +333,8 @@ mod tests {
         let MakeSendersResult(senders, _rx) = make_senders_with(EXPLORER_ID);
         let to_explorer = make_to_explorer_struct(EXPLORER_ID, senders);
         let state = SendingCombineResourceRequest::new(to_explorer, AIPartner);
-        let conv = CombineResourceConversation::<SendingCombineResourceRequest>::new(CONV_ID, state);
+        let conv =
+            CombineResourceConversation::<SendingCombineResourceRequest>::new(CONV_ID, state);
         assert_eq!(conv.get_id(), CONV_ID);
         assert_eq!(conv.get_entity_id(), EXPLORER_ID);
         assert_eq!(conv.get_expected_kind(), None);
@@ -344,10 +344,11 @@ mod tests {
     #[test]
     fn wait_correct_transition_combination_done() {
         let conv = make_wait_conv();
-        let msg = PossibleMessage::ExplorerToOrch(ExplorerToOrchestrator::CombineResourceResponse {
-            explorer_id: EXPLORER_ID,
-            generated: Ok(())
-        });
+        let msg =
+            PossibleMessage::ExplorerToOrch(ExplorerToOrchestrator::CombineResourceResponse {
+                explorer_id: EXPLORER_ID,
+                generated: Ok(()),
+            });
         let result = conv.transition(Some(msg));
         assert!(
             result.is_none(),
@@ -357,11 +358,14 @@ mod tests {
     #[test]
     fn wait_correct_transition_combination_failed() {
         let conv = make_wait_conv();
-        let msg = PossibleMessage::ExplorerToOrch(ExplorerToOrchestrator::CombineResourceResponse {
-            explorer_id: EXPLORER_ID,
-            generated: Err("Resource Not generated".to_string())
-        });
-        let next_conv = conv.transition(Some(msg)).expect("Should transition to error state");
+        let msg =
+            PossibleMessage::ExplorerToOrch(ExplorerToOrchestrator::CombineResourceResponse {
+                explorer_id: EXPLORER_ID,
+                generated: Err("Resource Not generated".to_string()),
+            });
+        let next_conv = conv
+            .transition(Some(msg))
+            .expect("Should transition to error state");
         assert_eq!(next_conv.get_id(), CONV_ID);
         assert!(next_conv.get_error_details().is_some());
     }
@@ -386,8 +390,7 @@ mod tests {
     #[test]
     fn wait_getters() {
         let state = WaitingCombineResourceResult::new(EXPLORER_ID, AIPartner);
-        let conv =
-            CombineResourceConversation::<WaitingCombineResourceResult>::new(CONV_ID, state);
+        let conv = CombineResourceConversation::<WaitingCombineResourceResult>::new(CONV_ID, state);
         assert_eq!(conv.get_id(), CONV_ID);
         assert_eq!(conv.get_entity_id(), EXPLORER_ID);
         assert_eq!(

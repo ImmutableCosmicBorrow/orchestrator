@@ -1,7 +1,8 @@
 mod errors;
-mod wait_incoming_response;
-mod wait_move_response;
-mod wait_outgoing_response;
+mod incoming_explorer;
+mod manual_move_to_planet;
+mod move_explorer;
+mod outgoing_explorer;
 mod wait_travel_request;
 
 use crate::galaxy_setup::PlanetMap;
@@ -44,6 +45,39 @@ pub(crate) struct WaitingTravelRequest {
     explorers_location_ref: ExplorersLocationRef,
 }
 
+/// **State 2: `SendIncomingRequest`**
+///
+/// Set after the destination planet has been asked to accept the explorer.
+/// Holds references to the current planet to initiate the "release" phase next.
+pub(crate) struct SendIncomingRequest {
+    curr_planet_struct: ToPlanetStruct,
+    explorer_struct: ToExplorerStruct,
+    dst_planet_struct: ToPlanetStruct,
+    planet_explorer_channels: PlanetExplorerChannels,
+    explorers_location_ref: ExplorersLocationRef,
+    handle_outgoing: bool,
+}
+
+impl SendIncomingRequest {
+    pub(crate) fn new(
+        curr_planet_struct: ToPlanetStruct,
+        explorer_struct: ToExplorerStruct,
+        dst_planet_struct: ToPlanetStruct,
+        planet_explorer_channels: PlanetExplorerChannels,
+        explorers_location_ref: ExplorersLocationRef,
+        handle_outgoing: bool,
+    ) -> Self {
+        Self {
+            curr_planet_struct,
+            explorer_struct,
+            dst_planet_struct,
+            planet_explorer_channels,
+            explorers_location_ref,
+            handle_outgoing,
+        }
+    }
+}
+
 /// **State 2: `WaitingIncomingResponse`**
 ///
 /// Set after the destination planet has been asked to accept the explorer.
@@ -54,6 +88,7 @@ pub(crate) struct WaitingIncomingResponse {
     dst_planet_id: ID,
     planet_explorer_channels: PlanetExplorerChannels,
     explorers_location_ref: ExplorersLocationRef,
+    handle_outgoing: bool,
 }
 
 impl WaitingIncomingResponse {
@@ -63,6 +98,7 @@ impl WaitingIncomingResponse {
         dst_planet_id: ID,
         planet_explorer_channels: PlanetExplorerChannels,
         explorers_location_ref: ExplorersLocationRef,
+        handle_outgoing: bool,
     ) -> Self {
         Self {
             curr_planet_struct,
@@ -70,6 +106,7 @@ impl WaitingIncomingResponse {
             dst_planet_id,
             planet_explorer_channels,
             explorers_location_ref,
+            handle_outgoing,
         }
     }
 }
@@ -94,6 +131,35 @@ impl WaitingOutgoingResponse {
         explorers_location_ref: ExplorersLocationRef,
     ) -> Self {
         Self {
+            explorer_struct,
+            planet_explorer_channels,
+            dst_planet_id,
+            explorers_location_ref,
+        }
+    }
+}
+
+/// **State 3: `SendOutgoingRequest`**
+///
+///
+pub(crate) struct SendOutgoingRequest {
+    curr_planet_struct: ToPlanetStruct,
+    explorer_struct: ToExplorerStruct,
+    planet_explorer_channels: PlanetExplorerChannels,
+    dst_planet_id: ID,
+    explorers_location_ref: ExplorersLocationRef,
+}
+
+impl SendOutgoingRequest {
+    pub(crate) fn new(
+        curr_planet_struct: ToPlanetStruct,
+        explorer_struct: ToExplorerStruct,
+        planet_explorer_channels: PlanetExplorerChannels,
+        dst_planet_id: ID,
+        explorers_location_ref: ExplorersLocationRef,
+    ) -> Self {
+        Self {
+            curr_planet_struct,
             explorer_struct,
             planet_explorer_channels,
             dst_planet_id,
@@ -129,6 +195,70 @@ impl WaitMoveToPlanetResponse {
             explorers_location_ref,
             is_explorer_moving,
             dst_planet_id,
+        }
+    }
+}
+
+/// **State 5: `SendManualMoveRequest`**
+///
+/// An alternative to [`WaitTravelRequest`], used when the orchestrator manually moves an explorer
+pub(crate) struct SendManualMoveRequest {
+    planet_explorer_channels: PlanetExplorerChannels,
+    /// Connection info for the current planet (source).
+    curr_planet_struct: ToPlanetStruct,
+    /// Connection info for the target planet (destination).
+    dst_planet_struct: ToPlanetStruct,
+    /// Connection info for the explorer performing the move.
+    explorer_struct: ToExplorerStruct,
+    /// Reference to the global explorer location list.
+    explorers_location_ref: ExplorersLocationRef,
+}
+
+impl SendManualMoveRequest {
+    pub(crate) fn new(
+        explorers_location_ref: ExplorersLocationRef,
+        curr_planet_struct: ToPlanetStruct,
+        dst_planet_struct: ToPlanetStruct,
+        explorer_struct: ToExplorerStruct,
+        planet_explorer_channels: PlanetExplorerChannels,
+    ) -> Self {
+        Self {
+            planet_explorer_channels,
+            curr_planet_struct,
+            dst_planet_struct,
+            explorer_struct,
+            explorers_location_ref,
+        }
+    }
+}
+
+/// **State 6: `ReceivedPlanetsAcks`**
+///
+/// An alternative to [`WaitTravelRequest`], used when the orchestrator manually moves an explorer
+pub(crate) struct SendMoveRequest {
+    planet_explorer_channels: PlanetExplorerChannels,
+    dst_planet_id: ID,
+    /// Connection info for the explorer performing the move.
+    explorer_struct: ToExplorerStruct,
+    /// Reference to the global explorer location list.
+    explorers_location_ref: ExplorersLocationRef,
+    is_explorer_moving: bool,
+}
+
+impl SendMoveRequest {
+    pub(crate) fn new(
+        explorers_location_ref: ExplorersLocationRef,
+        dst_planet_id: ID,
+        explorer_struct: ToExplorerStruct,
+        planet_explorer_channels: PlanetExplorerChannels,
+        is_explorer_moving: bool,
+    ) -> Self {
+        Self {
+            planet_explorer_channels,
+            dst_planet_id,
+            explorer_struct,
+            explorers_location_ref,
+            is_explorer_moving,
         }
     }
 }

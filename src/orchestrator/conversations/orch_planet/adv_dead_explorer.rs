@@ -13,10 +13,11 @@ use common_game::protocols::orchestrator_planet::{
 };
 use common_game::utils::ID;
 
-///**Outgoing Explorer Conversation**
+///** Advertising Dead Explorer Conversation**
 ///
-/// This module manages the process of a planet handling an outgoing explorer.
-/// It uses a Finite State Machine (FSM) to send the request and wait for the planet's confirmation.
+/// This module manages the process of a planet handling a dead explorer.
+/// It uses a Finite State Machine (FSM) to send the request and wait for the planet's confirmation
+/// of the elimination of the channel used to communicate with the dead explorer.
 ///
 /// If successful, the conversation transitions back to a [`KillExplorersManager`] to continue
 /// the killing of explores. If it fails, it transitions to an [`ErrorState`].
@@ -31,7 +32,7 @@ struct FailedToHandleOutgoingExplorer {
 impl ErrorType for FailedToHandleOutgoingExplorer {
     fn stringify(&self) -> String {
         format!(
-            "Planet {} failed to handle outgoing explorer {}",
+            "Planet {} failed to handle dead explorer {}",
             self.planet_id, self.explorer_id
         )
     }
@@ -41,7 +42,7 @@ impl ErrorType for FailedToHandleOutgoingExplorer {
 ///
 /// The conversation starts in the [`SendingOutgoingRequest`] state, which sends an
 /// [`OrchestratorToPlanet::OutgoingExplorerRequest`] when the [`Conversation::transition`] method is called.
-pub(crate) struct SendingOutgoingRequest {
+pub(crate) struct SendingDeadExpAdv {
     /// A struct containing fields to send messages to the planet.
     to_planet_struct: ToPlanetStruct,
     /// The ID of the explorer attempting to leave the planet.
@@ -50,8 +51,8 @@ pub(crate) struct SendingOutgoingRequest {
     kill_explorers_manager: Box<KillExplorersManager>,
 }
 
-impl SendingOutgoingRequest {
-    /// Constructor for [`SendingOutgoingRequest`] state struct.
+impl SendingDeadExpAdv {
+    /// Constructor for [`SendingDeadExpAdv`] state struct.
     pub(crate) fn new(
         to_planet_struct: ToPlanetStruct,
         outgoing_explorer_id: ID,
@@ -67,18 +68,22 @@ impl SendingOutgoingRequest {
 
 /// Marker struct for FSM state
 ///
-/// In the [`WaitingOutgoingResponse`] state, the conversation expects a
-/// [`PlanetToOrchestrator::OutgoingExplorerResponse`]. Depending on the response result,
-/// it either returns to the manager or enters an error state.
-struct WaitingOutgoingResponse {
+/// In the [`WaitingDeadAdvResponse`] state, the conversation expects a
+/// [`PlanetToOrchestrator::OutgoingExplorerResponse`] indicating that the planet has correctly eliminated the sender,
+/// to the dead explorer
+///
+/// Depending on the response it either returns:
+/// * [`ErrorState`] with [`FailedToHandleOutgoingExplorer`] if an error occurred while eliminating the channel
+/// * [`KillExplorersManager`] to resume the killing of the other explorers
+struct WaitingDeadAdvResponse {
     /// ID of the planet we are moving the explorer from
     planet_id: ID,
     /// The manager to return to upon successful confirmation.
     kill_explorers_manager: Box<KillExplorersManager>,
 }
 
-impl WaitingOutgoingResponse {
-    /// The constructor for [`WaitingOutgoingResponse`] state struct.
+impl WaitingDeadAdvResponse {
+    /// The constructor for [`WaitingDeadAdvResponse`] state struct.
     fn new(planet_id: ID, kill_explorers_manager: Box<KillExplorersManager>) -> Self {
         Self {
             planet_id,
@@ -87,11 +92,11 @@ impl WaitingOutgoingResponse {
     }
 }
 
-/// Outgoing Explorer Conversation FSM
+/// Advertising Dead Explorer Conversation FSM
 ///
 /// This is the generic FSM struct that takes the generic type `State` to ensure only methods
 /// of that specific state can be called during the conversation.
-pub(crate) struct OutgoingExplorer<State> {
+pub(crate) struct AdvDeadExplorer<State> {
     /// Conversation ID.
     id: ID,
     /// Optional expected message to trigger the transition.
@@ -101,7 +106,7 @@ pub(crate) struct OutgoingExplorer<State> {
 }
 
 // SENDING OUTGOING REQUEST IMPLEMENTATION
-impl Conversation<ExplorerBag> for OutgoingExplorer<SendingOutgoingRequest> {
+impl Conversation<ExplorerBag> for AdvDeadExplorer<SendingDeadExpAdv> {
     fn get_id(&self) -> ID {
         self.id
     }
@@ -114,13 +119,13 @@ impl Conversation<ExplorerBag> for OutgoingExplorer<SendingOutgoingRequest> {
         self.expected_message.clone()
     }
 
-    /// Transition Function for [`SendingOutgoingRequest`] state:
+    /// Transition Function for [`SendingDeadExpAdv`] state:
     ///
     /// Returns:
     ///
     /// [`ErrorState`] if the request failed to send to the planet or the sender to the planet is not found.
     ///
-    /// [`OutgoingExplorer<WaitingOutgoingResponse>`] if the request was sent successfully.
+    /// [`AdvDeadExplorer<WaitingDeadAdvResponse>`] if the request was sent successfully.
     fn transition(
         self: Box<Self>,
         _msg_wrapped: Option<PossibleMessage<ExplorerBag>>,
@@ -134,9 +139,9 @@ impl Conversation<ExplorerBag> for OutgoingExplorer<SendingOutgoingRequest> {
             Ok(()) => {
                 let planet_id = self.state.to_planet_struct.planet_id;
                 let state_struct =
-                    WaitingOutgoingResponse::new(planet_id, self.state.kill_explorers_manager);
+                    WaitingDeadAdvResponse::new(planet_id, self.state.kill_explorers_manager);
                 let next_state =
-                    OutgoingExplorer::<WaitingOutgoingResponse>::new(self.id, state_struct);
+                    AdvDeadExplorer::<WaitingDeadAdvResponse>::new(self.id, state_struct);
                 Some(Box::new(next_state))
             }
             Err(err) => {
@@ -157,9 +162,9 @@ impl Conversation<ExplorerBag> for OutgoingExplorer<SendingOutgoingRequest> {
     }
 }
 
-impl OutgoingExplorer<SendingOutgoingRequest> {
-    /// The constructor for [`OutgoingExplorer`] in the [`SendingOutgoingRequest`] state.
-    pub(crate) fn new(id: ID, state: SendingOutgoingRequest) -> Self {
+impl AdvDeadExplorer<SendingDeadExpAdv> {
+    /// The constructor for [`AdvDeadExplorer`] in the [`SendingDeadExpAdv`] state.
+    pub(crate) fn new(id: ID, state: SendingDeadExpAdv) -> Self {
         Self {
             id,
             expected_message: None,
@@ -169,7 +174,7 @@ impl OutgoingExplorer<SendingOutgoingRequest> {
 }
 
 // WAITING OUTGOING RESPONSE IMPLEMENTATION
-impl Conversation<ExplorerBag> for OutgoingExplorer<WaitingOutgoingResponse> {
+impl Conversation<ExplorerBag> for AdvDeadExplorer<WaitingDeadAdvResponse> {
     fn get_id(&self) -> ID {
         self.id
     }
@@ -182,7 +187,7 @@ impl Conversation<ExplorerBag> for OutgoingExplorer<WaitingOutgoingResponse> {
         self.expected_message.clone()
     }
 
-    /// Transition Function for [`WaitingOutgoingResponse`] state:
+    /// Transition Function for [`WaitingDeadAdvResponse`] state:
     ///
     /// Returns:
     ///
@@ -207,7 +212,7 @@ impl Conversation<ExplorerBag> for OutgoingExplorer<WaitingOutgoingResponse> {
                 log_internal(
                     Channel::Debug,
                     payload!(
-                        action : "Planet correctly handled outgoing explorer, conversation is going back to manager",
+                        action : "Planet correctly handled dead explorer, conversation is going back to kill manager",
                         planet_id : planet_id,
                         outgoing_explorer_id : explorer_id,
                         conversation_id : self.id,
@@ -215,6 +220,7 @@ impl Conversation<ExplorerBag> for OutgoingExplorer<WaitingOutgoingResponse> {
                 );
                 Some(self.state.kill_explorers_manager)
             } else {
+                //Explorer is killed but channel in planet is there!
                 let error = FailedToHandleOutgoingExplorer {
                     planet_id,
                     explorer_id,
@@ -233,9 +239,9 @@ impl Conversation<ExplorerBag> for OutgoingExplorer<WaitingOutgoingResponse> {
     }
 }
 
-impl OutgoingExplorer<WaitingOutgoingResponse> {
-    /// The constructor for [`OutgoingExplorer`] in the [`WaitingOutgoingResponse`] state.
-    pub(crate) fn new(id: ID, state: WaitingOutgoingResponse) -> Self {
+impl AdvDeadExplorer<WaitingDeadAdvResponse> {
+    /// The constructor for [`AdvDeadExplorer`] in the [`WaitingDeadAdvResponse`] state.
+    pub(crate) fn new(id: ID, state: WaitingDeadAdvResponse) -> Self {
         Self {
             id,
             expected_message: Some(PlanetToOrchKind(
@@ -293,18 +299,16 @@ mod tests {
     }
 
     #[allow(clippy::unnecessary_box_returns)]
-    fn make_send_conv(senders: PlanetSenders) -> Box<OutgoingExplorer<SendingOutgoingRequest>> {
+    fn make_send_conv(senders: PlanetSenders) -> Box<AdvDeadExplorer<SendingDeadExpAdv>> {
         let to_planet = make_to_planet_struct(PLANET_ID, senders);
-        let state = SendingOutgoingRequest::new(to_planet, EXPLORER_ID, Box::new(mock_manager()));
-        Box::new(OutgoingExplorer::<SendingOutgoingRequest>::new(
-            CONV_ID, state,
-        ))
+        let state = SendingDeadExpAdv::new(to_planet, EXPLORER_ID, Box::new(mock_manager()));
+        Box::new(AdvDeadExplorer::<SendingDeadExpAdv>::new(CONV_ID, state))
     }
 
     #[allow(clippy::unnecessary_box_returns)]
-    fn make_wait_conv() -> Box<OutgoingExplorer<WaitingOutgoingResponse>> {
-        let state = WaitingOutgoingResponse::new(PLANET_ID, Box::new(mock_manager()));
-        Box::new(OutgoingExplorer::<WaitingOutgoingResponse>::new(
+    fn make_wait_conv() -> Box<AdvDeadExplorer<WaitingDeadAdvResponse>> {
+        let state = WaitingDeadAdvResponse::new(PLANET_ID, Box::new(mock_manager()));
+        Box::new(AdvDeadExplorer::<WaitingDeadAdvResponse>::new(
             CONV_ID, state,
         ))
     }
@@ -320,7 +324,7 @@ mod tests {
             .expect("Should transition to WaitingOutgoingResponse");
         assert_eq!(
             next_conv.get_expected_kind(),
-            Some(PossibleExpectedKinds::PlanetToOrchKind(
+            Some(PlanetToOrchKind(
                 PlanetToOrchestratorKind::OutgoingExplorerResponse
             ))
         );
@@ -363,8 +367,8 @@ mod tests {
     fn send_getters() {
         let MakeSendersResult(senders, _rx) = make_senders_with(PLANET_ID);
         let to_planet = make_to_planet_struct(PLANET_ID, senders);
-        let state = SendingOutgoingRequest::new(to_planet, EXPLORER_ID, Box::new(mock_manager()));
-        let conv = OutgoingExplorer::<SendingOutgoingRequest>::new(CONV_ID, state);
+        let state = SendingDeadExpAdv::new(to_planet, EXPLORER_ID, Box::new(mock_manager()));
+        let conv = AdvDeadExplorer::<SendingDeadExpAdv>::new(CONV_ID, state);
         assert_eq!(conv.get_id(), CONV_ID);
         assert_eq!(conv.get_entity_id(), PLANET_ID);
         assert_eq!(conv.get_expected_kind(), None);
@@ -401,8 +405,8 @@ mod tests {
 
     #[test]
     fn wait_getters() {
-        let state = WaitingOutgoingResponse::new(PLANET_ID, Box::new(mock_manager()));
-        let conv = OutgoingExplorer::<WaitingOutgoingResponse>::new(CONV_ID, state);
+        let state = WaitingDeadAdvResponse::new(PLANET_ID, Box::new(mock_manager()));
+        let conv = AdvDeadExplorer::<WaitingDeadAdvResponse>::new(CONV_ID, state);
         assert_eq!(conv.get_id(), CONV_ID);
         assert_eq!(conv.get_entity_id(), PLANET_ID);
         assert_eq!(

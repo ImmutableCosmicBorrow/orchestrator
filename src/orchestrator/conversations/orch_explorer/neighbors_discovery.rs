@@ -245,16 +245,17 @@ impl NeighborsDiscoveryConversation<WaitingExplorerNeighborsRequest> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::orchestrator::conversations::SendersToExplorer;
+    use crate::orchestrator::conversations::orch_explorer::test_utils::{
+        MakeSendersResult, make_empty_senders, make_senders_with, make_to_explorer_struct,
+    };
+    use common_game::protocols::orchestrator_explorer::ExplorerToOrchestratorKind::NeighborsRequest;
     use crossbeam_channel::unbounded;
     use std::collections::HashMap;
     use std::sync::{Arc, Mutex};
-    use common_game::protocols::orchestrator_explorer::ExplorerToOrchestratorKind::NeighborsRequest;
-    use crate::orchestrator::conversations::orch_explorer::test_utils::{make_empty_senders, make_senders_with, make_to_explorer_struct, MakeSendersResult};
-    use crate::orchestrator::conversations::SendersToExplorer;
 
     const CONV_ID: u32 = 1;
     const EXPLORER_ID: u32 = 2;
-
 
     // --- Helper functions ---
 
@@ -264,9 +265,7 @@ mod tests {
     ) -> Box<NeighborsDiscoveryConversation<SendingNeighborsResponse>> {
         let to_explorer = make_to_explorer_struct(EXPLORER_ID, senders);
         let state = SendingNeighborsResponse::new(to_explorer, vec![]);
-        Box::new(NeighborsDiscoveryConversation::<SendingNeighborsResponse>::new(
-            CONV_ID, state,
-        ))
+        Box::new(NeighborsDiscoveryConversation::<SendingNeighborsResponse>::new(CONV_ID, state))
     }
 
     #[allow(clippy::unnecessary_box_returns)]
@@ -274,11 +273,13 @@ mod tests {
         let state = WaitingExplorerNeighborsRequest::new(
             ToExplorerStruct {
                 explorer_id: EXPLORER_ID,
-                explorers_senders: Arc::new(Mutex::new(HashMap::new()))
+                explorers_senders: Arc::new(Mutex::new(HashMap::new())),
             },
-            make_dummy_planetmap()
+            make_dummy_planetmap(),
         );
-        Box::new(NeighborsDiscoveryConversation::<WaitingExplorerNeighborsRequest>::new(CONV_ID, state))
+        Box::new(NeighborsDiscoveryConversation::<
+            WaitingExplorerNeighborsRequest,
+        >::new(CONV_ID, state))
     }
 
     fn make_dummy_planetmap() -> PlanetMap {
@@ -290,8 +291,7 @@ mod tests {
     fn send_success() {
         let MakeSendersResult(senders, _rx) = make_senders_with(EXPLORER_ID);
         let conv = make_send_conv(senders);
-        let next_conv = conv
-            .transition(None);
+        let next_conv = conv.transition(None);
 
         assert!(next_conv.is_none());
     }
@@ -342,16 +342,13 @@ mod tests {
         let conv = make_wait_conv();
         let msg = PossibleMessage::ExplorerToOrch(ExplorerToOrchestrator::NeighborsRequest {
             explorer_id: EXPLORER_ID,
-            current_planet_id: 2
+            current_planet_id: 2,
         });
 
         let next_conv = conv
             .transition(Some(msg))
             .expect("Should transition to next state");
-        assert_eq!(
-            next_conv.get_expected_kind(),
-            None
-        );
+        assert_eq!(next_conv.get_expected_kind(), None);
         assert_eq!(next_conv.get_id(), CONV_ID);
     }
 
@@ -377,14 +374,12 @@ mod tests {
         let state = WaitingExplorerNeighborsRequest::new(
             ToExplorerStruct {
                 explorer_id: EXPLORER_ID,
-                explorers_senders: Arc::new(Mutex::new(HashMap::new()))
+                explorers_senders: Arc::new(Mutex::new(HashMap::new())),
             },
-            make_dummy_planetmap()
+            make_dummy_planetmap(),
         );
         let conv =
-            NeighborsDiscoveryConversation::<WaitingExplorerNeighborsRequest>::new(
-                CONV_ID, state
-            );
+            NeighborsDiscoveryConversation::<WaitingExplorerNeighborsRequest>::new(CONV_ID, state);
         assert_eq!(conv.get_id(), CONV_ID);
         assert_eq!(conv.get_entity_id(), EXPLORER_ID);
         assert_eq!(
