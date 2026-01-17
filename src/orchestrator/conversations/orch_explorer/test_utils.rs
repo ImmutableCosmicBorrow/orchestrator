@@ -1,11 +1,9 @@
-use crate::orchestrator::conversations::{
-    SendersToExplorer, SendersToPlanet, ToExplorerStruct, ToPlanetStruct,
-};
+#[cfg(test)]
+use crate::orchestrator::conversations::{SendersToExplorer, ToExplorerStruct};
+use crate::orchestrator::conversations::{SendersToPlanet, ToPlanetStruct};
+#[cfg(test)]
 use common_game::protocols::orchestrator_explorer::OrchestratorToExplorer;
 use common_game::utils::ID;
-use crossbeam_channel::unbounded;
-use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
 
 #[cfg(test)]
 pub(crate) struct MakeSendersResult(
@@ -16,11 +14,23 @@ pub(crate) struct MakeSendersResult(
 // --- Helper functions ---
 #[cfg(test)]
 pub(crate) fn make_senders_with(explorer_id: ID) -> MakeSendersResult {
+    use std::{
+        collections::HashMap,
+        sync::{Arc, Mutex},
+    };
+
+    use crossbeam_channel::unbounded;
+
     let (tx, rx) = unbounded::<OrchestratorToExplorer>();
     MakeSendersResult(Arc::new(Mutex::new(HashMap::from([(explorer_id, tx)]))), rx)
 }
 #[cfg(test)]
 pub(crate) fn make_empty_senders() -> SendersToExplorer {
+    use std::{
+        collections::HashMap,
+        sync::{Arc, Mutex},
+    };
+
     Arc::new(Mutex::new(HashMap::new()))
 }
 

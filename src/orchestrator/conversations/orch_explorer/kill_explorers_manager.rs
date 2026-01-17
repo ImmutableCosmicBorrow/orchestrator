@@ -141,6 +141,7 @@ mod tests {
         assert_eq!(manager.get_id(), CONV_ID);
         assert_eq!(manager.explorers_to_kill.len(), 1);
         assert_eq!(manager.get_expected_kind(), None);
+        assert_eq!(manager.get_entity_id(), CONV_ID);
     }
 
     #[test]

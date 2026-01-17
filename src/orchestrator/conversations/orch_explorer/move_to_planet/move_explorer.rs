@@ -251,10 +251,7 @@ mod tests {
     use super::*;
     use crate::orchestrator::ExplorersLocationRef;
     use crate::orchestrator::conversations::PossibleMessage::ExplorerToOrch;
-    use crate::orchestrator::conversations::orch_explorer::move_to_planet::WaitingOutgoingResponse;
-    use common_game::protocols::orchestrator_explorer::OrchestratorToExplorer;
-    use common_game::protocols::orchestrator_planet::PlanetToOrchestrator;
-    use crossbeam_channel::unbounded;
+    use common_game::protocols::orchestrator_explorer::ExplorerToOrchestrator;
     use std::collections::HashMap;
     use std::sync::{Arc, Mutex};
 
@@ -262,93 +259,137 @@ mod tests {
     const EXPLORER_ID: ID = 2;
     const DST_PLANET_ID: ID = 50;
 
-    // --------------- HELPER FUNCTIONS ------------
-    fn create_mock_state(
+    // --- Helper functions ---
+
+    #[allow(clippy::unnecessary_box_returns)]
+    fn make_wait_move_conv(
         explorer_id: ID,
         explorers_location_ref: ExplorersLocationRef,
         dst_planet_id: ID,
         is_moving: bool,
-    ) -> WaitMoveToPlanetResponse {
-        WaitMoveToPlanetResponse::new(
+    ) -> Box<MoveToPlanetConversation<WaitMoveToPlanetResponse>> {
+        let state = WaitMoveToPlanetResponse::new(
             explorers_location_ref,
             is_moving,
             dst_planet_id,
             explorer_id,
-        )
+        );
+        Box::new(MoveToPlanetConversation::<WaitMoveToPlanetResponse>::new(
+            CONV_ID, state,
+        ))
     }
 
-    // --------------------- TEST ---------------
-    #[test]
-    fn test_transition_success() {
-        let exp_locations = Arc::new(Mutex::new(HashMap::from([(EXPLORER_ID, 5)])));
-        let state = create_mock_state(EXPLORER_ID, exp_locations, DST_PLANET_ID, true);
-        let conv = Box::new(MoveToPlanetConversation::<WaitMoveToPlanetResponse>::new(
-            CONV_ID, state,
-        ));
+    fn make_explorers_location_with(explorer_id: ID, planet_id: ID) -> ExplorersLocationRef {
+        Arc::new(Mutex::new(HashMap::from([(explorer_id, planet_id)])))
+    }
 
-        // Simulate positive response from Explorer
+    fn make_empty_explorers_location() -> ExplorersLocationRef {
+        Arc::new(Mutex::new(HashMap::new()))
+    }
+
+    // --- Tests ---
+
+    #[test]
+    fn wait_move_success() {
+        let exp_locations = make_explorers_location_with(EXPLORER_ID, 5);
+        let conv = make_wait_move_conv(EXPLORER_ID, exp_locations.clone(), DST_PLANET_ID, true);
+
         let msg = ExplorerToOrch(ExplorerToOrchestrator::MovedToPlanetResult {
             explorer_id: EXPLORER_ID,
             planet_id: DST_PLANET_ID,
         });
 
-        let next_state = conv.transition(Some(msg));
+        let result = conv.transition(Some(msg));
 
-        assert!(next_state.is_none());
+        assert!(
+            result.is_none(),
+            "Conversation should terminate successfully (None)"
+        );
+
+        // Verify location was updated
+        let location = exp_locations.lock().unwrap().get(&EXPLORER_ID).copied();
+        assert_eq!(location, Some(DST_PLANET_ID));
     }
 
     #[test]
-    fn test_transition_destination_rejection() {
-        let (tx, _rx) = unbounded::<OrchestratorToExplorer>();
-        let explorers_senders = Arc::new(Mutex::new(HashMap::from([(EXPLORER_ID, tx)])));
-        let state = create_mock_state(EXPLORER_ID, explorers_senders, DST_PLANET_ID);
+    fn wait_move_explorer_not_moving() {
+        let exp_locations = make_explorers_location_with(EXPLORER_ID, 5);
+        let conv = make_wait_move_conv(EXPLORER_ID, exp_locations.clone(), DST_PLANET_ID, false);
 
-        let conv = Box::new(MoveToPlanetConversation::<WaitingOutgoingResponse>::new(
-            CONV_ID, state,
-        ));
-
-        // Simulate negative response from Destination Planet
-        let msg = PossibleMessage::PlanetToOrch(PlanetToOrchestrator::OutgoingExplorerResponse {
-            planet_id: CURR_PLANET_ID,
+        let msg = ExplorerToOrch(ExplorerToOrchestrator::MovedToPlanetResult {
             explorer_id: EXPLORER_ID,
-            res: Err("Didn't manage outgoing explorer".to_string()),
+            planet_id: DST_PLANET_ID,
         });
 
-        let next_state = conv
-            .transition(Some(msg))
-            .expect("Should transition to error state");
+        let result = conv.transition(Some(msg));
 
-        assert_eq!(next_state.get_expected_kind(), None);
+        assert!(
+            result.is_none(),
+            "Conversation should terminate successfully when explorer not moving"
+        );
+
+        // Verify location was NOT updated (still 5)
+        let location = exp_locations.lock().unwrap().get(&EXPLORER_ID).copied();
+        assert_eq!(location, Some(5));
+    }
+
+    #[test]
+    fn wait_move_explorer_location_not_found() {
+        let exp_locations = make_empty_explorers_location();
+        let conv = make_wait_move_conv(EXPLORER_ID, exp_locations, DST_PLANET_ID, true);
+
+        let msg = ExplorerToOrch(ExplorerToOrchestrator::MovedToPlanetResult {
+            explorer_id: EXPLORER_ID,
+            planet_id: DST_PLANET_ID,
+        });
+
+        let next_conv = conv
+            .transition(Some(msg))
+            .expect("Should return an ErrorState");
+
+        assert_eq!(next_conv.get_id(), CONV_ID);
         assert_eq!(
-            next_state.get_error_details(),
+            next_conv.get_error_details(),
             Some(format!(
-                "Current planet {CURR_PLANET_ID} failed to let go of outgoing explorer {EXPLORER_ID}"
-            )),
+                "The location for explorer {EXPLORER_ID} is not found in the list"
+            ))
         );
     }
 
     #[test]
-    fn test_transition_wrong_message() {
-        let (tx, _rx) = unbounded::<OrchestratorToExplorer>();
-        let explorers_senders = Arc::new(Mutex::new(HashMap::from([(EXPLORER_ID, tx)])));
-        let state = create_mock_state(EXPLORER_ID, explorers_senders, DST_PLANET_ID);
+    fn wait_move_wrong_message() {
+        let exp_locations = make_explorers_location_with(EXPLORER_ID, 5);
+        let conv = make_wait_move_conv(EXPLORER_ID, exp_locations, DST_PLANET_ID, true);
 
-        let conv = Box::new(MoveToPlanetConversation::<WaitingOutgoingResponse>::new(
-            CONV_ID, state,
-        ));
+        let wrong_msg = ExplorerToOrch(ExplorerToOrchestrator::ResetExplorerAIResult {
+            explorer_id: EXPLORER_ID,
+        });
 
-        // Send a message that isn't IncomingExplorerResponse
-        let msg =
-            PossibleMessage::PlanetToOrch(PlanetToOrchestrator::KillPlanetResult { planet_id: 5 });
+        let next_conv = conv
+            .transition(Some(wrong_msg))
+            .expect("Should return an ErrorState");
 
-        let next_state = conv
-            .transition(Some(msg))
-            .expect("Should transition to error state");
-
-        assert_eq!(next_state.get_expected_kind(), None);
+        assert_eq!(next_conv.get_id(), CONV_ID);
         assert_eq!(
-            next_state.get_error_details(),
+            next_conv.get_error_details(),
             Some("Wrong Message Received".to_string())
         );
+    }
+
+    #[test]
+    fn wait_move_getters() {
+        let exp_locations = make_explorers_location_with(EXPLORER_ID, 5);
+        let state = WaitMoveToPlanetResponse::new(exp_locations, true, DST_PLANET_ID, EXPLORER_ID);
+        let conv = MoveToPlanetConversation::<WaitMoveToPlanetResponse>::new(CONV_ID, state);
+
+        assert_eq!(conv.get_id(), CONV_ID);
+        assert_eq!(conv.get_entity_id(), EXPLORER_ID);
+        assert_eq!(
+            conv.get_expected_kind(),
+            Some(PossibleExpectedKinds::ExplorerToOrchKind(
+                MovedToPlanetResult
+            ))
+        );
+        assert_eq!(conv.get_priority(), 4);
     }
 }
