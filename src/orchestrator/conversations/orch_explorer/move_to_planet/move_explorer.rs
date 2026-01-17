@@ -37,8 +37,9 @@ impl Conversation<ExplorerBag> for MoveToPlanetConversation<SendMoveRequest> {
         // Determine the sender
         let sender_to_new_planet = if self.state.is_explorer_moving {
             //Explorer is moving, we need to find the sender to the planet
-            if let Some(sender) = self.get_new_planet_sender(self.state.dst_planet_id) { Some(sender) } 
-            else {
+            if let Some(sender) = self.get_new_planet_sender(self.state.dst_planet_id) {
+                Some(sender)
+            } else {
                 let error = Box::new(CommonErrorTypes::ExplorerSenderNotFound(
                     self.state.dst_planet_id,
                 ));
@@ -250,12 +251,12 @@ mod tests {
     use super::*;
     use crate::orchestrator::ExplorersLocationRef;
     use crate::orchestrator::conversations::PossibleMessage::ExplorerToOrch;
+    use crate::orchestrator::conversations::orch_explorer::move_to_planet::WaitingOutgoingResponse;
     use common_game::protocols::orchestrator_explorer::OrchestratorToExplorer;
+    use common_game::protocols::orchestrator_planet::PlanetToOrchestrator;
     use crossbeam_channel::unbounded;
     use std::collections::HashMap;
     use std::sync::{Arc, Mutex};
-    use common_game::protocols::orchestrator_planet::PlanetToOrchestrator;
-    use crate::orchestrator::conversations::orch_explorer::move_to_planet::WaitingOutgoingResponse;
 
     const CONV_ID: ID = 1;
     const EXPLORER_ID: ID = 2;

@@ -1,15 +1,14 @@
+use crate::orchestrator::ExplorerBag;
+use crate::orchestrator::conversations::PossibleExpectedKinds::ExplorerToOrchKind;
 use crate::orchestrator::conversations::orch_explorer::move_to_planet::{
     MoveToPlanetConversation, SendIncomingRequest, SendMoveRequest,
 };
 use crate::orchestrator::conversations::orch_explorer::move_to_planet::{
     WaitMoveToPlanetResponse, WaitingIncomingResponse, WaitingTravelRequest,
 };
-use crate::orchestrator::conversations::PossibleExpectedKinds::ExplorerToOrchKind;
 use crate::orchestrator::conversations::{
-    CommonErrorTypes, Conversation, ErrorState, PossibleExpectedKinds, PossibleMessage
-    ,
+    CommonErrorTypes, Conversation, ErrorState, PossibleExpectedKinds, PossibleMessage,
 };
-use crate::orchestrator::ExplorerBag;
 use common_game::protocols::orchestrator_explorer::{
     ExplorerToOrchestrator, ExplorerToOrchestratorKind,
 };

@@ -1,7 +1,7 @@
 use crate::orchestrator::ExplorerBag;
 use crate::orchestrator::conversations::orch_explorer::move_to_planet::errors::MoveToPlanetErrors;
 use crate::orchestrator::conversations::orch_explorer::move_to_planet::{
-    MoveToPlanetConversation, SendIncomingRequest, SendMoveRequest,
+    MoveToPlanetConversation, SendIncomingRequest, SendMoveRequest, SendOutgoingRequest,
     WaitingIncomingResponse, WaitingOutgoingResponse,
 };
 use crate::orchestrator::conversations::{
@@ -155,6 +155,7 @@ impl Conversation<ExplorerBag> for MoveToPlanetConversation<WaitingIncomingRespo
             // If the incoming response is positive, tries to send the Outgoing request,
             // otherwise terminates in error state
             return if res.is_ok() {
+                //The explorer comes from a planet, need to advertise its leaving
                 if self.state.handle_outgoing {
                     match self
                         .state
@@ -163,17 +164,17 @@ impl Conversation<ExplorerBag> for MoveToPlanetConversation<WaitingIncomingRespo
                     {
                         Ok(()) => {
                             //TODO: Send to SendOutgoing
-                            let state_struct = WaitingOutgoingResponse::new(
+                            let state_struct = SendOutgoingRequest::new(
+                                self.state.curr_planet_struct,
                                 self.state.explorer_struct,
                                 self.state.planet_explorer_channels,
                                 self.state.dst_planet_id,
                                 self.state.explorers_location_ref,
                             );
-                            let next_state =
-                                MoveToPlanetConversation::<WaitingOutgoingResponse>::new(
-                                    self.id,
-                                    state_struct,
-                                );
+                            let next_state = MoveToPlanetConversation::<SendOutgoingRequest>::new(
+                                self.id,
+                                state_struct,
+                            );
                             Some(Box::new(next_state))
                         }
                         Err(err) => {

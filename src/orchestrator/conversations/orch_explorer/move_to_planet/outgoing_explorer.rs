@@ -1,3 +1,4 @@
+use crate::orchestrator::ExplorerBag;
 use crate::orchestrator::conversations::orch_explorer::move_to_planet::errors::MoveToPlanetErrors;
 use crate::orchestrator::conversations::orch_explorer::move_to_planet::{
     MoveToPlanetConversation, SendMoveRequest, SendOutgoingRequest,
@@ -6,10 +7,9 @@ use crate::orchestrator::conversations::orch_explorer::move_to_planet::{
     WaitMoveToPlanetResponse, WaitingOutgoingResponse,
 };
 use crate::orchestrator::conversations::{
-    CommonErrorTypes, Conversation, ErrorState, ErrorType, PossibleExpectedKinds, PossibleMessage
-    , ToPlanetError,
+    CommonErrorTypes, Conversation, ErrorState, ErrorType, PossibleExpectedKinds, PossibleMessage,
+    ToPlanetError,
 };
-use crate::orchestrator::ExplorerBag;
 use common_game::protocols::orchestrator_explorer::OrchestratorToExplorer::MoveToPlanet;
 use common_game::protocols::orchestrator_planet::{
     OrchestratorToPlanet, PlanetToOrchestrator, PlanetToOrchestratorKind,
@@ -68,6 +68,16 @@ impl Conversation<ExplorerBag> for MoveToPlanetConversation<SendOutgoingRequest>
 
     fn get_priority(&self) -> i32 {
         4
+    }
+}
+
+impl MoveToPlanetConversation<SendOutgoingRequest> {
+    pub fn new(id: ID, state: SendOutgoingRequest) -> Self {
+        Self {
+            id,
+            state,
+            expected_message: None,
+        }
     }
 }
 
@@ -173,8 +183,8 @@ impl MoveToPlanetConversation<WaitingOutgoingResponse> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::orchestrator::conversations::{SendersToExplorer, ToExplorerStruct};
     use crate::orchestrator::PlanetExplorerChannels;
+    use crate::orchestrator::conversations::{SendersToExplorer, ToExplorerStruct};
     use common_game::protocols::orchestrator_explorer::ExplorerToOrchestratorKind::MovedToPlanetResult;
     use common_game::protocols::orchestrator_explorer::OrchestratorToExplorer;
     use crossbeam_channel::unbounded;
