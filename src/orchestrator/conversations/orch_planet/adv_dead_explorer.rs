@@ -435,7 +435,7 @@ mod tests {
             .expect("Should have error details");
         assert_eq!(
             details,
-            format!("Planet {PLANET_ID} failed to handle outgoing explorer {EXPLORER_ID}")
+            format!("Planet {PLANET_ID} failed to handle dead explorer {EXPLORER_ID}")
         );
     }
 }
