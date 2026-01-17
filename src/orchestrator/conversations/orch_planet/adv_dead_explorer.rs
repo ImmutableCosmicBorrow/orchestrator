@@ -417,4 +417,25 @@ mod tests {
         );
         assert_eq!(conv.get_priority(), 4);
     }
+
+    #[test]
+    fn wait_error_response() {
+        let conv = make_wait_conv();
+        let msg = PossibleMessage::PlanetToOrch(PlanetToOrchestrator::OutgoingExplorerResponse {
+            planet_id: PLANET_ID,
+            explorer_id: EXPLORER_ID,
+            res: Err(String::new()),
+        });
+        let next_conv = conv
+            .transition(Some(msg))
+            .expect("Should return ErrorState");
+        assert_eq!(next_conv.get_id(), CONV_ID);
+        let details = next_conv
+            .get_error_details()
+            .expect("Should have error details");
+        assert_eq!(
+            details,
+            format!("Planet {PLANET_ID} failed to handle outgoing explorer {EXPLORER_ID}")
+        );
+    }
 }

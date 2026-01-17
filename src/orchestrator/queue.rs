@@ -8,7 +8,6 @@ use std::collections::HashSet;
 use std::hash::Hash;
 use std::sync::{Arc, Mutex};
 use std::{collections::HashMap, fmt::Debug};
-
 pub(crate) struct PQueue {
     queue: Arc<Mutex<PriorityQueue<ID, i32>>>,
 }
@@ -51,7 +50,6 @@ pub struct ConvoScheduler<T: Debug + Eq + Hash> {
     active_convos: ConversationMap<T>,
     by_expected_msg: Arc<Mutex<HashMap<PossibleExpectedKinds, HashSet<ID>>>>,
     waiting_msgs: Arc<Mutex<HashMap<ID, PossibleMessage<ExplorerBag>>>>,
-    next_id: Mutex<ID>,
 }
 
 impl<T: Debug + Eq + Hash> Clone for ConvoScheduler<T> {
@@ -61,7 +59,6 @@ impl<T: Debug + Eq + Hash> Clone for ConvoScheduler<T> {
             active_convos: Arc::clone(&self.active_convos),
             by_expected_msg: Arc::clone(&self.by_expected_msg),
             waiting_msgs: Arc::clone(&self.waiting_msgs),
-            next_id: Mutex::new(*self.next_id.lock().unwrap()),
         }
     }
 }
@@ -73,7 +70,6 @@ impl<T: Debug + Eq + Hash> ConvoScheduler<T> {
             active_convos: Arc::new(Mutex::new(HashMap::new())),
             by_expected_msg: Arc::new(Mutex::new(HashMap::new())),
             waiting_msgs: Arc::new(Mutex::new(HashMap::new())),
-            next_id: Mutex::new(1),
         }
     }
 
@@ -119,12 +115,7 @@ impl<T: Debug + Eq + Hash> ConvoScheduler<T> {
     }
 
     pub fn add_conversation(&self, conversation: Box<dyn Conversation<T> + Send + Sync>) {
-        let id = {
-            let mut guard = self.next_id.lock().unwrap();
-            let id = *guard;
-            *guard += 1;
-            id
-        };
+        let id = crate::get_id_manager().get_next_conversation_id();
 
         let expected_kind = conversation.get_expected_kind();
         if let Some(kind) = expected_kind {

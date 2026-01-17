@@ -421,4 +421,21 @@ mod tests {
         );
         assert_eq!(conv.get_priority(), 4);
     }
+
+    #[test]
+    fn wait_defends_with_rocket() {
+        let conv = make_wait_conv();
+        // Create a dummy Rocket value for testing using unsafe since Rocket::new is pub(crate)
+        // SAFETY: Rocket only contains a private unit field `_private: ()`, which is a ZST (zero-sized type)
+        let dummy_rocket: common_game::components::rocket::Rocket = unsafe { std::mem::zeroed() };
+        let msg = PossibleMessage::PlanetToOrch(PlanetToOrchestrator::AsteroidAck {
+            planet_id: PLANET_ID,
+            rocket: Some(dummy_rocket),
+        });
+        let result = conv.transition(Some(msg));
+        assert!(
+            result.is_none(),
+            "Conversation should terminate when planet defends with rocket"
+        );
+    }
 }

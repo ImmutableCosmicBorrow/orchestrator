@@ -9,13 +9,14 @@ use std::collections::HashMap;
 use std::path::Path;
 use std::sync::{Arc, Mutex};
 
+use crate::id::IdManager;
 use crate::logging_utils::log_internal;
 use crate::payload;
 
 //TODO: Allow the PlanetMap to have dead planets so that they can be revived later
 pub(crate) type OrchPlanSenderMap = HashMap<ID, Sender<OrchestratorToPlanet>>;
 pub(crate) type ExplPlanSenderMap = HashMap<ID, Sender<ExplorerToPlanet>>;
-pub(crate) type PlanetMap = Arc<Mutex<HashMap<ID, Arc<Mutex<PlanetNode<Alive>>>>>>;
+pub(crate) type PlanetMap = Arc<Mutex<HashMap<ID, PlanetNode<Alive>>>>;
 
 // TODO: add a parameter to customize planet creation with other groups planets
 pub(crate) fn create_planet_with_channels(
@@ -30,53 +31,50 @@ pub(crate) fn create_planet_with_channels(
     let (tx_expl_in, rx_expl_in) = unbounded::<ExplorerToPlanet>();
     expl_sender_map.insert(planet_id, tx_expl_in);
 
-    let planet = match planet_id % 7 {
-        0 => crate::planet_factory::create_trip_planet(
-            planet_id,
-            rx_orch_in,
-            tx_orch_out,
-            rx_expl_in,
-        ),
-        1 => crate::planet_factory::create_rustrelli_planet(
+    let planet = if IdManager::is_trip_id(planet_id) {
+        crate::planet_factory::create_trip_planet(planet_id, rx_orch_in, tx_orch_out, rx_expl_in)
+    } else if IdManager::is_rustrelli_id(planet_id) {
+        crate::planet_factory::create_rustrelli_planet(
             planet_id,
             rx_orch_in,
             tx_orch_out,
             rx_expl_in,
             rustrelli::ExplorerRequestLimit::FairShare,
-        ),
-        2 => crate::planet_factory::create_luna4_planet(
+        )
+    } else if IdManager::is_luna4_id(planet_id) {
+        crate::planet_factory::create_luna4_planet(planet_id, rx_orch_in, tx_orch_out, rx_expl_in)
+    } else if IdManager::is_rusty_crab_id(planet_id) {
+        crate::planet_factory::create_rusty_crab_planet(
             planet_id,
             rx_orch_in,
             tx_orch_out,
             rx_expl_in,
-        ),
-        3 => crate::planet_factory::create_rusty_crab_planet(
+        )
+    } else if IdManager::is_enterprise_id(planet_id) {
+        crate::planet_factory::create_enterprise_planet(
             planet_id,
             rx_orch_in,
             tx_orch_out,
             rx_expl_in,
-        ),
-        4 => crate::planet_factory::create_enterprise_planet(
+        )
+    } else if IdManager::is_orbitron_id(planet_id) {
+        crate::planet_factory::create_orbitron_planet(
             planet_id,
             rx_orch_in,
             tx_orch_out,
             rx_expl_in,
-        ),
-        5 => crate::planet_factory::create_orbitron_planet(
-            planet_id,
-            rx_orch_in,
-            tx_orch_out,
-            rx_expl_in,
-        ),
-        6 => crate::planet_factory::create_houston_we_have_a_borrow_planet(
+        )
+    } else if IdManager::is_houston_id(planet_id) {
+        crate::planet_factory::create_houston_we_have_a_borrow_planet(
             rx_orch_in,
             tx_orch_out,
             rx_expl_in,
             planet_id,
             houston_we_have_a_borrow::RocketStrategy::Safe,
             None,
-        ),
-        _ => unreachable!(),
+        )
+    } else {
+        panic!("Unknown planet type for id: {planet_id}")
     };
 
     if let Err(ref e) = planet {
@@ -122,7 +120,7 @@ pub fn galaxy_loader(
     // First pass: create all planet nodes
     let file = File::open(file_path).expect("Failed to open galaxy file");
     let reader = BufReader::new(file);
-    let mut out: HashMap<ID, Arc<Mutex<PlanetNode<Alive>>>> = HashMap::new();
+    let mut out: HashMap<ID, PlanetNode<Alive>> = HashMap::new();
 
     // Store edges for second pass
     let mut edges: Vec<(ID, Vec<ID>)> = Vec::new();
@@ -150,23 +148,23 @@ pub fn galaxy_loader(
 
         // Create planet node if not already present
         out.entry(id).or_insert_with(|| {
-            Arc::new(Mutex::new(create_planet_with_channels(
+            create_planet_with_channels(
                 &mut orch_to_plan_send,
                 &mut expl_to_plan_send,
                 id,
                 tx_orch_out.clone(),
-            )))
+            )
         });
 
         // Also ensure all neighbors exist as nodes
         for &neighbor_id in &neighbors {
             out.entry(neighbor_id).or_insert_with(|| {
-                Arc::new(Mutex::new(create_planet_with_channels(
+                create_planet_with_channels(
                     &mut orch_to_plan_send,
                     &mut expl_to_plan_send,
                     neighbor_id,
                     tx_orch_out.clone(),
-                )))
+                )
             });
         }
     }
@@ -175,9 +173,8 @@ pub fn galaxy_loader(
     for (id, neighbors) in edges {
         let node = out.get(&id).expect("Node missing");
         for neighbor_id in neighbors {
-            let neighbor: &Arc<Mutex<PlanetNode<Alive>>> =
-                out.get(&neighbor_id).expect("Neighbor node missing");
-            node.lock().unwrap().add_neighbor(Arc::downgrade(neighbor));
+            let neighbor = out.get(&neighbor_id).expect("Neighbor node missing");
+            node.add_neighbor(neighbor);
         }
     }
 

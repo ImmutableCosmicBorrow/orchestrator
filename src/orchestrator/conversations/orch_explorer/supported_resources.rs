@@ -329,4 +329,38 @@ mod tests {
             Some("Wrong Message Received".to_string())
         );
     }
+
+    #[test]
+    fn send_getters() {
+        let (tx, _rx) = unbounded::<OrchestratorToExplorer>();
+        let senders_to_explorers = Arc::new(Mutex::new(HashMap::from([(EXPLORER_ID, tx)])));
+        let to_explorer = ToExplorerStruct {
+            explorer_id: EXPLORER_ID,
+            explorers_senders: senders_to_explorers,
+        };
+        let state = SendingSupportedResourcesRequest::new(to_explorer);
+        let conv =
+            SupportedResourcesConversation::<SendingSupportedResourcesRequest>::new(CONV_ID, state);
+        assert_eq!(conv.get_id(), CONV_ID);
+        assert_eq!(conv.get_entity_id(), EXPLORER_ID);
+        assert_eq!(conv.get_expected_kind(), None);
+        assert_eq!(conv.get_priority(), 2);
+    }
+
+    #[test]
+    fn wait_getters() {
+        let conv = SupportedResourcesConversation::<WaitingSupportedResourcesResult>::new(
+            CONV_ID,
+            EXPLORER_ID,
+        );
+        assert_eq!(conv.get_id(), CONV_ID);
+        assert_eq!(conv.get_entity_id(), EXPLORER_ID);
+        assert_eq!(
+            conv.get_expected_kind(),
+            Some(PossibleExpectedKinds::ExplorerToOrchKind(
+                ExplorerToOrchestratorKind::SupportedResourceResult
+            ))
+        );
+        assert_eq!(conv.get_priority(), 2);
+    }
 }

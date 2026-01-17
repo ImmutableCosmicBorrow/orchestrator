@@ -98,7 +98,7 @@ impl MoveToPlanetConversation<WaitingTravelRequest> {
             galaxy.get(&self.state.curr_planet_struct.planet_id),
             galaxy.get(&self.state.dst_planet_struct.planet_id),
         ) {
-            return curr_planet_ref.lock().unwrap().has_neighbor(dst_planet_ref);
+            return curr_planet_ref.has_neighbor(&dst_planet_ref.inner);
         }
         false
     }

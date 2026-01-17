@@ -49,70 +49,29 @@ pub(crate) struct Orchestrator {
     planet_threads: Vec<std::thread::JoinHandle<()>>,
 }
 
-impl PlanetExplorerChannels {
-    pub fn new() -> Self {
-        Self {
-            planet_to_explorer_senders: Arc::new(Mutex::new(HashMap::new())),
-            explorer_to_planet_senders: Arc::new(Mutex::new(HashMap::new())),
-        }
-    }
-
-    pub fn add_plan_to_expl_sender(&mut self, explorer_id: ID, sender: Sender<PlanetToExplorer>) {
-        self.planet_to_explorer_senders
-            .lock()
-            .unwrap()
-            .insert(explorer_id, sender);
-    }
-
-    pub fn add_expl_to_plan_sender(&mut self, planet_id: ID, sender: Sender<ExplorerToPlanet>) {
-        self.explorer_to_planet_senders
-            .lock()
-            .unwrap()
-            .insert(planet_id, sender);
-    }
-
-    pub fn get_plan_to_expl_sender(&self, explorer_id: ID) -> Option<Sender<PlanetToExplorer>> {
-        self.planet_to_explorer_senders
-            .lock()
-            .unwrap()
-            .get(&explorer_id)
-            .cloned()
-    }
-
-    pub fn get_expl_to_plan_sender(&self, planet_id: ID) -> Option<Sender<ExplorerToPlanet>> {
-        self.explorer_to_planet_senders
-            .lock()
-            .unwrap()
-            .get(&planet_id)
-            .cloned()
-    }
-}
-
 impl Orchestrator {
     pub fn new(file_path: &std::path::Path) -> Self {
-        let mut _planet_explorer_channels = PlanetExplorerChannels::new();
-
         //TODO: fix receivers and senders initialization
-        let (galaxy, planets_receiver, orch_to_plan_senders, _expl_to_plan_senders) =
+        let (galaxy, planets_receiver, orch_to_plan_senders, expl_to_plan_senders) =
             galaxy_loader(file_path);
         let (explorers_receiver, explorer_senders) =
             (unbounded::<OrchestratorToExplorer>().1, HashMap::new());
         let forge = Arc::new(Forge::new().expect("Couldn't create forge!"));
 
-        let planet_explorer_channels = PlanetExplorerChannels {
-            planet_to_explorer_senders: Arc::new(Mutex::new(HashMap::new())),
-            explorer_to_planet_senders: Arc::new(Mutex::new(HashMap::new())),
-        };
+        let mut planet_explorer_channels = PlanetExplorerChannels::new();
+        planet_explorer_channels.explorer_to_planet_senders =
+            Arc::new(Mutex::new(expl_to_plan_senders));
 
         // Spawn planet threads immediately
         let planet_threads = {
             let mut handles = Vec::new();
             let map = galaxy.lock().unwrap();
-            for node_arc in map.values() {
-                let node_arc = Arc::clone(node_arc);
+            for node in map.values() {
+                let inner = Arc::clone(&node.inner);
+                let node_id = node.id;
                 let handle = std::thread::spawn(move || {
-                    let mut node = node_arc.lock().unwrap();
-                    let planet = &mut node.planet;
+                    let mut inner_guard = inner.lock().unwrap();
+                    let planet = &mut inner_guard.planet;
                     let res = planet.run();
 
                     if let Err(e) = res {
@@ -120,7 +79,7 @@ impl Orchestrator {
                             Channel::Error,
                             payload!(
                                 action : "Planet encountered an error during its main loop",
-                                planet_id : node.id,
+                                planet_id : node_id,
                                 error : e,
                             ),
                         );
@@ -344,5 +303,44 @@ impl Orchestrator {
                 into_planet_id : planet_id,
             ),
         );
+    }
+}
+
+impl PlanetExplorerChannels {
+    pub fn new() -> Self {
+        Self {
+            planet_to_explorer_senders: Arc::new(Mutex::new(HashMap::new())),
+            explorer_to_planet_senders: Arc::new(Mutex::new(HashMap::new())),
+        }
+    }
+
+    pub fn add_plan_to_expl_sender(&mut self, explorer_id: ID, sender: Sender<PlanetToExplorer>) {
+        self.planet_to_explorer_senders
+            .lock()
+            .unwrap()
+            .insert(explorer_id, sender);
+    }
+
+    pub fn add_expl_to_plan_sender(&mut self, planet_id: ID, sender: Sender<ExplorerToPlanet>) {
+        self.explorer_to_planet_senders
+            .lock()
+            .unwrap()
+            .insert(planet_id, sender);
+    }
+
+    pub fn get_plan_to_expl_sender(&self, explorer_id: ID) -> Option<Sender<PlanetToExplorer>> {
+        self.planet_to_explorer_senders
+            .lock()
+            .unwrap()
+            .get(&explorer_id)
+            .cloned()
+    }
+
+    pub fn get_expl_to_plan_sender(&self, planet_id: ID) -> Option<Sender<ExplorerToPlanet>> {
+        self.explorer_to_planet_senders
+            .lock()
+            .unwrap()
+            .get(&planet_id)
+            .cloned()
     }
 }
