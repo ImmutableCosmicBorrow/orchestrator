@@ -16,7 +16,7 @@ use crate::payload;
 //TODO: Allow the PlanetMap to have dead planets so that they can be revived later
 pub(crate) type OrchPlanSenderMap = HashMap<ID, Sender<OrchestratorToPlanet>>;
 pub(crate) type ExplPlanSenderMap = HashMap<ID, Sender<ExplorerToPlanet>>;
-pub(crate) type PlanetMap = Arc<Mutex<HashMap<ID, Arc<Mutex<PlanetNode<Alive>>>>>>;
+pub(crate) type PlanetMap = Arc<Mutex<HashMap<ID, PlanetNode<Alive>>>>;
 
 // TODO: add a parameter to customize planet creation with other groups planets
 fn create_planet_with_channels(
@@ -120,7 +120,7 @@ pub fn galaxy_loader(
     // First pass: create all planet nodes
     let file = File::open(file_path).expect("Failed to open galaxy file");
     let reader = BufReader::new(file);
-    let mut out: HashMap<ID, Arc<Mutex<PlanetNode<Alive>>>> = HashMap::new();
+    let mut out: HashMap<ID, PlanetNode<Alive>> = HashMap::new();
 
     // Store edges for second pass
     let mut edges: Vec<(ID, Vec<ID>)> = Vec::new();
@@ -148,23 +148,23 @@ pub fn galaxy_loader(
 
         // Create planet node if not already present
         out.entry(id).or_insert_with(|| {
-            Arc::new(Mutex::new(create_planet_with_channels(
+            create_planet_with_channels(
                 &mut orch_to_plan_send,
                 &mut expl_to_plan_send,
                 id,
                 tx_orch_out.clone(),
-            )))
+            )
         });
 
         // Also ensure all neighbors exist as nodes
         for &neighbor_id in &neighbors {
             out.entry(neighbor_id).or_insert_with(|| {
-                Arc::new(Mutex::new(create_planet_with_channels(
+                create_planet_with_channels(
                     &mut orch_to_plan_send,
                     &mut expl_to_plan_send,
                     neighbor_id,
                     tx_orch_out.clone(),
-                )))
+                )
             });
         }
     }
@@ -173,9 +173,8 @@ pub fn galaxy_loader(
     for (id, neighbors) in edges {
         let node = out.get(&id).expect("Node missing");
         for neighbor_id in neighbors {
-            let neighbor: &Arc<Mutex<PlanetNode<Alive>>> =
-                out.get(&neighbor_id).expect("Neighbor node missing");
-            node.lock().unwrap().add_neighbor(Arc::downgrade(neighbor));
+            let neighbor = out.get(&neighbor_id).expect("Neighbor node missing");
+            node.add_neighbor(neighbor);
         }
     }
 

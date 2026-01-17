@@ -66,11 +66,12 @@ impl Orchestrator {
         let planet_threads = {
             let mut handles = Vec::new();
             let map = galaxy.lock().unwrap();
-            for node_arc in map.values() {
-                let node_arc = Arc::clone(node_arc);
+            for node in map.values() {
+                let inner = Arc::clone(&node.inner);
+                let node_id = node.id;
                 let handle = std::thread::spawn(move || {
-                    let mut node = node_arc.lock().unwrap();
-                    let planet = &mut node.planet;
+                    let mut inner_guard = inner.lock().unwrap();
+                    let planet = &mut inner_guard.planet;
                     let res = planet.run();
 
                     if let Err(e) = res {
@@ -78,7 +79,7 @@ impl Orchestrator {
                             Channel::Error,
                             payload!(
                                 action : "Planet encountered an error during its main loop",
-                                planet_id : node.id,
+                                planet_id : node_id,
                                 error : e,
                             ),
                         );

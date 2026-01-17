@@ -234,10 +234,197 @@ impl NeighborsDiscoveryConversation<WaitingExplorerNeighborsRequest> {
         curr_planet_id: ID,
     ) -> Result<Vec<ID>, Box<dyn ErrorType + Send + Sync>> {
         if let Some(curr_planet_ref) = self.state.galaxy.lock().unwrap().get(&curr_planet_id) {
-            let neighbors = curr_planet_ref.lock().unwrap().get_neighbors();
+            let neighbors = curr_planet_ref.get_neighbors();
             Ok(neighbors)
         } else {
             Err(Box::new(PlanetNotFound(curr_planet_id)))
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::galaxy_setup::galaxy_loader;
+
+    use super::*;
+    use crossbeam_channel::unbounded;
+    use std::collections::HashMap;
+    use std::sync::{Arc, Mutex};
+
+    const CONV_ID: u32 = 1;
+    const EXPLORER_ID: u32 = 2;
+    const INIT_PATH: &str = "test_galaxy.txt";
+
+    type ExplorerSenders =
+        Arc<Mutex<HashMap<ID, crossbeam_channel::Sender<OrchestratorToExplorer>>>>;
+
+    struct MakeSendersResult(
+        ExplorerSenders,
+        crossbeam_channel::Receiver<OrchestratorToExplorer>,
+    );
+
+    // --- Helper functions ---
+    fn make_senders_with(explorer_id: ID) -> MakeSendersResult {
+        let (tx, rx) = unbounded::<OrchestratorToExplorer>();
+        MakeSendersResult(Arc::new(Mutex::new(HashMap::from([(explorer_id, tx)]))), rx)
+    }
+
+    fn make_empty_senders() -> ExplorerSenders {
+        Arc::new(Mutex::new(HashMap::new()))
+    }
+
+    fn make_to_explorer_struct(explorer_id: ID, senders: ExplorerSenders) -> ToExplorerStruct {
+        ToExplorerStruct {
+            explorer_id,
+            explorers_senders: senders,
+        }
+    }
+
+    #[allow(clippy::unnecessary_box_returns)]
+    fn make_wait_conv(
+        senders: ExplorerSenders,
+        file_path: &str,
+    ) -> Box<NeighborsDiscoveryConversation<WaitingExplorerNeighborsRequest>> {
+        let to_explorer_struct = make_to_explorer_struct(EXPLORER_ID, senders);
+        let (galaxy, _planets_receiver, _orch_to_plan_senders, _expl_to_plan_senders) =
+            galaxy_loader(std::path::Path::new(file_path));
+        let state = WaitingExplorerNeighborsRequest::new(to_explorer_struct, galaxy);
+        Box::new(NeighborsDiscoveryConversation::<
+            WaitingExplorerNeighborsRequest,
+        >::new(CONV_ID, state))
+    }
+
+    #[allow(clippy::unnecessary_box_returns)]
+    fn make_send_conv(
+        senders: ExplorerSenders,
+        neighbors: Vec<ID>,
+    ) -> Box<NeighborsDiscoveryConversation<SendingNeighborsResponse>> {
+        let to_explorer_struct = make_to_explorer_struct(EXPLORER_ID, senders);
+        let state = SendingNeighborsResponse::new(to_explorer_struct, neighbors);
+        Box::new(NeighborsDiscoveryConversation::<SendingNeighborsResponse>::new(CONV_ID, state))
+    }
+
+    // --- Tests ---
+
+    #[test]
+    fn wait_correct_transition() {
+        let MakeSendersResult(senders, _rx) = make_senders_with(EXPLORER_ID);
+        let conv = make_wait_conv(senders, INIT_PATH);
+        let msg = PossibleMessage::ExplorerToOrch(ExplorerToOrchestrator::NeighborsRequest {
+            explorer_id: EXPLORER_ID,
+            current_planet_id: 1_010_001, // Valid planet ID from galaxy.json
+        });
+        let next_conv = conv
+            .transition(Some(msg))
+            .expect("Should transition to SendingNeighborsResponse state");
+        assert_eq!(next_conv.get_expected_kind(), None);
+        assert_eq!(next_conv.get_id(), CONV_ID);
+    }
+
+    #[test]
+    fn wait_wrong_message() {
+        let explorer_senders = make_empty_senders();
+        let conv = make_wait_conv(explorer_senders, INIT_PATH);
+        let wrong_msg =
+            PossibleMessage::ExplorerToOrch(ExplorerToOrchestrator::StartExplorerAIResult {
+                explorer_id: EXPLORER_ID,
+            });
+        let result = conv
+            .transition(Some(wrong_msg))
+            .expect("Should return an ErrorState");
+        assert_eq!(result.get_id(), CONV_ID);
+        assert_eq!(
+            result.get_error_details(),
+            Some("Wrong Message Received".to_string())
+        );
+    }
+
+    #[test]
+    fn wait_getters() {
+        let explorer_senders = make_empty_senders();
+        let conv = make_wait_conv(explorer_senders, INIT_PATH);
+        assert_eq!(conv.get_id(), CONV_ID);
+        assert_eq!(conv.get_entity_id(), EXPLORER_ID);
+        assert_eq!(
+            conv.get_expected_kind(),
+            Some(PossibleExpectedKinds::ExplorerToOrchKind(
+                ExplorerToOrchestratorKind::NeighborsRequest
+            ))
+        );
+        assert_eq!(conv.get_priority(), 3);
+    }
+
+    #[test]
+    fn wait_planet_not_found_error() {
+        let MakeSendersResult(senders, _rx) = make_senders_with(EXPLORER_ID);
+        let conv = make_wait_conv(senders, INIT_PATH);
+        // Use a planet ID that does not exist in galaxy.txt
+        let invalid_planet_id = 9_999_999;
+        let msg = PossibleMessage::ExplorerToOrch(ExplorerToOrchestrator::NeighborsRequest {
+            explorer_id: EXPLORER_ID,
+            current_planet_id: invalid_planet_id,
+        });
+        let result = conv
+            .transition(Some(msg))
+            .expect("Should return an ErrorState");
+        let details = result
+            .get_error_details()
+            .expect("Should have error details");
+        assert!(
+            details.contains(&format!("Planet {invalid_planet_id} not found")),
+            "Error message should mention planet not found"
+        );
+    }
+
+    #[test]
+    fn send_success() {
+        let MakeSendersResult(senders, _rx) = make_senders_with(EXPLORER_ID);
+        let conv = make_send_conv(senders, vec![10, 20, 30]);
+        let result = conv.transition(None);
+        assert!(
+            result.is_none(),
+            "Conversation should terminate after sending NeighborsResponse"
+        );
+    }
+
+    #[test]
+    fn send_missing_sender() {
+        let senders = make_empty_senders();
+        let conv = make_send_conv(senders, vec![10, 20, 30]);
+        let next_conv = conv.transition(None).expect("Should return an ErrorState");
+        assert!(next_conv.get_expected_kind().is_none());
+        assert_eq!(next_conv.get_id(), CONV_ID);
+        assert_eq!(
+            next_conv.get_error_details(),
+            Some(format!("sender to explorer {EXPLORER_ID} not found"))
+        );
+    }
+
+    #[test]
+    fn send_message_failure() {
+        let (tx, rx) = unbounded::<OrchestratorToExplorer>();
+        drop(rx);
+        let senders = Arc::new(Mutex::new(HashMap::from([(EXPLORER_ID, tx)])));
+        let conv = make_send_conv(senders, vec![10, 20, 30]);
+        let next_conv = conv.transition(None).expect("Should return an ErrorState");
+        let error_msg = next_conv
+            .get_error_details()
+            .expect("Should return an Error Details String");
+        assert_eq!(
+            error_msg,
+            format!("failed to send message to explorer {EXPLORER_ID}")
+        );
+    }
+
+    #[test]
+    fn send_getters() {
+        let MakeSendersResult(senders, _rx) = make_senders_with(EXPLORER_ID);
+        let to_explorer = make_to_explorer_struct(EXPLORER_ID, senders);
+        let state = SendingNeighborsResponse::new(to_explorer, vec![10, 20, 30]);
+        let conv = NeighborsDiscoveryConversation::<SendingNeighborsResponse>::new(CONV_ID, state);
+        assert_eq!(conv.get_id(), CONV_ID);
+        assert_eq!(conv.get_entity_id(), EXPLORER_ID);
+        assert_eq!(conv.get_expected_kind(), None);
+        assert_eq!(conv.get_priority(), 3);
     }
 }
