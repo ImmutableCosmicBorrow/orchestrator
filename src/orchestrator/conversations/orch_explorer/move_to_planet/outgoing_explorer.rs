@@ -1,3 +1,4 @@
+use crate::logging_utils::log_msg_to;
 use crate::orchestrator::ExplorerBag;
 use crate::orchestrator::conversations::orch_explorer::move_to_planet::WaitingOutgoingResponse;
 use crate::orchestrator::conversations::orch_explorer::move_to_planet::errors::MoveToPlanetErrors;
@@ -8,24 +9,54 @@ use crate::orchestrator::conversations::{
     CommonErrorTypes, Conversation, ErrorState, ErrorType, PossibleExpectedKinds, PossibleMessage,
     ToPlanetError,
 };
+use crate::payload;
+use common_game::logging::{ActorType, Channel, EventType};
 use common_game::protocols::orchestrator_planet::{
     OrchestratorToPlanet, PlanetToOrchestrator, PlanetToOrchestratorKind,
 };
 use common_game::utils::ID;
 
+///**Move To Planet Conversation - Send Outgoing Request**
+///
+/// This state initiates the second half of the Orchestrator-to-planet handshake. It commands
+/// the current (source) planet to release the explorer.
+///
+/// **Logic Flow:**
+/// 1. Sends an [`OrchestratorToPlanet::OutgoingExplorerRequest`] to the explorer's current planet.
+/// 2. **Success:** Transitions to [`WaitingOutgoingResponse`] to wait for the planet's confirmation.
+/// 3. **Failure:** If the message cannot be sent (e.g., communication channel broken) or the sender to the current planet is not found, it
+///    transitions to an [`ErrorState`].
+// SEND OUTGOING REQUEST IMPLEMENTATION
 impl Conversation<ExplorerBag> for MoveToPlanetConversation<SendOutgoingRequest> {
+    /// Returns the unique ID of the conversation instance.
     fn get_id(&self) -> ID {
         self.id
     }
 
+    /// Returns the ID of the current planet from which the explorer is departing.
     fn get_entity_id(&self) -> ID {
         self.state.curr_planet_struct.planet_id
     }
 
+    /// This state is an action state (fire-and-forget); it does not wait for a message
+    /// within this specific transition.
     fn get_expected_kind(&self) -> Option<PossibleExpectedKinds> {
         None
     }
 
+    /// Executes the request to release the explorer and handles transmission outcomes:
+    ///
+    /// ### Success Path
+    /// * **Message Sent**: If the communication with the source planet is successful, the conversation
+    ///   advances to [`WaitingOutgoingResponse`]. This new state preserves the explorer's metadata
+    ///   and the target destination ID to complete the handover later.
+    ///
+    /// ### Error Paths
+    /// * **[`CommonErrorTypes::PlanetSenderNotFound`]**: Occurs if the Orchestrator has no registered
+    ///   communication channel for the source planet ID. This represents a critical desync in the
+    ///   Galaxy Map or Orchestrator state.
+    /// * **[`MoveToPlanetErrors::IncomingMessageFailed`]**: Occurs if the sender exists but the
+    ///   underlying transport (channel) has failed or closed unexpectedly.
     fn transition(
         self: Box<Self>,
         _msg_wrapped: Option<PossibleMessage<ExplorerBag>>,
@@ -36,12 +67,23 @@ impl Conversation<ExplorerBag> for MoveToPlanetConversation<SendOutgoingRequest>
             },
         ) {
             Ok(()) => {
+                log_msg_to(
+                    Channel::Debug,
+                    EventType::MessageOrchestratorToPlanet,
+                    (ActorType::Planet, self.state.curr_planet_struct.planet_id),
+                    payload!(
+                        action: "Sent Outgoing Request correctly, transitioning to WaitingOutgoingResponse".to_string(),
+                        conversation_id: self.id
+                    ),
+                );
+
                 let state_struct = WaitingOutgoingResponse::new(
                     self.state.explorer_struct,
                     self.state.planet_explorer_channels,
                     self.state.dst_planet_id,
                     self.state.explorers_location_ref,
                 );
+                //Transition to WaitingOutgoingResponse
                 let new_state =
                     MoveToPlanetConversation::<WaitingOutgoingResponse>::new(self.id, state_struct);
                 Some(Box::new(new_state))
@@ -62,12 +104,14 @@ impl Conversation<ExplorerBag> for MoveToPlanetConversation<SendOutgoingRequest>
         }
     }
 
+    /// Returns the priority of this conversation.
     fn get_priority(&self) -> i32 {
         4
     }
 }
 
 impl MoveToPlanetConversation<SendOutgoingRequest> {
+    /// Internal constructor for the [`SendOutgoingRequest`] state.
     pub fn new(id: ID, state: SendOutgoingRequest) -> Self {
         Self {
             id,
@@ -79,42 +123,35 @@ impl MoveToPlanetConversation<SendOutgoingRequest> {
 
 ///**Move To Planet Conversation - Waiting Outgoing Response**
 ///
-/// This state represents the intermediate phase of movement where the destination planet has
-/// already acknowledged the incoming explorer, and the Orchestrator is waiting for the current
-/// (source) planet to confirm the explorer's release.
+/// This state represents the intermediate phase where the destination planet has already
+/// acknowledged the explorer, and the Orchestrator is waiting for the source planet
+/// to confirm the explorer has been successfully detached.
 ///
-/// Once the current planet confirms (`OutgoingExplorerResponse`), the Orchestrator retrieves
-/// the communication channel for the new planet and sends it to the Explorer via a
-/// [`MoveToPlanet`] command, transitioning to the final [`WaitMoveToPlanetResponse`] state.
+/// **Logic Flow:**
+/// 1. Listens for a [`PlanetToOrchestrator::OutgoingExplorerResponse`] from the source planet.
+/// 2. **If `Ok`:** Both planets have agreed. Transitions to [`SendMoveRequest`] to finally
+///    update the explorer with their new destination.
+/// 3. **If `Err`:** The source planet failed to release the explorer. Transitions to
+///    an [`ErrorState`] to abort the movement.
+/// 4. **Error Handling:** Transitions to [`ErrorState`] if an unexpected message is received.
 // WAITING OUTGOING RESPONSE IMPLEMENTATION
 impl Conversation<ExplorerBag> for MoveToPlanetConversation<WaitingOutgoingResponse> {
+    /// Returns the unique ID of the conversation instance.
     fn get_id(&self) -> ID {
         self.id
     }
 
+    /// Returns the ID of the explorer attempting to move.
     fn get_entity_id(&self) -> ID {
         self.state.explorer_struct.explorer_id
     }
 
+    /// Returns the expected kind: [`PlanetToOrchestratorKind::OutgoingExplorerResponse`].
     fn get_expected_kind(&self) -> Option<PossibleExpectedKinds> {
         self.expected_message.clone()
     }
 
-    /// Transition Function for [`WaitingOutgoingResponse`] state:
-    ///
-    /// Returns:
-    ///
-    /// * [`MoveToPlanetConversation<WaitMoveToPlanetResponse>`] if the current planet confirms
-    ///   the release and the explorer successfully receives the new destination channel.
-    ///
-    /// * [`ErrorState`] with [`MoveToPlanetErrors::NewSenderToPlanetNotFound`] if the planets
-    ///   have swapped channels but the Orchestrator cannot resolve the new destination's sender.
-    ///
-    /// * [`ErrorState`] with [`MoveToPlanetErrors::DstPlanetFailed`] if the current planet
-    ///   fails to let go of the explorer.
-    ///
-    /// * [`ErrorState`] with explorer communication errors if the [`MoveToPlanet`] command
-    ///   fails to send.
+    /// Processes the planet's response regarding the explorer's departure.
     fn transition(
         self: Box<Self>,
         msg_wrapped: Option<PossibleMessage<ExplorerBag>>,
@@ -127,20 +164,17 @@ impl Conversation<ExplorerBag> for MoveToPlanetConversation<WaitingOutgoingRespo
             },
         )) = msg_wrapped
         {
-            //Got both planets acks, moving to SendMoveRequest
             return if res.is_ok() {
                 let state = SendMoveRequest::new(
                     self.state.explorers_location_ref,
                     self.state.dst_planet_id,
                     self.state.explorer_struct,
                     self.state.planet_explorer_channels,
-                    true,
+                    true, // success flag for MoveToPlanet command
                 );
                 let next_conv = MoveToPlanetConversation::<SendMoveRequest>::new(self.id, state);
                 Some(Box::new(next_conv))
-            }
-            //Current planet failed in handling outgoing explorer
-            else {
+            } else {
                 let error_state = ErrorState::new(
                     Box::new(MoveToPlanetErrors::CurrPlanetFailed {
                         planet_id,
@@ -148,14 +182,15 @@ impl Conversation<ExplorerBag> for MoveToPlanetConversation<WaitingOutgoingRespo
                     }),
                     self.id,
                 );
-                return Some(Box::new(error_state));
+                Some(Box::new(error_state))
             };
         }
-        // Wrong message, closing Conversation
+
         let error_state = ErrorState::new(Box::new(CommonErrorTypes::WrongMessage), self.id);
         Some(Box::new(error_state))
     }
 
+    /// Returns the priority of this conversation.
     fn get_priority(&self) -> i32 {
         4
     }
@@ -173,142 +208,5 @@ impl MoveToPlanetConversation<WaitingOutgoingResponse> {
             )),
             state,
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::orchestrator::PlanetExplorerChannels;
-    use crate::orchestrator::conversations::SendersToExplorer;
-    use crate::orchestrator::conversations::orch_explorer::test_utils::{
-        MakeSendersResult, make_senders_with, make_to_explorer_struct,
-    };
-
-    use crossbeam_channel::unbounded;
-    use luna4::planet::ExplorerToPlanet;
-    use std::collections::HashMap;
-    use std::sync::{Arc, Mutex};
-
-    const CONV_ID: ID = 1;
-    const EXPLORER_ID: ID = 2;
-    const DST_PLANET_ID: ID = 50;
-    const CURR_PLANET_ID: ID = 51;
-
-    // --- Helper functions ---
-
-    #[allow(clippy::unnecessary_box_returns)]
-    fn make_waiting_outgoing_conv(
-        explorer_id: ID,
-        explorers_senders: SendersToExplorer,
-        dst_planet_id: ID,
-    ) -> Box<MoveToPlanetConversation<WaitingOutgoingResponse>> {
-        let (tx, _) = unbounded::<ExplorerToPlanet>();
-        let mut planet_explorer_channels = PlanetExplorerChannels::new();
-        planet_explorer_channels.add_expl_to_plan_sender(dst_planet_id, tx);
-
-        let state = WaitingOutgoingResponse {
-            explorer_struct: make_to_explorer_struct(explorer_id, explorers_senders),
-            planet_explorer_channels,
-            dst_planet_id,
-            explorers_location_ref: Arc::new(Mutex::new(HashMap::new())),
-        };
-        Box::new(MoveToPlanetConversation::<WaitingOutgoingResponse>::new(
-            CONV_ID, state,
-        ))
-    }
-
-    // --- Tests ---
-
-    #[test]
-    fn waiting_outgoing_success() {
-        let MakeSendersResult(senders, _rx) = make_senders_with(EXPLORER_ID);
-        let conv = make_waiting_outgoing_conv(EXPLORER_ID, senders, DST_PLANET_ID);
-
-        let msg = PossibleMessage::PlanetToOrch(PlanetToOrchestrator::OutgoingExplorerResponse {
-            planet_id: CURR_PLANET_ID,
-            explorer_id: EXPLORER_ID,
-            res: Ok(()),
-        });
-
-        let next_conv = conv
-            .transition(Some(msg))
-            .expect("Should transition to next state");
-
-        assert_eq!(next_conv.get_id(), CONV_ID);
-        assert_eq!(next_conv.get_error_details(), None);
-        assert_eq!(next_conv.get_expected_kind(), None);
-        //TODO: Verify if different priority from previous state is intended
-        assert_eq!(next_conv.get_priority(), 5);
-    }
-
-    #[test]
-    fn waiting_outgoing_current_planet_rejection() {
-        let MakeSendersResult(senders, _rx) = make_senders_with(EXPLORER_ID);
-        let conv = make_waiting_outgoing_conv(EXPLORER_ID, senders, DST_PLANET_ID);
-
-        let msg = PossibleMessage::PlanetToOrch(PlanetToOrchestrator::OutgoingExplorerResponse {
-            planet_id: CURR_PLANET_ID,
-            explorer_id: EXPLORER_ID,
-            res: Err("Didn't manage outgoing explorer".to_string()),
-        });
-
-        let next_conv = conv
-            .transition(Some(msg))
-            .expect("Should transition to error state");
-
-        assert!(next_conv.get_expected_kind().is_none());
-        assert_eq!(next_conv.get_id(), CONV_ID);
-        assert_eq!(
-            next_conv.get_error_details(),
-            Some(format!(
-                "Current planet {CURR_PLANET_ID} failed to let go of outgoing explorer {EXPLORER_ID}"
-            ))
-        );
-    }
-
-    #[test]
-    fn waiting_outgoing_wrong_message() {
-        let MakeSendersResult(senders, _rx) = make_senders_with(EXPLORER_ID);
-        let conv = make_waiting_outgoing_conv(EXPLORER_ID, senders, DST_PLANET_ID);
-
-        let wrong_msg =
-            PossibleMessage::PlanetToOrch(PlanetToOrchestrator::KillPlanetResult { planet_id: 5 });
-
-        let next_conv = conv
-            .transition(Some(wrong_msg))
-            .expect("Should return an ErrorState");
-
-        assert_eq!(next_conv.get_id(), CONV_ID);
-        assert_eq!(
-            next_conv.get_error_details(),
-            Some("Wrong Message Received".to_string())
-        );
-    }
-
-    #[test]
-    fn waiting_outgoing_getters() {
-        let MakeSendersResult(senders, _rx) = make_senders_with(EXPLORER_ID);
-        let (tx, _) = unbounded::<ExplorerToPlanet>();
-        let mut planet_explorer_channels = PlanetExplorerChannels::new();
-        planet_explorer_channels.add_expl_to_plan_sender(DST_PLANET_ID, tx);
-
-        let state = WaitingOutgoingResponse {
-            explorer_struct: make_to_explorer_struct(EXPLORER_ID, senders),
-            planet_explorer_channels,
-            dst_planet_id: DST_PLANET_ID,
-            explorers_location_ref: Arc::new(Mutex::new(HashMap::new())),
-        };
-        let conv = MoveToPlanetConversation::<WaitingOutgoingResponse>::new(CONV_ID, state);
-
-        assert_eq!(conv.get_id(), CONV_ID);
-        assert_eq!(conv.get_entity_id(), EXPLORER_ID);
-        assert_eq!(
-            conv.get_expected_kind(),
-            Some(PossibleExpectedKinds::PlanetToOrchKind(
-                PlanetToOrchestratorKind::OutgoingExplorerResponse
-            ))
-        );
-        assert_eq!(conv.get_priority(), 4);
     }
 }

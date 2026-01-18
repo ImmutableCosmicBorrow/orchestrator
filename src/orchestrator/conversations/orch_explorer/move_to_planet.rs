@@ -12,15 +12,15 @@ use common_game::utils::ID;
 
 ///**Move To Planet Conversation - State Container**
 ///
-/// This generic struct acts as the container for the FSM. The `State` parameter
-/// determines which `Conversation` trait implementation is active, effectively
-/// controlling the available transitions and expected messages.
+/// This generic struct acts as the primary container for the Movement Finite State Machine (FSM).
+/// The `State` type parameter determines the current lifecycle phase of the movement,
+/// controlling valid transitions and defining which messages the conversation in this specific state expects to receive.
 struct MoveToPlanetConversation<State> {
-    /// Unique identifier for the conversation instance.
+    /// Unique identifier for this specific conversation instance.
     id: ID,
-    /// The current state data.
+    /// The data and context specific to the current lifecycle state.
     state: State,
-    /// The specific message type the Orchestrator should look for to advance this conversation.
+    /// The specific message type the Orchestrator polls for to advance this conversation.
     expected_message: Option<PossibleExpectedKinds>,
 }
 
@@ -28,12 +28,30 @@ struct MoveToPlanetConversation<State> {
 
 /// **State 1: `WaitingTravelRequest`**
 ///
-/// The initial state where the conversation waits for the Explorer to request movement.
-/// It contains all necessary references to validate the move against the galaxy map.
+/// The entry point for explorer-initiated movement. The conversation remains in this state
+/// while waiting for an Explorer to send a travel request.
 pub(crate) struct WaitingTravelRequest {
-    /// Reference to the galaxy structure to check planet connectivity.
+    /// Reference to the galaxy map used to verify if the destination is a valid neighbor.
     galaxy: PlanetMap,
-    /// Channel map to resolve new communication paths between planets and explorers.
+    /// Registry used to resolve and update communication channels between entities.
+    planet_explorer_channels: PlanetExplorerChannels,
+    /// Wrapper for communicating with the explorer's current planet.
+    curr_planet_struct: ToPlanetStruct,
+    /// Wrapper for communicating with the explorer's target planet.
+    dst_planet_struct: ToPlanetStruct,
+    /// Wrapper for communicating with the explorer entity itself.
+    explorer_struct: ToExplorerStruct,
+    /// Thread-safe reference to the global registry of explorer locations.
+    explorers_location_ref: ExplorersLocationRef,
+}
+
+/// **Alternative Start State: `SendManualMoveRequest`**
+///
+/// An alternative entry point to the FSM. Used when the Orchestrator initiates
+/// a move directly (e.g., via administrative command) rather than responding
+/// to an explorer's request.
+pub(crate) struct SendManualMoveRequest {
+    /// Registry to resolve channels for the forced movement.
     planet_explorer_channels: PlanetExplorerChannels,
     /// Connection info for the current planet (source).
     curr_planet_struct: ToPlanetStruct,
@@ -41,20 +59,43 @@ pub(crate) struct WaitingTravelRequest {
     dst_planet_struct: ToPlanetStruct,
     /// Connection info for the explorer performing the move.
     explorer_struct: ToExplorerStruct,
-    /// Reference to the global explorer location list.
+    /// Reference to the global explorer location registry.
     explorers_location_ref: ExplorersLocationRef,
 }
 
+impl SendManualMoveRequest {
+    pub(crate) fn new(
+        explorers_location_ref: ExplorersLocationRef,
+        curr_planet_struct: ToPlanetStruct,
+        dst_planet_struct: ToPlanetStruct,
+        explorer_struct: ToExplorerStruct,
+        planet_explorer_channels: PlanetExplorerChannels,
+    ) -> Self {
+        Self {
+            planet_explorer_channels,
+            curr_planet_struct,
+            dst_planet_struct,
+            explorer_struct,
+            explorers_location_ref,
+        }
+    }
+}
 /// **State 2: `SendIncomingRequest`**
 ///
-/// Set after the destination planet has been asked to accept the explorer.
-/// Holds references to the current planet to initiate the "release" phase next.
+/// An action state where the Orchestrator prepares to notify the destination planet
+/// of an incoming explorer.
 pub(crate) struct SendIncomingRequest {
+    /// Connection info for the source planet.
     curr_planet_struct: ToPlanetStruct,
+    /// Connection info for the moving explorer.
     explorer_struct: ToExplorerStruct,
+    /// Connection info for the destination planet.
     dst_planet_struct: ToPlanetStruct,
+    /// Channel registry for resolving new entity paths.
     planet_explorer_channels: PlanetExplorerChannels,
+    /// Global explorer location registry.
     explorers_location_ref: ExplorersLocationRef,
+    /// Flag determining if the source planet needs to be notified of the departure.
     handle_outgoing: bool,
 }
 
@@ -78,16 +119,22 @@ impl SendIncomingRequest {
     }
 }
 
-/// **State 2: `WaitingIncomingResponse`**
+/// **State 3: `WaitingIncomingResponse`**
 ///
-/// Set after the destination planet has been asked to accept the explorer.
-/// Holds references to the current planet to initiate the "release" phase next.
+/// A waiting state where the Orchestrator expects a response from the destination
+/// planet regarding the acquisition of the explorer.
 pub(crate) struct WaitingIncomingResponse {
+    /// Context for the source planet to be used if acquisition is accepted.
     curr_planet_struct: ToPlanetStruct,
+    /// Context for the moving explorer.
     explorer_struct: ToExplorerStruct,
+    /// ID of the destination planet.
     dst_planet_id: ID,
+    /// Channel registry for resolving new entity paths.
     planet_explorer_channels: PlanetExplorerChannels,
+    /// Global explorer location registry.
     explorers_location_ref: ExplorersLocationRef,
+    /// Flag indicating if the source planet release handshake is required.
     handle_outgoing: bool,
 }
 
@@ -111,42 +158,20 @@ impl WaitingIncomingResponse {
     }
 }
 
-/// **State 3: `WaitingOutgoingResponse`**
+/// **State 4: `SendOutgoingRequest`**
 ///
-/// Set after the destination has accepted and the source planet has been asked to
-/// release the explorer. Once this resolves, the Orchestrator will hand the new
-/// channel to the Explorer.
-pub(crate) struct WaitingOutgoingResponse {
-    explorer_struct: ToExplorerStruct,
-    planet_explorer_channels: PlanetExplorerChannels,
-    dst_planet_id: ID,
-    explorers_location_ref: ExplorersLocationRef,
-}
-
-impl WaitingOutgoingResponse {
-    pub(crate) fn new(
-        explorer_struct: ToExplorerStruct,
-        planet_explorer_channels: PlanetExplorerChannels,
-        dst_planet_id: ID,
-        explorers_location_ref: ExplorersLocationRef,
-    ) -> Self {
-        Self {
-            explorer_struct,
-            planet_explorer_channels,
-            dst_planet_id,
-            explorers_location_ref,
-        }
-    }
-}
-
-/// **State 3: `SendOutgoingRequest`**
-///
-///
+/// An action state reached after the destination planet has accepted the explorer.
+/// The Orchestrator now commands the source planet to "let go" of the explorer entity.
 pub(crate) struct SendOutgoingRequest {
+    /// Context for the source planet being commanded to release the explorer.
     curr_planet_struct: ToPlanetStruct,
+    /// Context for the moving explorer.
     explorer_struct: ToExplorerStruct,
+    /// Registry for channel management.
     planet_explorer_channels: PlanetExplorerChannels,
+    /// ID of the destination planet the explorer is heading toward.
     dst_planet_id: ID,
+    /// Global explorer location registry.
     explorers_location_ref: ExplorersLocationRef,
 }
 
@@ -168,80 +193,52 @@ impl SendOutgoingRequest {
     }
 }
 
-/// **State 4: `WaitMoveToPlanetResponse`**
+/// **State 5: `WaitingOutgoingResponse`**
 ///
-/// The final confirmation state. It waits for the Explorer to acknowledge it
-/// has switched to the new planet's channel.
-pub(crate) struct WaitMoveToPlanetResponse {
-    /// ID of the explorer.
-    explorer_id: ID,
-    /// Reference to the global list to be updated upon final success.
-    explorers_location_ref: ExplorersLocationRef,
-    /// Flag to determine if a location update is actually required (False if move was denied).
-    is_explorer_moving: bool,
-    /// The ID of the planet the explorer is moving to.
-    dst_planet_id: ID,
-}
-
-impl WaitMoveToPlanetResponse {
-    pub(crate) fn new(
-        explorers_location_ref: ExplorersLocationRef,
-        is_explorer_moving: bool,
-        dst_planet_id: ID,
-        explorer_id: ID,
-    ) -> Self {
-        Self {
-            explorer_id,
-            explorers_location_ref,
-            is_explorer_moving,
-            dst_planet_id,
-        }
-    }
-}
-
-/// **State 5: `SendManualMoveRequest`**
-///
-/// An alternative to [`WaitTravelRequest`], used when the orchestrator manually moves an explorer
-pub(crate) struct SendManualMoveRequest {
-    planet_explorer_channels: PlanetExplorerChannels,
-    /// Connection info for the current planet (source).
-    curr_planet_struct: ToPlanetStruct,
-    /// Connection info for the target planet (destination).
-    dst_planet_struct: ToPlanetStruct,
-    /// Connection info for the explorer performing the move.
+/// A waiting state where the Orchestrator expects the source planet to confirm
+/// that the explorer has been successfully released.
+pub(crate) struct WaitingOutgoingResponse {
+    /// Context for the moving explorer.
     explorer_struct: ToExplorerStruct,
-    /// Reference to the global explorer location list.
+    /// Registry for providing the explorer with new planet channels upon release.
+    planet_explorer_channels: PlanetExplorerChannels,
+    /// Target destination ID.
+    dst_planet_id: ID,
+    /// Global explorer location registry.
     explorers_location_ref: ExplorersLocationRef,
 }
 
-impl SendManualMoveRequest {
+impl WaitingOutgoingResponse {
     pub(crate) fn new(
-        explorers_location_ref: ExplorersLocationRef,
-        curr_planet_struct: ToPlanetStruct,
-        dst_planet_struct: ToPlanetStruct,
         explorer_struct: ToExplorerStruct,
         planet_explorer_channels: PlanetExplorerChannels,
+        dst_planet_id: ID,
+        explorers_location_ref: ExplorersLocationRef,
     ) -> Self {
         Self {
-            planet_explorer_channels,
-            curr_planet_struct,
-            dst_planet_struct,
             explorer_struct,
+            planet_explorer_channels,
+            dst_planet_id,
             explorers_location_ref,
         }
     }
 }
 
-/// **State 6: `ReceivedPlanetsAcks`**
+/// **State 6: `SendMoveRequest`**
 ///
-/// An alternative to [`WaitTravelRequest`], used when the orchestrator manually moves an explorer
+/// Reached after both planets have acknowledged the move. The Orchestrator
+/// now sends the final `MoveToPlanet` command to the explorer, including
+/// the destination's communication channel if the move is authorized.
 pub(crate) struct SendMoveRequest {
+    /// Registry used to provide the destination's channel to the explorer.
     planet_explorer_channels: PlanetExplorerChannels,
+    /// ID of the planet the explorer is moving to.
     dst_planet_id: ID,
-    /// Connection info for the explorer performing the move.
+    /// Context for the moving explorer.
     explorer_struct: ToExplorerStruct,
-    /// Reference to the global explorer location list.
+    /// Global explorer location registry.
     explorers_location_ref: ExplorersLocationRef,
+    /// Boolean flag; if false, the explorer is notified that the move was denied.
     is_explorer_moving: bool,
 }
 
@@ -259,6 +256,37 @@ impl SendMoveRequest {
             explorer_struct,
             explorers_location_ref,
             is_explorer_moving,
+        }
+    }
+}
+
+/// **State 7: `WaitMoveToPlanetResponse`**
+///
+/// The final terminal state. The Orchestrator waits for the explorer to confirm
+/// that it has successfully transitioned to the new planet's channel.
+pub(crate) struct WaitMoveToPlanetResponse {
+    /// ID of the explorer entity.
+    explorer_id: ID,
+    /// Reference to the global list to be updated upon final transition success.
+    explorers_location_ref: ExplorersLocationRef,
+    /// Determines if the global location list should be updated (false if the move was rejected).
+    is_explorer_moving: bool,
+    /// The ID of the planet the explorer is arriving at.
+    dst_planet_id: ID,
+}
+
+impl WaitMoveToPlanetResponse {
+    pub(crate) fn new(
+        explorers_location_ref: ExplorersLocationRef,
+        is_explorer_moving: bool,
+        dst_planet_id: ID,
+        explorer_id: ID,
+    ) -> Self {
+        Self {
+            explorer_id,
+            explorers_location_ref,
+            is_explorer_moving,
+            dst_planet_id,
         }
     }
 }

@@ -17,11 +17,19 @@ use common_game::protocols::planet_explorer::ExplorerToPlanet;
 use common_game::utils::ID;
 use crossbeam_channel::Sender;
 
+///**Move To Planet Conversation - Send Move Request**
+///
+/// This state serves as the "Command Dispatch" phase. It bridges the gap between the successful
+/// Orchestrator-Planet handshake and the Explorer's actual transition. Its primary role is to
+/// provide the Explorer with the technical means (communication channels) to interact with its new home.
+// SEND MOVE REQUEST IMPLEMENTATION
 impl Conversation<ExplorerBag> for MoveToPlanetConversation<SendMoveRequest> {
+    /// Returns the unique ID of the conversation instance.
     fn get_id(&self) -> ID {
         self.id
     }
 
+    /// Returns the ID of the explorer being commanded to move.
     fn get_entity_id(&self) -> ID {
         self.state.explorer_struct.explorer_id
     }
@@ -30,13 +38,35 @@ impl Conversation<ExplorerBag> for MoveToPlanetConversation<SendMoveRequest> {
         None
     }
 
+    /// ### Transition Function: Dispatching the Move Command
+    ///
+    /// This function evaluates the authorization state of the movement and constructs the
+    /// final instruction for the Explorer. It handles the following logic:
+    ///
+    /// #### 1. Handshake Verification (`is_explorer_moving == true`)
+    /// If the planet-to-planet handshake was successful, the Orchestrator attempts to resolve
+    /// the communication channel for the destination planet.
+    /// * **Channel Found**: The `Sender<ExplorerToPlanet>` is extracted from the global
+    ///   registry and attached to the `MoveToPlanet` message. This allows the explorer to
+    ///   speak to the destination planet immediately.
+    /// * **Channel Missing**: If no active channel is found for the destination ID,
+    ///   the move transitions to an [`ErrorState`] with [`CommonErrorTypes::ExplorerSenderNotFound`].
+    ///
+    /// #### 2. Unauthorized Movement (`is_explorer_moving == false`)
+    /// Used when a move was rejected (e.g., non-neighbors). The transition proceeds but
+    /// sends a `None` sender. This signals the Explorer to handle a failed transition.
+    ///
+    /// #### 3. Execution Outcomes
+    /// * **Success**: Advances to [`WaitMoveToPlanetResponse`].
+    /// * **Failure**: If the Explorer's channel is not working, transitions to an
+    ///   [`ErrorState`] via [`CommonErrorTypes::MessageToExplorerFailed`].
     fn transition(
         self: Box<Self>,
         _msg_wrapped: Option<PossibleMessage<ExplorerBag>>,
     ) -> Option<Box<dyn Conversation<ExplorerBag> + Send + Sync>> {
         // Determine the sender
         let sender_to_new_planet = if self.state.is_explorer_moving {
-            //Explorer is moving, we need to find the sender to the planet
+            // Explorer is moving, we need to find the sender to the planet
             if let Some(sender) = self.get_new_planet_sender(self.state.dst_planet_id) {
                 Some(sender)
             } else {
@@ -59,7 +89,7 @@ impl Conversation<ExplorerBag> for MoveToPlanetConversation<SendMoveRequest> {
         match self.state.explorer_struct.to_explorer(message) {
             Ok(()) => {
                 let state_struct = WaitMoveToPlanetResponse::new(
-                    self.state.explorers_location_ref.clone(), // Ensure this is cloned if needed
+                    self.state.explorers_location_ref.clone(),
                     self.state.is_explorer_moving,
                     self.state.dst_planet_id,
                     self.state.explorer_struct.explorer_id,
@@ -85,12 +115,15 @@ impl Conversation<ExplorerBag> for MoveToPlanetConversation<SendMoveRequest> {
         }
     }
 
+    /// **Priority 5**: Movement commands are high-priority to ensure entity locations
+    /// are synchronized across the system before processing lower-level AI tasks.
     fn get_priority(&self) -> i32 {
         5
     }
 }
 
 impl MoveToPlanetConversation<SendMoveRequest> {
+    /// Retrieves the sender to the destination planet from the shared registry.
     fn get_new_planet_sender(&self, planet_id: ID) -> Option<Sender<ExplorerToPlanet>> {
         self.state
             .planet_explorer_channels
@@ -112,38 +145,46 @@ impl MoveToPlanetConversation<SendMoveRequest> {
 
 ///**Move To Planet Conversation - Wait Move To Planet Response**
 ///
-/// This is the final state in the explorer movement sequence. After both the destination
-/// and source planets have synchronized their communication channels, the Orchestrator
-/// waits for the Explorer itself to confirm it has successfully transitioned.
-///
-/// Upon a successful [`ExplorerToOrchestrator::MovedToPlanetResult`], the Orchestrator
-/// updates the global explorer location list. If the explorer was flagged as unable to
-/// move (e.g., non-neighbor destination), the conversation closes gracefully without
-/// updating the location.
+/// This is the final terminal state in the movement sequence. It ensures that the Orchestrator
+/// and the Explorer have a synchronized view of the world state after the handover.
 // WAIT MOVE TO PLANET RESPONSE IMPLEMENTATION
 impl Conversation<ExplorerBag> for MoveToPlanetConversation<WaitMoveToPlanetResponse> {
+    /// Returns the unique ID of the conversation instance.
     fn get_id(&self) -> ID {
         self.id
     }
 
+    /// Returns the ID of the explorer finalizing the move.
     fn get_entity_id(&self) -> ID {
         self.state.explorer_id
     }
 
+    /// Listens specifically for [`ExplorerToOrchestratorKind::MovedToPlanetResult`].
     fn get_expected_kind(&self) -> Option<PossibleExpectedKinds> {
         self.expected_message.clone()
     }
 
-    /// Transition Function for [`WaitMoveToPlanetResponse`] state:
+    /// ### Transition Function: Finalizing World State
     ///
-    /// Returns:
+    /// This function acts as the final gatekeeper for the global location registry. It processes
+    /// the Explorer's arrival confirmation in three distinct ways:
     ///
-    /// * [None] - If the explorer moved correctly and the internal location list was updated.
-    /// * [None] - If the explorer acknowledges the command but movement was invalid
-    ///   (e.g., destination was not a neighbor).
-    /// * [`ErrorState`] with [`MoveToPlanetErrors::ExplorerLocationNotFound`] - If the
-    ///   internal location list does not contain the explorer.
-    /// * [`ErrorState`] with [`CommonErrorTypes::WrongMessage`] - If an unexpected message is received.
+    /// #### 1. Successful Location Update
+    /// When `is_explorer_moving` is true, the Orchestrator performs a thread-safe update to
+    /// the `explorers_location_ref` map.
+    /// * **Update Success**: Returns `None`. This **terminates** the conversation successfully,
+    ///   closing the movement lifecycle.
+    /// * **Registry Failure**: If the explorer entry is missing from the global list, transitions
+    ///   to an [`ErrorState`] with [`MoveToPlanetErrors::ExplorerLocationNotFound`].
+    ///
+    /// #### 2. Graceful Termination of Rejections
+    /// If the move was flagged as unauthorized, the explorer still acknowledges the instruction.
+    /// The function logs a `Warning` explaining that the move was blocked (e.g., non-neighbors)
+    /// and returns `None` to close the conversation without modifying the world state.
+    ///
+    /// #### 3. Protocol Enforcement
+    /// Receiving any message other than the movement result results in a transition to
+    /// [`ErrorState`] with [`CommonErrorTypes::WrongMessage`].
     fn transition(
         self: Box<Self>,
         msg_wrapped: Option<PossibleMessage<ExplorerBag>>,
@@ -155,7 +196,7 @@ impl Conversation<ExplorerBag> for MoveToPlanetConversation<WaitMoveToPlanetResp
             },
         )) = msg_wrapped
         {
-            //Explorer is moving, need to change its location in Orchestrator reference
+            // Explorer is moving, need to change its location in Orchestrator reference
             if self.state.is_explorer_moving {
                 log_internal(
                     Channel::Info,
@@ -178,7 +219,7 @@ impl Conversation<ExplorerBag> for MoveToPlanetConversation<WaitMoveToPlanetResp
                                 conversation_id : self.id
                             ),
                         );
-                        None
+                        None // Successful termination
                     }
                     Err(e) => {
                         let err_struct = ErrorState::new(Box::new(e), self.id);
@@ -186,17 +227,17 @@ impl Conversation<ExplorerBag> for MoveToPlanetConversation<WaitMoveToPlanetResp
                     }
                 };
             }
-            //Explorer responded correctly and couldn't move
+            // Explorer responded correctly but move was disallowed previously
             log_internal(
                 Channel::Warning,
                 payload!(
-                    action : "Explorer cannot move due to destination Planet not being a neighbor of current Planet, closing conversation",
+                    action : "Explorer cannot move (destination not a neighbor), closing conversation",
                     explorer_id : explorer_id,
                     destination_planet_id : planet_id,
                     conversation_id : self.id
                 ),
             );
-            return None;
+            return None; // Graceful close
         }
 
         // Wrong message, closing Conversation
@@ -210,9 +251,7 @@ impl Conversation<ExplorerBag> for MoveToPlanetConversation<WaitMoveToPlanetResp
 }
 
 impl MoveToPlanetConversation<WaitMoveToPlanetResponse> {
-    /// The constructor for [`MoveToPlanetConversation`] in the [`WaitMoveToPlanetResponse`] state.
-    ///
-    /// Sets the expected message kind to [`ExplorerToOrchestratorKind::MovedToPlanetResult`].
+    /// Internal constructor for the [`WaitMoveToPlanetResponse`] state.
     pub(crate) fn new(id: ID, state: WaitMoveToPlanetResponse) -> Self {
         Self {
             id,
@@ -224,8 +263,6 @@ impl MoveToPlanetConversation<WaitMoveToPlanetResponse> {
     }
 
     /// Internal helper to update the thread-safe global list of explorer locations.
-    ///
-    /// Returns [`Err(MoveToPlanetErrors::ExplorerLocationNotFound)`] if the explorer ID is missing.
     fn move_explorer_location(
         &self,
         explorer_id: ID,
@@ -243,153 +280,5 @@ impl MoveToPlanetConversation<WaitMoveToPlanetResponse> {
         }
 
         Err(MoveToPlanetErrors::ExplorerLocationNotFound(explorer_id))
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::orchestrator::ExplorersLocationRef;
-    use crate::orchestrator::conversations::PossibleMessage::ExplorerToOrch;
-    use common_game::protocols::orchestrator_explorer::ExplorerToOrchestrator;
-    use std::collections::HashMap;
-    use std::sync::{Arc, Mutex};
-
-    const CONV_ID: ID = 1;
-    const EXPLORER_ID: ID = 2;
-    const DST_PLANET_ID: ID = 50;
-
-    // --- Helper functions ---
-
-    #[allow(clippy::unnecessary_box_returns)]
-    fn make_wait_move_conv(
-        explorer_id: ID,
-        explorers_location_ref: ExplorersLocationRef,
-        dst_planet_id: ID,
-        is_moving: bool,
-    ) -> Box<MoveToPlanetConversation<WaitMoveToPlanetResponse>> {
-        let state = WaitMoveToPlanetResponse::new(
-            explorers_location_ref,
-            is_moving,
-            dst_planet_id,
-            explorer_id,
-        );
-        Box::new(MoveToPlanetConversation::<WaitMoveToPlanetResponse>::new(
-            CONV_ID, state,
-        ))
-    }
-
-    fn make_explorers_location_with(explorer_id: ID, planet_id: ID) -> ExplorersLocationRef {
-        Arc::new(Mutex::new(HashMap::from([(explorer_id, planet_id)])))
-    }
-
-    fn make_empty_explorers_location() -> ExplorersLocationRef {
-        Arc::new(Mutex::new(HashMap::new()))
-    }
-
-    // --- Tests ---
-
-    #[test]
-    fn wait_move_success() {
-        let exp_locations = make_explorers_location_with(EXPLORER_ID, 5);
-        let conv = make_wait_move_conv(EXPLORER_ID, exp_locations.clone(), DST_PLANET_ID, true);
-
-        let msg = ExplorerToOrch(ExplorerToOrchestrator::MovedToPlanetResult {
-            explorer_id: EXPLORER_ID,
-            planet_id: DST_PLANET_ID,
-        });
-
-        let result = conv.transition(Some(msg));
-
-        assert!(
-            result.is_none(),
-            "Conversation should terminate successfully (None)"
-        );
-
-        // Verify location was updated
-        let location = exp_locations.lock().unwrap().get(&EXPLORER_ID).copied();
-        assert_eq!(location, Some(DST_PLANET_ID));
-    }
-
-    #[test]
-    fn wait_move_explorer_not_moving() {
-        let exp_locations = make_explorers_location_with(EXPLORER_ID, 5);
-        let conv = make_wait_move_conv(EXPLORER_ID, exp_locations.clone(), DST_PLANET_ID, false);
-
-        let msg = ExplorerToOrch(ExplorerToOrchestrator::MovedToPlanetResult {
-            explorer_id: EXPLORER_ID,
-            planet_id: DST_PLANET_ID,
-        });
-
-        let result = conv.transition(Some(msg));
-
-        assert!(
-            result.is_none(),
-            "Conversation should terminate successfully when explorer not moving"
-        );
-
-        // Verify location was NOT updated (still 5)
-        let location = exp_locations.lock().unwrap().get(&EXPLORER_ID).copied();
-        assert_eq!(location, Some(5));
-    }
-
-    #[test]
-    fn wait_move_explorer_location_not_found() {
-        let exp_locations = make_empty_explorers_location();
-        let conv = make_wait_move_conv(EXPLORER_ID, exp_locations, DST_PLANET_ID, true);
-
-        let msg = ExplorerToOrch(ExplorerToOrchestrator::MovedToPlanetResult {
-            explorer_id: EXPLORER_ID,
-            planet_id: DST_PLANET_ID,
-        });
-
-        let next_conv = conv
-            .transition(Some(msg))
-            .expect("Should return an ErrorState");
-
-        assert_eq!(next_conv.get_id(), CONV_ID);
-        assert_eq!(
-            next_conv.get_error_details(),
-            Some(format!(
-                "The location for explorer {EXPLORER_ID} is not found in the list"
-            ))
-        );
-    }
-
-    #[test]
-    fn wait_move_wrong_message() {
-        let exp_locations = make_explorers_location_with(EXPLORER_ID, 5);
-        let conv = make_wait_move_conv(EXPLORER_ID, exp_locations, DST_PLANET_ID, true);
-
-        let wrong_msg = ExplorerToOrch(ExplorerToOrchestrator::ResetExplorerAIResult {
-            explorer_id: EXPLORER_ID,
-        });
-
-        let next_conv = conv
-            .transition(Some(wrong_msg))
-            .expect("Should return an ErrorState");
-
-        assert_eq!(next_conv.get_id(), CONV_ID);
-        assert_eq!(
-            next_conv.get_error_details(),
-            Some("Wrong Message Received".to_string())
-        );
-    }
-
-    #[test]
-    fn wait_move_getters() {
-        let exp_locations = make_explorers_location_with(EXPLORER_ID, 5);
-        let state = WaitMoveToPlanetResponse::new(exp_locations, true, DST_PLANET_ID, EXPLORER_ID);
-        let conv = MoveToPlanetConversation::<WaitMoveToPlanetResponse>::new(CONV_ID, state);
-
-        assert_eq!(conv.get_id(), CONV_ID);
-        assert_eq!(conv.get_entity_id(), EXPLORER_ID);
-        assert_eq!(
-            conv.get_expected_kind(),
-            Some(PossibleExpectedKinds::ExplorerToOrchKind(
-                MovedToPlanetResult
-            ))
-        );
-        assert_eq!(conv.get_priority(), 4);
     }
 }

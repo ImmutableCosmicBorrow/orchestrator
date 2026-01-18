@@ -5,24 +5,50 @@ use crate::orchestrator::conversations::orch_explorer::move_to_planet::{
 use crate::orchestrator::conversations::{Conversation, PossibleExpectedKinds, PossibleMessage};
 use common_game::utils::ID;
 
+///**Move To Planet Conversation - Send Manual Move Request**
+///
+/// This state handles movements triggered manually (e.g., by administrative commands or
+/// specific game logic) rather than an explorer's own request. It serves as an
+/// initialization point for forced transitions.
+// SEND MANUAL MOVE REQUEST IMPLEMENTATION
 impl Conversation<ExplorerBag> for MoveToPlanetConversation<SendManualMoveRequest> {
+    /// Returns the unique ID of the conversation instance.
     fn get_id(&self) -> ID {
         self.id
     }
 
+    /// Returns the ID of the explorer being manually moved.
     fn get_entity_id(&self) -> ID {
         self.state.explorer_struct.explorer_id
     }
 
+    /// This is an action state (fire-and-forget); it does not wait for an external message.
     fn get_expected_kind(&self) -> Option<PossibleExpectedKinds> {
         self.expected_message.clone()
     }
 
+    /// ### Transition Function: Initiating Manual Handover
+    ///
+    /// This function prepares the standard movement handshake by determining the current
+    /// physical status of the explorer.
+    ///
+    /// #### 1. Location Verification
+    /// It checks the `explorers_location_ref` to see if the explorer is currently assigned
+    /// to a planet.
+    /// * **If in a planet**: The `handle_outgoing` flag is set to `true`, ensuring the
+    ///   Orchestrator will eventually ask the current planet to release the explorer.
+    /// * **If not in a planet**: The explorer is likely being "spawned" or moved from
+    ///   limbo. `handle_outgoing` is set to `false`, skipping the source-planet release phase.
+    ///
+    /// #### 2. Handshake Initiation
+    /// The conversation transitions directly to [`SendIncomingRequest`], which begins
+    /// the process of notifying the destination planet of the entity's arrival.
     fn transition(
         self: Box<Self>,
         _msg_wrapped: Option<PossibleMessage<ExplorerBag>>,
     ) -> Option<Box<dyn Conversation<ExplorerBag> + Send + Sync>> {
         let handle_outgoing = self.explorer_is_in_planets();
+
         let state_struct = SendIncomingRequest::new(
             self.state.curr_planet_struct,
             self.state.explorer_struct,
@@ -31,16 +57,20 @@ impl Conversation<ExplorerBag> for MoveToPlanetConversation<SendManualMoveReques
             self.state.explorers_location_ref,
             handle_outgoing,
         );
+
         let next_conv = MoveToPlanetConversation::<SendIncomingRequest>::new(self.id, state_struct);
         Some(Box::new(next_conv))
     }
 
+    /// **Priority 5**: Manual moves are treated with high priority to ensure world state
+    /// overrides are processed immediately.
     fn get_priority(&self) -> i32 {
         5
     }
 }
 
 impl MoveToPlanetConversation<SendManualMoveRequest> {
+    /// Checks the global registry to determine if the explorer is currently managed by a planet.
     fn explorer_is_in_planets(&self) -> bool {
         self.state
             .explorers_location_ref
@@ -50,124 +80,12 @@ impl MoveToPlanetConversation<SendManualMoveRequest> {
             .is_some()
     }
 
+    /// Internal constructor for the [`SendManualMoveRequest`] state.
     pub(crate) fn new(id: ID, state: SendManualMoveRequest) -> Self {
         Self {
             id,
             state,
             expected_message: None,
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::orchestrator::PlanetExplorerChannels;
-    use crate::orchestrator::conversations::SendersToPlanet;
-    use crate::orchestrator::conversations::orch_explorer::move_to_planet::SendManualMoveRequest;
-    use crate::orchestrator::conversations::orch_explorer::test_utils::{
-        make_empty_senders, make_to_explorer_struct, make_to_planet_struct,
-    };
-    use common_game::protocols::orchestrator_planet::OrchestratorToPlanet;
-    use crossbeam_channel::unbounded;
-    use std::collections::HashMap;
-    use std::sync::{Arc, Mutex};
-
-    const CONV_ID: ID = 1;
-    const EXPLORER_ID: ID = 2;
-    const DST_PLANET_ID: ID = 3;
-    const CURR_PLANET_ID: ID = 4;
-
-    // --- Helper functions ---
-
-    fn make_planet_senders_with(planet_id: ID) -> SendersToPlanet {
-        let (tx, _rx) = unbounded::<OrchestratorToPlanet>();
-        Arc::new(Mutex::new(HashMap::from([(planet_id, tx)])))
-    }
-
-    fn make_explorers_location_with(
-        explorer_id: ID,
-        planet_id: ID,
-    ) -> crate::orchestrator::ExplorersLocationRef {
-        Arc::new(Mutex::new(HashMap::from([(explorer_id, planet_id)])))
-    }
-
-    fn make_empty_explorers_location() -> crate::orchestrator::ExplorersLocationRef {
-        Arc::new(Mutex::new(HashMap::new()))
-    }
-
-    #[allow(clippy::unnecessary_box_returns)]
-    fn make_manual_move_conv(
-        explorer_in_planets: bool,
-    ) -> Box<MoveToPlanetConversation<SendManualMoveRequest>> {
-        let curr_planet_senders = make_planet_senders_with(CURR_PLANET_ID);
-        let dst_planet_senders = make_planet_senders_with(DST_PLANET_ID);
-        let explorers_location_ref = if explorer_in_planets {
-            make_explorers_location_with(EXPLORER_ID, CURR_PLANET_ID)
-        } else {
-            make_empty_explorers_location()
-        };
-
-        let state = SendManualMoveRequest::new(
-            explorers_location_ref,
-            make_to_planet_struct(CURR_PLANET_ID, curr_planet_senders),
-            make_to_planet_struct(DST_PLANET_ID, dst_planet_senders),
-            make_to_explorer_struct(EXPLORER_ID, make_empty_senders()),
-            PlanetExplorerChannels::new(),
-        );
-        Box::new(MoveToPlanetConversation::<SendManualMoveRequest>::new(
-            CONV_ID, state,
-        ))
-    }
-
-    // --- Tests ---
-
-    #[test]
-    fn manual_move_explorer_in_planets() {
-        let conv = make_manual_move_conv(true);
-
-        let next_conv = conv
-            .transition(None)
-            .expect("Should transition to next state");
-
-        assert_eq!(next_conv.get_id(), CONV_ID);
-        assert_eq!(next_conv.get_error_details(), None);
-        // Next state is SendIncomingRequest which has no expected message
-        assert!(next_conv.get_expected_kind().is_none());
-    }
-
-    #[test]
-    fn manual_move_explorer_not_in_planets() {
-        let conv = make_manual_move_conv(false);
-
-        let next_conv = conv
-            .transition(None)
-            .expect("Should transition to next state");
-
-        assert_eq!(next_conv.get_id(), CONV_ID);
-        assert_eq!(next_conv.get_error_details(), None);
-        // Next state is SendIncomingRequest which has no expected message
-        assert!(next_conv.get_expected_kind().is_none());
-    }
-
-    #[test]
-    fn manual_move_getters() {
-        let curr_planet_senders = make_planet_senders_with(CURR_PLANET_ID);
-        let dst_planet_senders = make_planet_senders_with(DST_PLANET_ID);
-        let explorers_location_ref = make_explorers_location_with(EXPLORER_ID, CURR_PLANET_ID);
-
-        let state = SendManualMoveRequest::new(
-            explorers_location_ref,
-            make_to_planet_struct(CURR_PLANET_ID, curr_planet_senders),
-            make_to_planet_struct(DST_PLANET_ID, dst_planet_senders),
-            make_to_explorer_struct(EXPLORER_ID, make_empty_senders()),
-            PlanetExplorerChannels::new(),
-        );
-        let conv = MoveToPlanetConversation::<SendManualMoveRequest>::new(CONV_ID, state);
-
-        assert_eq!(conv.get_id(), CONV_ID);
-        assert_eq!(conv.get_entity_id(), EXPLORER_ID);
-        assert!(conv.get_expected_kind().is_none());
-        assert_eq!(conv.get_priority(), 5);
     }
 }

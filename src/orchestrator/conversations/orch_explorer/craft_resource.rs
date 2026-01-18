@@ -404,13 +404,14 @@ mod tests {
         let state = WaitingCraftResourceResult::new(42, Hydrogen);
         let conv = CraftResourceConversation::<WaitingCraftResourceResult>::new(CONV_ID, state);
         // Simulate a GenerateResourceResponse with an error
-        let msg = PossibleMessage::ExplorerToOrch(
-            ExplorerToOrchestrator::GenerateResourceResponse {
+        let msg =
+            PossibleMessage::ExplorerToOrch(ExplorerToOrchestrator::GenerateResourceResponse {
                 explorer_id: 42,
                 generated: Err("Not enough resources".to_string()),
-            },
-        );
-        let result = Box::new(conv).transition(Some(msg)).expect("Should return an ErrorState");
+            });
+        let result = Box::new(conv)
+            .transition(Some(msg))
+            .expect("Should return an ErrorState");
         let expected = "Explorer 42, failed to craft Hydrogen: Not enough resources";
         assert_eq!(result.get_error_details().unwrap(), expected);
     }

@@ -95,6 +95,7 @@ pub(crate) type SendersToExplorer = Arc<Mutex<HashMap<ID, Sender<OrchestratorToE
 /// **Planet Messaging Context**
 ///
 /// Utility struct used within states to facilitate sending messages to a specific planet.
+#[derive(Clone)]
 pub(crate) struct ToPlanetStruct {
     planets_senders: SendersToPlanet,
     planet_id: ID,
@@ -132,6 +133,7 @@ pub(crate) enum ToPlanetError {
 /// **Explorer Messaging Context**
 ///
 /// Utility struct used within states to facilitate sending messages to a specific explorer.
+#[derive(Clone)]
 pub(crate) struct ToExplorerStruct {
     pub(crate) explorers_senders: SendersToExplorer,
     pub(crate) explorer_id: ID,

@@ -9,9 +9,9 @@ use common_game::utils::ID;
 /// It covers network communication failures, business logic rejections from
 /// planets, and internal state inconsistencies within the Orchestrator.
 pub(crate) enum MoveToPlanetErrors {
-    /// Failed to deliver the `IncomingExplorerRequest` to the destination planet.
+    /// Failed to deliver the [`IncomingExplorerRequest`] to the destination planet.
     IncomingMessageFailed(ID),
-    /// Failed to deliver the `OutgoingExplorerRequest` to the source planet.
+    /// Failed to deliver the [`OutgoingExplorerRequest]` to the source planet.
     OutgoingMessageFailed(ID),
     /// The destination planet received the request but explicitly failed or
     /// rejected the acquisition of the explorer.

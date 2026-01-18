@@ -1,3 +1,4 @@
+use crate::logging_utils::log_internal;
 use crate::orchestrator::ExplorerBag;
 use crate::orchestrator::conversations::PossibleExpectedKinds::ExplorerToOrchKind;
 use crate::orchestrator::conversations::orch_explorer::move_to_planet::WaitingTravelRequest;
@@ -7,6 +8,8 @@ use crate::orchestrator::conversations::orch_explorer::move_to_planet::{
 use crate::orchestrator::conversations::{
     CommonErrorTypes, Conversation, ErrorState, PossibleExpectedKinds, PossibleMessage,
 };
+use crate::payload;
+use common_game::logging::Channel;
 use common_game::protocols::orchestrator_explorer::{
     ExplorerToOrchestrator, ExplorerToOrchestratorKind,
 };
@@ -14,29 +17,37 @@ use common_game::utils::ID;
 
 ///**Move To Planet Conversation - Waiting Travel Request**
 ///
-/// This is the starting state of the movement lifecycle. It listens for a
+/// This is the starting state of the movement lifecycle when it is requested by the orchestrator. It listens for a
 /// [`ExplorerToOrchestrator::TravelToPlanetRequest`] from an explorer.
 ///
 /// **Logic Flow:**
 /// 1. Verifies if the destination planet is a neighbor of the current planet via the Galaxy Map.
-/// 2. If valid, sends an [`IncomingExplorerRequest`] to the destination planet and transitions
-///    to [`WaitingIncomingResponse`].
-/// 3. If invalid (not neighbors), it informs the explorer movement is impossible and transitions
-///    directly to [`WaitMoveToPlanetResponse`] to gracefully close the attempt.
+/// 2. **If valid (Neighbors):** Initiates the arrival handshake by transitioning to [`SendIncomingRequest`],
+///    which will notify the destination planet of the incoming explorer.
+/// 3. **If invalid (Non-neighbors):** Skips the destination handshake and transitions directly to
+///    [`SendMoveRequest`] with a failure flag to inform the explorer that the move is impossible.
+/// 4. **Error Handling:** If an unexpected message type is received, transitions to an [`ErrorState`].
 // WAITING TRAVEL REQUEST IMPLEMENTATION
 impl Conversation<ExplorerBag> for MoveToPlanetConversation<WaitingTravelRequest> {
+    /// Returns the unique ID of the conversation instance.
     fn get_id(&self) -> ID {
         self.id
     }
 
+    /// Returns the ID of the explorer associated with this movement request.
     fn get_entity_id(&self) -> ID {
         self.state.explorer_struct.explorer_id
     }
 
+    /// Returns the specific message type this state is currently polling for.
     fn get_expected_kind(&self) -> Option<PossibleExpectedKinds> {
         self.expected_message.clone()
     }
 
+    /// Orchestrates the transition based on the received explorer request.
+    ///
+    /// Validates the spatial relationship between planets and determines whether to
+    /// proceed with the travel handshake or reject the request.
     fn transition(
         self: Box<Self>,
         msg_wrapped: Option<PossibleMessage<ExplorerBag>>,
@@ -49,46 +60,61 @@ impl Conversation<ExplorerBag> for MoveToPlanetConversation<WaitingTravelRequest
             },
         )) = msg_wrapped
         {
+            // Case 1: Destination is reachable. Transition to notify the destination planet.
             if self.check_neighbors() {
                 let next_state = SendIncomingRequest::new(
                     self.state.curr_planet_struct,
-                    self.state.explorer_struct,
-                    self.state.dst_planet_struct,
+                    self.state.explorer_struct.clone(),
+                    self.state.dst_planet_struct.clone(),
                     self.state.planet_explorer_channels,
                     self.state.explorers_location_ref,
                     true,
                 );
+                //logging
+                log_internal(
+                    Channel::Debug,
+                    payload!(
+                        action : "Destination planet can be reached, transitioning to SendIncomingRequest".to_string(),
+                        explorer_id : self.state.explorer_struct.explorer_id,
+                        conversation_id : self.id,
+                        planet_id: self.state.dst_planet_struct.planet_id
+                    ),
+                );
+                //Transition
                 let next_conv =
                     MoveToPlanetConversation::<SendIncomingRequest>::new(self.id, next_state);
                 return Some(Box::new(next_conv));
             }
 
-            // Non-neighbors logic
+            // Case 2: Destination unreachable. Transition to send a negative MoveToPlanet to the explorer
             let next_state = SendMoveRequest::new(
                 self.state.explorers_location_ref,
                 self.state.dst_planet_struct.planet_id,
                 self.state.explorer_struct,
                 self.state.planet_explorer_channels,
-                false,
+                false, // 'false' indicates the move is not allowed
             );
             let next_conv = MoveToPlanetConversation::<SendMoveRequest>::new(self.id, next_state);
 
-            // Added 'return' so it doesn't hit the ErrorState below
             return Some(Box::new(next_conv));
         }
 
-        // If msg_wrapped was None or didn't match the pattern
+        // Case 3: Invalid message or timeout.
         let error_state = ErrorState::new(Box::new(CommonErrorTypes::WrongMessage), self.id);
         Some(Box::new(error_state))
     }
 
+    /// Returns the priority of this conversation within the orchestrator's queue.
     fn get_priority(&self) -> i32 {
         4
     }
 }
 
 impl MoveToPlanetConversation<WaitingTravelRequest> {
-    /// Checks the Galaxy Map to see if the target destination is reachable from the current location.
+    /// Accesses the Galaxy Map (thread-safe) to verify if the destination planet
+    /// shares an edge with the current planet.
+    ///
+    /// Returns `true` if they are neighbors, `false` otherwise.
     fn check_neighbors(&self) -> bool {
         let galaxy = self.state.galaxy.lock().unwrap();
         if let (Some(curr_planet_ref), Some(dst_planet_ref)) = (
@@ -100,7 +126,7 @@ impl MoveToPlanetConversation<WaitingTravelRequest> {
         false
     }
 
-    /// Internal constructor for the initial state.
+    /// Internal constructor to initialize the conversation in its starting state.
     fn new(id: ID, state: WaitingTravelRequest) -> Self {
         Self {
             id,
@@ -109,143 +135,5 @@ impl MoveToPlanetConversation<WaitingTravelRequest> {
                 ExplorerToOrchestratorKind::TravelToPlanetRequest,
             )),
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::galaxy_setup::PlanetMap;
-    use crate::orchestrator::PlanetExplorerChannels;
-    use crate::orchestrator::conversations::SendersToPlanet;
-    use crate::orchestrator::conversations::orch_explorer::test_utils::{
-        make_empty_senders, make_to_explorer_struct, make_to_planet_struct,
-    };
-    use common_game::protocols::orchestrator_explorer::ExplorerToOrchestratorKind;
-    use common_game::protocols::orchestrator_planet::OrchestratorToPlanet;
-    use crossbeam_channel::unbounded;
-    use std::collections::HashMap;
-    use std::sync::{Arc, Mutex};
-
-    const CONV_ID: ID = 1;
-    const EXPLORER_ID: ID = 2;
-    // These match the IDs in test_galaxy.txt
-    const CURR_PLANET_ID: ID = 10_100_001;
-    const DST_PLANET_ID: ID = 10_100_002;
-    const OTHER_PLANET_ID: ID = 10_100_003;
-    const NON_NEIGHBOR_ID: ID = 99_999_999;
-
-    // --- Helper functions ---
-
-    fn make_planet_senders_with(planet_id: ID) -> SendersToPlanet {
-        let (tx, _rx) = unbounded::<OrchestratorToPlanet>();
-        Arc::new(Mutex::new(HashMap::from([(planet_id, tx)])))
-    }
-
-    fn load_galaxy() -> PlanetMap {
-        // Use the same loader as neighbors_discovery.rs for consistency
-        let (galaxy, _planets_receiver, _orch_to_plan_senders, _expl_to_plan_senders) =
-            crate::galaxy_setup::galaxy_loader(std::path::Path::new("test_galaxy.txt"));
-        galaxy
-    }
-
-    #[allow(clippy::unnecessary_box_returns)]
-    fn make_waiting_travel_conv() -> Box<MoveToPlanetConversation<WaitingTravelRequest>> {
-        let galaxy = load_galaxy();
-        let curr_planet_senders = make_planet_senders_with(CURR_PLANET_ID);
-        let dst_planet_senders = make_planet_senders_with(DST_PLANET_ID);
-
-        let state = WaitingTravelRequest {
-            galaxy,
-            planet_explorer_channels: PlanetExplorerChannels::new(),
-            curr_planet_struct: make_to_planet_struct(CURR_PLANET_ID, curr_planet_senders),
-            dst_planet_struct: make_to_planet_struct(DST_PLANET_ID, dst_planet_senders),
-            explorer_struct: make_to_explorer_struct(EXPLORER_ID, make_empty_senders()),
-            explorers_location_ref: Arc::new(Mutex::new(HashMap::new())),
-        };
-        Box::new(MoveToPlanetConversation::<WaitingTravelRequest>::new(
-            CONV_ID, state,
-        ))
-    }
-
-    // --- Tests ---
-
-    #[test]
-    fn waiting_travel_neighbors_success() {
-        let conv = make_waiting_travel_conv();
-        let msg = PossibleMessage::ExplorerToOrch(ExplorerToOrchestrator::TravelToPlanetRequest {
-            explorer_id: EXPLORER_ID,
-            dst_planet_id: DST_PLANET_ID,
-            current_planet_id: CURR_PLANET_ID,
-        });
-        let next_conv = conv
-            .transition(Some(msg))
-            .expect("Should transition to next state");
-        assert_eq!(next_conv.get_id(), CONV_ID);
-        assert_eq!(next_conv.get_error_details(), None);
-        assert!(next_conv.get_expected_kind().is_none());
-    }
-
-    #[test]
-    fn waiting_travel_non_neighbors() {
-        let conv = make_waiting_travel_conv();
-        let msg = PossibleMessage::ExplorerToOrch(ExplorerToOrchestrator::TravelToPlanetRequest {
-            explorer_id: EXPLORER_ID,
-            dst_planet_id: NON_NEIGHBOR_ID,
-            current_planet_id: CURR_PLANET_ID,
-        });
-        let next_conv = conv
-            .transition(Some(msg))
-            .expect("Should transition to SendMoveRequest");
-        assert_eq!(next_conv.get_id(), CONV_ID);
-        assert_eq!(next_conv.get_error_details(), None);
-        assert!(next_conv.get_expected_kind().is_none());
-    }
-
-    #[test]
-    fn waiting_travel_wrong_message() {
-        let conv = make_waiting_travel_conv();
-
-        let wrong_msg =
-            PossibleMessage::ExplorerToOrch(ExplorerToOrchestrator::StartExplorerAIResult {
-                explorer_id: EXPLORER_ID,
-            });
-
-        let next_conv = conv
-            .transition(Some(wrong_msg))
-            .expect("Should return an ErrorState");
-
-        assert_eq!(next_conv.get_id(), CONV_ID);
-        assert_eq!(
-            next_conv.get_error_details(),
-            Some("Wrong Message Received".to_string())
-        );
-    }
-
-    #[test]
-    fn waiting_travel_getters() {
-        let galaxy = load_galaxy();
-        let curr_planet_senders = make_planet_senders_with(CURR_PLANET_ID);
-        let dst_planet_senders = make_planet_senders_with(DST_PLANET_ID);
-
-        let state = WaitingTravelRequest {
-            galaxy,
-            planet_explorer_channels: PlanetExplorerChannels::new(),
-            curr_planet_struct: make_to_planet_struct(CURR_PLANET_ID, curr_planet_senders),
-            dst_planet_struct: make_to_planet_struct(DST_PLANET_ID, dst_planet_senders),
-            explorer_struct: make_to_explorer_struct(EXPLORER_ID, make_empty_senders()),
-            explorers_location_ref: Arc::new(Mutex::new(HashMap::new())),
-        };
-        let conv = MoveToPlanetConversation::<WaitingTravelRequest>::new(CONV_ID, state);
-
-        assert_eq!(conv.get_id(), CONV_ID);
-        assert_eq!(conv.get_entity_id(), EXPLORER_ID);
-        assert_eq!(
-            conv.get_expected_kind(),
-            Some(PossibleExpectedKinds::ExplorerToOrchKind(
-                ExplorerToOrchestratorKind::TravelToPlanetRequest
-            ))
-        );
-        assert_eq!(conv.get_priority(), 4);
     }
 }

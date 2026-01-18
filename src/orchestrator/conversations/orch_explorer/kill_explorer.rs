@@ -235,6 +235,13 @@ impl Conversation<ExplorerBag> for KillExplorerConversation<WaitingKillExplorerR
         }
 
         // Wrong Message, return to manager as fallback
+        log_internal(
+            Channel::Warning,
+            payload!(
+                action : "Wrong Message arrived, going back to kill manager",
+                conversation_id : self.id,
+            ),
+        );
         Some(self.state.manager)
     }
 

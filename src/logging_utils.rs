@@ -14,15 +14,10 @@ macro_rules! payload {
 }
 
 /// Creates and emits a log event with `ActorType::Orchestrator` as sender
-pub fn log_msg_to(
-    channel: Channel,
-    event_type: EventType,
-    from: (ActorType, ID),
-    payload: Payload,
-) {
+pub fn log_msg_to(channel: Channel, event_type: EventType, to: (ActorType, ID), payload: Payload) {
     LogEvent::new(
         Some(Participant::new(ActorType::Orchestrator, 0u8)),
-        Some(Participant::new(from.0, from.1)),
+        Some(Participant::new(to.0, to.1)),
         event_type,
         channel,
         payload,
