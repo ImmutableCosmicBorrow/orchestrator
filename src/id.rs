@@ -1,5 +1,17 @@
 use std::sync::{Arc, Mutex};
 
+/// `IdManager` is responsible for generating unique IDs for different entities
+/// such as planets, conversations, and explorers. Each ID is constructed using
+/// bitwise operations to ensure uniqueness and easy identification of the entity type.
+/// The structure uses Mutex to ensure thread safety when generating IDs in a concurrent environment.
+///
+/// Each constant defines a bit position for different types of entities:
+/// `Planets`, `Conversations`, and `Explorers`.
+///
+/// In addition, `Planets` can be uniquely identified by their group type, with an additional shift.
+///
+/// When creating a new ID, the relevant bits are set according to the entity type,
+/// and a unique number is appended to ensure no two IDs are the same.
 pub struct IdManager {
     planet: Arc<Mutex<u32>>,
     conversation: Arc<Mutex<u32>>,
