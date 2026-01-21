@@ -220,7 +220,7 @@ mod tests {
                 .field("id", &self.id)
                 .field("entity_id", &self.entity_id)
                 .field("priority", &self.priority)
-                .finish()
+                .finish_non_exhaustive()
         }
     }
 
@@ -505,11 +505,11 @@ mod tests {
             let scheduler_clone = scheduler.clone();
             let handle = thread::spawn(move || {
                 for i in 0..25 {
-                    let id = (thread_id * 100 + i) as u32;
+                    let id = u32::try_from(thread_id * 100 + i).unwrap() as ID;
                     scheduler_clone.add_conversation(Box::new(MockConversation::new(
                         id,
-                        thread_id as u32,
-                        (i % 10) as i32,
+                        u32::try_from(thread_id).unwrap() as ID,
+                        i % 10,
                         None,
                     )));
                 }
@@ -538,8 +538,8 @@ mod tests {
         for i in 0..100 {
             scheduler.add_conversation(Box::new(MockConversation::new(
                 i,
-                (i % 5) as u32,
-                (i % 20) as i32,
+                (i % 5) as ID,
+                i32::try_from(i % 20).unwrap(),
                 None,
             )));
         }
@@ -578,7 +578,7 @@ mod tests {
             for i in 0..50 {
                 scheduler_producer.add_conversation(Box::new(MockConversation::new(
                     i,
-                    (i % 5) as u32,
+                    (i % 5) as ID,
                     10,
                     None,
                 )));
