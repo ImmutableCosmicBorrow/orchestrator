@@ -1,7 +1,6 @@
 use crate::logging_utils::log_internal;
 use crate::orchestrator::ExplorerBag;
 use crate::orchestrator::conversations::PossibleExpectedKinds::PlanetToOrchKind;
-use crate::orchestrator::conversations::orch_explorer::kill_explorers_manager::KillExplorersManager;
 use crate::orchestrator::conversations::{
     CommonErrorTypes, Conversation, ErrorState, ErrorType, PossibleExpectedKinds, PossibleMessage,
     ToPlanetError, ToPlanetStruct,
@@ -47,21 +46,14 @@ pub(crate) struct SendingDeadExpAdv {
     to_planet_struct: ToPlanetStruct,
     /// The ID of the explorer attempting to leave the planet.
     outgoing_explorer_id: ID,
-    /// The manager to return to after the request is processed.
-    kill_explorers_manager: Box<KillExplorersManager>,
 }
 
 impl SendingDeadExpAdv {
     /// Constructor for [`SendingDeadExpAdv`] state struct.
-    pub(crate) fn new(
-        to_planet_struct: ToPlanetStruct,
-        outgoing_explorer_id: ID,
-        kill_explorers_manager: Box<KillExplorersManager>,
-    ) -> Self {
+    pub(crate) fn new(to_planet_struct: ToPlanetStruct, outgoing_explorer_id: ID) -> Self {
         Self {
             to_planet_struct,
             outgoing_explorer_id,
-            kill_explorers_manager,
         }
     }
 }
@@ -73,22 +65,16 @@ impl SendingDeadExpAdv {
 /// to the dead explorer
 ///
 /// Depending on the response it either returns:
-/// * [`ErrorState`] with [`FailedToHandleOutgoingExplorer`] if an error occurred while eliminating the channel
-/// * [`KillExplorersManager`] to resume the killing of the other explorers
+/// * [`ErrorState`] with [`FailedToHandleOutgoingExplorer`] if an error occurred while eliminating the channel or none to end the conversation
 struct WaitingDeadAdvResponse {
     /// ID of the planet we are moving the explorer from
     planet_id: ID,
-    /// The manager to return to upon successful confirmation.
-    kill_explorers_manager: Box<KillExplorersManager>,
 }
 
 impl WaitingDeadAdvResponse {
     /// The constructor for [`WaitingDeadAdvResponse`] state struct.
-    fn new(planet_id: ID, kill_explorers_manager: Box<KillExplorersManager>) -> Self {
-        Self {
-            planet_id,
-            kill_explorers_manager,
-        }
+    fn new(planet_id: ID) -> Self {
+        Self { planet_id }
     }
 }
 
@@ -138,8 +124,7 @@ impl Conversation<ExplorerBag> for AdvDeadExplorer<SendingDeadExpAdv> {
             }) {
             Ok(()) => {
                 let planet_id = self.state.to_planet_struct.planet_id;
-                let state_struct =
-                    WaitingDeadAdvResponse::new(planet_id, self.state.kill_explorers_manager);
+                let state_struct = WaitingDeadAdvResponse::new(planet_id);
                 let next_state =
                     AdvDeadExplorer::<WaitingDeadAdvResponse>::new(self.id, state_struct);
                 Some(Box::new(next_state))
@@ -212,13 +197,13 @@ impl Conversation<ExplorerBag> for AdvDeadExplorer<WaitingDeadAdvResponse> {
                 log_internal(
                     Channel::Debug,
                     payload!(
-                        action : "Planet correctly handled dead explorer, conversation is going back to kill manager",
+                        action : "Planet correctly handled dead explorer, closing conversation",
                         planet_id : planet_id,
                         outgoing_explorer_id : explorer_id,
                         conversation_id : self.id,
                     ),
                 );
-                Some(self.state.kill_explorers_manager)
+                None
             } else {
                 //Explorer is killed but channel in planet is there!
                 let error = FailedToHandleOutgoingExplorer {
@@ -230,8 +215,8 @@ impl Conversation<ExplorerBag> for AdvDeadExplorer<WaitingDeadAdvResponse> {
             };
         }
 
-        // Wrong Message, return to manager as fallback
-        Some(self.state.kill_explorers_manager)
+        let error_state = ErrorState::new(Box::new(CommonErrorTypes::WrongMessage), self.id);
+        Some(Box::new(error_state))
     }
 
     fn get_priority(&self) -> i32 {
@@ -255,7 +240,6 @@ impl AdvDeadExplorer<WaitingDeadAdvResponse> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::orchestrator::conversations::orch_explorer::kill_explorers_manager::KillExplorersManager;
     use crossbeam_channel::unbounded;
     use std::collections::HashMap;
     use std::sync::{Arc, Mutex};
@@ -288,26 +272,16 @@ mod tests {
         }
     }
 
-    fn mock_manager() -> KillExplorersManager {
-        KillExplorersManager::new(
-            CONV_ID,
-            Arc::new(Mutex::new(HashMap::new())),
-            Arc::new(Mutex::new(HashMap::new())),
-            true,
-            Vec::from([(EXPLORER_ID, PLANET_ID)]),
-        )
-    }
-
     #[allow(clippy::unnecessary_box_returns)]
     fn make_send_conv(senders: PlanetSenders) -> Box<AdvDeadExplorer<SendingDeadExpAdv>> {
         let to_planet = make_to_planet_struct(PLANET_ID, senders);
-        let state = SendingDeadExpAdv::new(to_planet, EXPLORER_ID, Box::new(mock_manager()));
+        let state = SendingDeadExpAdv::new(to_planet, EXPLORER_ID);
         Box::new(AdvDeadExplorer::<SendingDeadExpAdv>::new(CONV_ID, state))
     }
 
     #[allow(clippy::unnecessary_box_returns)]
     fn make_wait_conv() -> Box<AdvDeadExplorer<WaitingDeadAdvResponse>> {
-        let state = WaitingDeadAdvResponse::new(PLANET_ID, Box::new(mock_manager()));
+        let state = WaitingDeadAdvResponse::new(PLANET_ID);
         Box::new(AdvDeadExplorer::<WaitingDeadAdvResponse>::new(
             CONV_ID, state,
         ))
@@ -367,7 +341,7 @@ mod tests {
     fn send_getters() {
         let MakeSendersResult(senders, _rx) = make_senders_with(PLANET_ID);
         let to_planet = make_to_planet_struct(PLANET_ID, senders);
-        let state = SendingDeadExpAdv::new(to_planet, EXPLORER_ID, Box::new(mock_manager()));
+        let state = SendingDeadExpAdv::new(to_planet, EXPLORER_ID);
         let conv = AdvDeadExplorer::<SendingDeadExpAdv>::new(CONV_ID, state);
         assert_eq!(conv.get_id(), CONV_ID);
         assert_eq!(conv.get_entity_id(), PLANET_ID);
@@ -405,7 +379,7 @@ mod tests {
 
     #[test]
     fn wait_getters() {
-        let state = WaitingDeadAdvResponse::new(PLANET_ID, Box::new(mock_manager()));
+        let state = WaitingDeadAdvResponse::new(PLANET_ID);
         let conv = AdvDeadExplorer::<WaitingDeadAdvResponse>::new(CONV_ID, state);
         assert_eq!(conv.get_id(), CONV_ID);
         assert_eq!(conv.get_entity_id(), PLANET_ID);

@@ -45,6 +45,10 @@ pub trait Conversation<T: Debug + Eq + Hash>: Send + Sync {
     fn get_error_details(&self) -> Option<String> {
         None
     }
+
+    fn get_kill_explorers_vec(&self) -> Option<(KillExplorersList, bool)> {
+        None
+    }
 }
 
 /// **Expected Message Kinds**
@@ -89,6 +93,7 @@ impl<T> PossibleMessage<T> {
 
 // --- Communication Helpers ---
 
+pub(crate) type KillExplorersList = Vec<(ID, ID)>;
 pub(crate) type SendersToPlanet = Arc<Mutex<OrchPlanSenderMap>>;
 pub(crate) type SendersToExplorer = Arc<Mutex<HashMap<ID, Sender<OrchestratorToExplorer>>>>;
 

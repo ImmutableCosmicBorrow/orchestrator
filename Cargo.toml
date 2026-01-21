@@ -2,7 +2,6 @@
 name = "orchestrator"
 version = "0.2.0"
 edition = "2024"
-
 [dependencies]
 common-game = "=3.0.0"
 crossbeam-channel = "0.5.15"

@@ -1,9 +1,8 @@
 use crate::logging_utils::log_internal;
 use crate::orchestrator::conversations::PossibleExpectedKinds::PlanetToOrchKind;
-use crate::orchestrator::conversations::orch_explorer::kill_explorers_manager::KillExplorersManager;
 use crate::orchestrator::conversations::{
-    CommonErrorTypes, Conversation, ErrorState, PossibleExpectedKinds, PossibleMessage,
-    SendersToExplorer, SendersToPlanet, ToPlanetError, ToPlanetStruct,
+    CommonErrorTypes, Conversation, ErrorState, KillExplorersList, PossibleExpectedKinds,
+    PossibleMessage, SendersToExplorer, SendersToPlanet, ToPlanetError, ToPlanetStruct,
 };
 use crate::orchestrator::{ExplorerBag, ExplorersLocationRef};
 use crate::payload;
@@ -181,7 +180,8 @@ impl Conversation<ExplorerBag> for KillPlanetConversation<WaitingPlanetKillResul
     ///
     /// Returns:
     ///
-    /// [`KillExplorersManager`] state to begin cleaning up explorers on the destroyed planet.
+    /// None to end the conversation if planet is killed correctly - NOTE: to kill explorers on this planet, we retuurn the list of them
+    /// through the dedicated method of the trait and let the Orchestrator take care of that
     ///
     /// [`ErrorState`] with [`CommonErrorTypes::WrongMessage`] if the trigger message is different then the expected [`PlanetToOrchestrator::KillPlanetResult`] .
     fn transition(
@@ -201,15 +201,9 @@ impl Conversation<ExplorerBag> for KillPlanetConversation<WaitingPlanetKillResul
                 ),
             );
 
-            let to_kill_list = self.get_explorers_in_planet(planet_id);
-            let next_state = KillExplorersManager::new(
-                self.id,
-                self.state.explorers_senders,
-                self.state.planet_senders,
-                false, //we are already killing the planet so don't have to advertise that explorers are dying
-                to_kill_list,
-            );
-            return Some(Box::new(next_state));
+            self.get_explorers_in_planet(planet_id);
+
+            return None;
         }
 
         //Wrong Message, close conversation
@@ -219,6 +213,11 @@ impl Conversation<ExplorerBag> for KillPlanetConversation<WaitingPlanetKillResul
 
     fn get_priority(&self) -> i32 {
         5
+    }
+
+    fn get_kill_explorers_vec(&self) -> Option<(KillExplorersList, bool)> {
+        //return the list of explorers to kill and a flag indicating that we don't need to advertise the death to planets (they're being killed)
+        Some((self.get_explorers_in_planet(self.state.planet_id), false))
     }
 }
 
