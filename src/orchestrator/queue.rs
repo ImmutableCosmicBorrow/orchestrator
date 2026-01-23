@@ -127,7 +127,8 @@ impl<T: Debug + Eq + Hash> ConvoScheduler<T> {
     /// and pushes it onto the priority queue. Moreover, if it has an expected message kind,
     /// it updates the mapping of expected kinds to conversation IDs.
     pub fn add_conversation(&self, conversation: Box<dyn Conversation<T> + Send + Sync>) {
-        let id = crate::get_id_manager().get_next_conversation_id();
+        // let id = crate::get_id_manager().get_next_conversation_id(); //TODO: refactor to keep old id?
+        let id = conversation.get_id();
 
         let expected_kind = conversation.get_expected_kind();
         if let Some(kind) = expected_kind {
@@ -141,7 +142,7 @@ impl<T: Debug + Eq + Hash> ConvoScheduler<T> {
 
         let priority = conversation.get_priority();
         self.active_convos.lock().unwrap().insert(id, conversation);
-        self.queue.push(id, priority); // TODO: set proper priority
+        self.queue.push(id, priority);
     }
 
     /// This method retrieves and removes the next conversation from the scheduler based on priority.

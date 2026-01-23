@@ -7,9 +7,13 @@ mod queue;
 use crate::galaxy_setup::{PlanetMap, galaxy_loader};
 use crate::orchestrator::conversations::{PossibleMessage, SendersToExplorer, SendersToPlanet};
 use crate::orchestrator::queue::ConvoScheduler;
-use crate::payload;
+use crate::{get_id_manager, payload};
 
 use crate::logging_utils::{log_internal, log_msg_to};
+use crate::orchestrator::conversations::ToExplorerStruct;
+use crate::orchestrator::conversations::ToPlanetStruct;
+use crate::orchestrator::conversations::orch_explorer::kill_explorer::KillExplorerConversation;
+use crate::orchestrator::conversations::orch_explorer::kill_explorer::SendingKillExplorer;
 use common_game::components::forge::Forge;
 use common_game::logging::{ActorType, Channel, EventType};
 use common_game::protocols::orchestrator_explorer::{
@@ -244,6 +248,8 @@ impl Orchestrator {
 
     fn process_messages(&mut self) {
         let convo_scheduler = self.convo_scheduler.clone();
+        let explorer_senders = self.explorer_senders.clone();
+        let planets_senders = self.planets_senders.clone();
         thread::spawn(move || {
             loop {
                 if convo_scheduler.is_empty() {
@@ -254,17 +260,41 @@ impl Orchestrator {
 
                 let current_convo = convo_scheduler.get_next_conversation();
 
-                if current_convo.is_none() {
-                    continue;
-                }
+                if let Some(convo) = current_convo {
+                    let msg = convo_scheduler.get_waiting_message(convo.get_id());
+                    let tmp = convo.get_kill_explorers_vec();
 
-                let msg =
-                    convo_scheduler.get_waiting_message(current_convo.as_ref().unwrap().get_id());
+                    if let Some((vec, handle_outgoing)) = tmp {
+                        for el in vec {
+                            let conv_id = get_id_manager().get_next_conversation_id();
+                            let to_explorer_struct = ToExplorerStruct {
+                                explorer_id: el.0,
+                                explorers_senders: explorer_senders.clone(),
+                            };
+                            let to_planet_struct =
+                                ToPlanetStruct::new(planets_senders.clone(), el.1);
 
-                if msg.is_some()
-                    && let Some(new_conv) = current_convo.unwrap().transition(msg)
-                {
-                    convo_scheduler.add_conversation(new_conv);
+                            let state_struct = SendingKillExplorer::new(
+                                to_explorer_struct,
+                                to_planet_struct,
+                                handle_outgoing,
+                            );
+
+                            let convo = KillExplorerConversation::<SendingKillExplorer>::new(
+                                conv_id,
+                                state_struct,
+                            );
+
+                            convo_scheduler.add_conversation(Box::new(convo)
+                                as Box<dyn conversations::Conversation<ExplorerBag> + Send + Sync>);
+                        }
+                    }
+
+                    let new_convo = convo.transition(msg);
+
+                    if let Some(new_real_convo) = new_convo {
+                        convo_scheduler.add_conversation(new_real_convo);
+                    }
                 }
             }
         });
