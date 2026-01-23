@@ -300,7 +300,9 @@ mod tests {
         let conv = make_wait_conv();
         let msg = PossibleMessage::ExplorerToOrch(ExplorerToOrchestrator::BagContentResponse {
             explorer_id: EXPLORER_ID,
-            bag_content: ExplorerBag,
+            bag_content: common_explorer::ExplorerBagContent {
+                resources_amounts: HashMap::default(),
+            },
         });
         let result = conv.transition(Some(msg));
         assert!(

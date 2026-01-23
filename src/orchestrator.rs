@@ -14,6 +14,7 @@ use crate::orchestrator::conversations::ToExplorerStruct;
 use crate::orchestrator::conversations::ToPlanetStruct;
 use crate::orchestrator::conversations::orch_explorer::kill_explorer::KillExplorerConversation;
 use crate::orchestrator::conversations::orch_explorer::kill_explorer::SendingKillExplorer;
+use common_explorer::ExplorerBagContent;
 use common_game::components::forge::Forge;
 use common_game::logging::{ActorType, Channel, EventType};
 use common_game::protocols::orchestrator_explorer::{
@@ -25,15 +26,12 @@ use common_game::utils::ID;
 use crossbeam_channel::unbounded;
 use crossbeam_channel::{Receiver, Sender};
 use std::collections::HashMap;
-use std::fmt::Debug;
 use std::sync::{Arc, Mutex};
 use std::thread;
 
 type ExplorersLocationRef = Arc<Mutex<HashMap<ID, ID>>>;
 
-// Todo: Define what to store in the ExplorerBag
-#[derive(Debug, Hash, Eq, PartialEq)]
-pub(crate) struct ExplorerBag;
+type ExplorerBag = ExplorerBagContent;
 
 pub(crate) struct PlanetExplorerChannels {
     planet_to_explorer_senders: Arc<Mutex<HashMap<ID, Sender<PlanetToExplorer>>>>,
@@ -300,13 +298,14 @@ impl Orchestrator {
             }
         });
     }
-
-    fn add_explorer(&mut self, explorer_id: ID, planet_id: ID) {
+    fn add_explorer(&mut self, _explorer_id: ID, planet_id: ID) {
         //to add a new explorer for the first time inside the game
-        let (tx_expl_out, rx_expl_out) = unbounded::<PlanetToExplorer>();
+        let (tx_expl_out, _rx_expl_out) = unbounded::<PlanetToExplorer>();
         self.planet_explorer_channels
             .add_plan_to_expl_sender(planet_id, tx_expl_out.clone());
 
+        // TODO: broken because i changed dummy_explorer, we need to adapt this to actual explorers
+        /*
         let mut explorer: dummy_explorer::Explorer<ExplorerBag> = dummy_explorer::Explorer::new();
         //TODO: set explorer - orchestrator channels
         explorer.set_planet_channels(
@@ -334,6 +333,7 @@ impl Orchestrator {
                 into_planet_id : planet_id,
             ),
         );
+         */
     }
 }
 
