@@ -169,6 +169,7 @@ impl Conversation<ExplorerBag> for KillExplorerConversation<WaitingKillExplorerR
         self.id
     }
 
+    // Getter for the entities ID (planet_id, explorer_id)
     fn get_entities_ids(&self) -> (Option<ID>, Option<ID>) {
         (None, Some(self.state.explorer_id))
     }
@@ -183,7 +184,8 @@ impl Conversation<ExplorerBag> for KillExplorerConversation<WaitingKillExplorerR
     ///
     /// [`AdvDeadExplorer<SendingDeadExpAdv>`] if `handle_outgoing` is true, to notify the planet of the dead explorer.
     ///
-    /// The original [`KillExplorersManager`] if `handle_outgoing` is false (we already took care of the dead explorer in its planet) or if an unexpected message is received.
+    /// None if `handle_outgoing` is false (we already took care of the dead explorer in its planet)
+    /// panic if an unexpected message is received.
     fn transition(
         self: Box<Self>,
         msg_wrapped: Option<PossibleMessage<ExplorerBag>>,
@@ -205,10 +207,11 @@ impl Conversation<ExplorerBag> for KillExplorerConversation<WaitingKillExplorerR
                 let next_state = AdvDeadExplorer::<SendingDeadExpAdv>::new(self.id, state_struct);
                 return Some(Box::new(next_state));
             }
+            //No need to adv dead explorer, ending conversation
             log_internal(
                 Channel::Warning,
                 payload!(
-                    action : "Conversation already took care of this outgoing Explorer and is going back to manager.",
+                    action : "Conversation already took care of this dead Explorer and is Ending",
                     explorer_id : explorer_id,
                     conversation_id : self.id,
                 ),

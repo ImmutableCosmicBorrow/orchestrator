@@ -15,8 +15,9 @@ use common_game::utils::ID;
 ///
 /// This module manages the complex process of destroying a planet.
 /// It uses an FSM to send the kill command, wait for confirmation, and then
-/// transition to a [`KillExplorersManager`] to handle the cleanup of any explorers
-/// that were stationed on that planet.
+/// sends via its method [`Conversation::get_kill_explorers_vec`] the IDs of the explorers on the planet
+/// so that the Orchestrator can kill them
+/// 
 /// Marker struct for FSM state
 ///
 /// The conversation starts in the [`SendPlanetKill`] state, which sends an
@@ -49,7 +50,7 @@ impl SendPlanetKill {
 ///
 /// In the [`WaitingPlanetKillResult`] state, the conversation expects a [`PlanetToOrchestrator::KillPlanetResult`].
 /// Once received, it identifies all explorers currently on that planet and transitions to the explorer cleanup phase
-/// in [`KillExplorersManager`].
+/// via [`Conversation::get_kill_explorers_vec`] closing the conversation.
 struct WaitingPlanetKillResult {
     /// ID of the planet marked for destruction
     planet_id: ID,
@@ -180,7 +181,7 @@ impl Conversation<ExplorerBag> for KillPlanetConversation<WaitingPlanetKillResul
     ///
     /// Returns:
     ///
-    /// None to end the conversation if planet is killed correctly - NOTE: to kill explorers on this planet, we retuurn the list of them
+    /// None to end the conversation if planet is killed correctly - NOTE: to kill explorers on this planet, we return the list of them
     /// through the dedicated method of the trait and let the Orchestrator take care of that
     ///
     /// [`ErrorState`] with [`CommonErrorTypes::WrongMessage`] if the trigger message is different then the expected [`PlanetToOrchestrator::KillPlanetResult`] .
@@ -202,7 +203,6 @@ impl Conversation<ExplorerBag> for KillPlanetConversation<WaitingPlanetKillResul
             );
 
             self.get_explorers_in_planet(planet_id);
-
             return None;
         }
 

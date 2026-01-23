@@ -46,6 +46,7 @@ pub trait Conversation<T: Debug + Eq + Hash>: Send + Sync {
         None
     }
 
+    ///Used to get the explorers to kill in case a planet is killed (None in any case but in killing planet scenario)
     fn get_kill_explorers_vec(&self) -> Option<(KillExplorersList, bool)> {
         None
     }
@@ -220,10 +221,10 @@ impl ErrorType for CommonErrorTypes {
     }
 }
 
-/// **Error Sink State**
+/// **Error State**
 ///
 /// A terminal state for conversations that encounter an unrecoverable error.
-/// Upon transition, it logs the error and returns `None` to purge the conversation.
+/// Upon transition, it logs the error and returns `None` to end the conversation.
 struct ErrorState {
     error: Box<dyn ErrorType + Send + Sync>,
     id: ID,

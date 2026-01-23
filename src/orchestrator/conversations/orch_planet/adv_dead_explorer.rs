@@ -18,8 +18,7 @@ use common_game::utils::ID;
 /// It uses a Finite State Machine (FSM) to send the request and wait for the planet's confirmation
 /// of the elimination of the channel used to communicate with the dead explorer.
 ///
-/// If successful, the conversation transitions back to a [`KillExplorersManager`] to continue
-/// the killing of explores. If it fails, it transitions to an [`ErrorState`].
+/// If successful, it closes with a None, If it fails, it transitions to an [`ErrorState`].
 /// Custom error type for when a planet fails to process an explorer departure.
 struct FailedToHandleOutgoingExplorer {
     /// The planet that failed the operation.
