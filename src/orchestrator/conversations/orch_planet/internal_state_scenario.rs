@@ -109,7 +109,7 @@ impl Conversation<ExplorerBag> for InternalStateConversation<SendingInternalStat
                     ToPlanetError::SenderNotFound(id) => CommonErrorTypes::PlanetSenderNotFound(id),
                 };
                 let error_state = ErrorState::new(Box::new(error), self.id);
-                Some(Box::new(error_state))
+                Some(Box::new(error_state) as Box<dyn Conversation<ExplorerBag> + Send + Sync>)
             }
         }
     }
@@ -174,7 +174,7 @@ impl Conversation<ExplorerBag> for InternalStateConversation<WaitingInternalStat
 
         //Wrong Message, close conversation
         let error_state = ErrorState::new(Box::new(CommonErrorTypes::WrongMessage), self.id);
-        Some(Box::new(error_state))
+        Some(Box::new(error_state) as Box<dyn Conversation<ExplorerBag> + Send + Sync>)
     }
 
     fn get_priority(&self) -> i32 {

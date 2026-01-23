@@ -104,7 +104,7 @@ impl Conversation<ExplorerBag> for MoveToPlanetConversation<WaitingTravelRequest
 
         // Case 3: Invalid message or timeout.
         let error_state = ErrorState::new(Box::new(CommonErrorTypes::WrongMessage), self.id);
-        Some(Box::new(error_state))
+        Some(Box::new(error_state) as Box<dyn Conversation<ExplorerBag> + Send + Sync>)
     }
 
     /// Returns the priority of this conversation within the orchestrator's queue.

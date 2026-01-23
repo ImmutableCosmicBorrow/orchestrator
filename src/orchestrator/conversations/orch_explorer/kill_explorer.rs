@@ -142,7 +142,7 @@ impl Conversation<ExplorerBag> for KillExplorerConversation<SendingKillExplorer>
                     }
                 };
                 let error_state = ErrorState::new(Box::new(error), self.id);
-                Some(Box::new(error_state))
+                Some(Box::new(error_state) as Box<dyn Conversation<ExplorerBag> + Send + Sync>)
             }
         }
     }
@@ -225,7 +225,7 @@ impl Conversation<ExplorerBag> for KillExplorerConversation<WaitingKillExplorerR
             ),
         );
         let error_state = ErrorState::new(Box::new(CommonErrorTypes::WrongMessage), self.id);
-        Some(Box::new(error_state))
+        Some(Box::new(error_state) as Box<dyn Conversation<ExplorerBag> + Send + Sync>)
     }
 
     fn get_priority(&self) -> i32 {
@@ -361,13 +361,12 @@ mod tests {
         let msg = PossibleMessage::ExplorerToOrch(ExplorerToOrchestrator::KillExplorerResult {
             explorer_id: EXPLORER_ID,
         });
-        let next_conv = conv
-            .transition(Some(msg))
-            .expect("Should transition to next state");
-        assert_eq!(next_conv.get_id(), CONV_ID);
-        assert!(next_conv.get_expected_kind().is_none());
-        assert_eq!(next_conv.get_priority(), 5);
-        assert!(next_conv.get_error_details().is_none());
+        let next_conv = conv.transition(Some(msg));
+        // When handle_outgoing is false, the conversation should end (return None)
+        assert!(
+            next_conv.is_none(),
+            "Conversation should end and return None"
+        );
     }
 
     #[test]
@@ -378,7 +377,7 @@ mod tests {
         let msg = PossibleMessage::ExplorerToOrch(ExplorerToOrchestrator::KillExplorerResult {
             explorer_id: EXPLORER_ID,
         });
-        let next_conv = conv
+        let next_conv = Box::new(conv)
             .transition(Some(msg))
             .expect("Should transition to next state");
         assert_eq!(next_conv.get_id(), CONV_ID);
@@ -397,13 +396,17 @@ mod tests {
                 explorer_id: EXPLORER_ID,
             });
 
-        let next_conv = conv
+        let next_conv = Box::new(conv)
             .transition(Some(wrong_msg))
             .expect("Should transition to next state");
         assert_eq!(next_conv.get_id(), CONV_ID);
         assert!(next_conv.get_expected_kind().is_none());
         assert_eq!(next_conv.get_priority(), 5);
-        assert!(next_conv.get_error_details().is_none());
+        // Now, error details should be present for a wrong message
+        assert_eq!(
+            next_conv.get_error_details(),
+            Some("Wrong Message Received".to_string())
+        );
     }
 
     #[test]

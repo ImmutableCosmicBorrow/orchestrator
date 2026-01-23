@@ -97,7 +97,7 @@ impl Conversation<ExplorerBag> for MoveToPlanetConversation<SendIncomingRequest>
                         }
                     };
                     let error_state = ErrorState::new(error, self.id);
-                    Some(Box::new(error_state))
+                    Some(Box::new(error_state) as Box<dyn Conversation<ExplorerBag> + Send + Sync>)
                 }
             };
         }
@@ -108,7 +108,7 @@ impl Conversation<ExplorerBag> for MoveToPlanetConversation<SendIncomingRequest>
             )),
             self.id,
         );
-        Some(Box::new(error_state))
+        Some(Box::new(error_state) as Box<dyn Conversation<ExplorerBag> + Send + Sync>)
     }
 
     fn get_priority(&self) -> i32 {
@@ -228,7 +228,8 @@ impl Conversation<ExplorerBag> for MoveToPlanetConversation<WaitingIncomingRespo
                                 }
                             };
                             let error_state = ErrorState::new(error, self.id);
-                            Some(Box::new(error_state))
+                            Some(Box::new(error_state)
+                                as Box<dyn Conversation<ExplorerBag> + Send + Sync>)
                         }
                     }
                 } else {
@@ -251,12 +252,12 @@ impl Conversation<ExplorerBag> for MoveToPlanetConversation<WaitingIncomingRespo
                     }),
                     self.id,
                 );
-                Some(Box::new(error_state))
+                Some(Box::new(error_state) as Box<dyn Conversation<ExplorerBag> + Send + Sync>)
             };
         }
 
         let error_state = ErrorState::new(Box::new(CommonErrorTypes::WrongMessage), self.id);
-        Some(Box::new(error_state))
+        Some(Box::new(error_state) as Box<dyn Conversation<ExplorerBag> + Send + Sync>)
     }
 
     fn get_priority(&self) -> i32 {

@@ -137,7 +137,7 @@ impl Conversation<ExplorerBag> for AdvDeadExplorer<SendingDeadExpAdv> {
                     ToPlanetError::SenderNotFound(id) => CommonErrorTypes::PlanetSenderNotFound(id),
                 };
                 let error_state = ErrorState::new(Box::new(error), self.id);
-                Some(Box::new(error_state))
+                Some(Box::new(error_state) as Box<dyn Conversation<ExplorerBag> + Send + Sync>)
             }
         }
     }
@@ -211,12 +211,12 @@ impl Conversation<ExplorerBag> for AdvDeadExplorer<WaitingDeadAdvResponse> {
                     explorer_id,
                 };
                 let error_state = ErrorState::new(Box::new(error), self.id);
-                Some(Box::new(error_state))
+                Some(Box::new(error_state) as Box<dyn Conversation<ExplorerBag> + Send + Sync>)
             };
         }
 
         let error_state = ErrorState::new(Box::new(CommonErrorTypes::WrongMessage), self.id);
-        Some(Box::new(error_state))
+        Some(Box::new(error_state) as Box<dyn Conversation<ExplorerBag> + Send + Sync>)
     }
 
     fn get_priority(&self) -> i32 {
@@ -357,11 +357,11 @@ mod tests {
             explorer_id: EXPLORER_ID,
             res: Ok(()),
         });
-        let next_conv = conv
-            .transition(Some(msg))
-            .expect("Should return to manager");
-        assert_eq!(next_conv.get_id(), CONV_ID);
-        assert!(next_conv.get_error_details().is_none());
+        let next_conv = conv.transition(Some(msg));
+        assert!(
+            next_conv.is_none(),
+            "Conversation should end successfully"
+        );
     }
 
     #[test]
@@ -371,10 +371,21 @@ mod tests {
             planet_id: PLANET_ID,
             rocket: None,
         });
-        let next_conv = conv
-            .transition(Some(wrong_msg))
-            .expect("Should return to manager as failsafe");
-        assert!(next_conv.get_error_details().is_none());
+        let next_conv = conv.transition(Some(wrong_msg));
+        // Now, the conversation should return an ErrorState on a wrong message
+        assert!(
+            next_conv.is_some(),
+            "Conversation should return an ErrorState on wrong message"
+        );
+        let error_details = next_conv.unwrap().get_error_details();
+        assert!(
+            error_details.is_some(),
+            "ErrorState should have error details"
+        );
+        assert_eq!(
+            error_details.unwrap(),
+            "Wrong Message Received"
+        );
     }
 
     #[test]

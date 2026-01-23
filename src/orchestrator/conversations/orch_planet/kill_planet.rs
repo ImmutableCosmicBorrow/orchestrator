@@ -141,7 +141,7 @@ impl Conversation<ExplorerBag> for KillPlanetConversation<SendPlanetKill> {
                     ToPlanetError::SenderNotFound(id) => CommonErrorTypes::PlanetSenderNotFound(id),
                 };
                 let error_state = ErrorState::new(Box::new(error), self.id);
-                Some(Box::new(error_state))
+                Some(Box::new(error_state) as Box<dyn Conversation<ExplorerBag> + Send + Sync>)
             }
         }
     }
@@ -208,7 +208,7 @@ impl Conversation<ExplorerBag> for KillPlanetConversation<WaitingPlanetKillResul
 
         //Wrong Message, close conversation
         let error_state = ErrorState::new(Box::new(CommonErrorTypes::WrongMessage), self.id);
-        Some(Box::new(error_state))
+        Some(Box::new(error_state) as Box<dyn Conversation<ExplorerBag> + Send + Sync>)
     }
 
     fn get_priority(&self) -> i32 {
@@ -399,11 +399,12 @@ mod tests {
         let msg = PossibleMessage::PlanetToOrch(PlanetToOrchestrator::KillPlanetResult {
             planet_id: PLANET_ID,
         });
-        let next_conv = conv
-            .transition(Some(msg))
-            .expect("Should transition to KillExplorersManager");
-        assert_eq!(next_conv.get_id(), CONV_ID);
-        assert!(next_conv.get_error_details().is_none());
+        let next_conv = conv.transition(Some(msg));
+        // After planet kill, the conversation should end (return None)
+        assert!(
+            next_conv.is_none(),
+            "Conversation should end and return None"
+        );
     }
 
     #[test]
