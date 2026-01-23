@@ -102,8 +102,8 @@ impl Conversation<ExplorerBag> for CraftResourceConversation<SendingCraftResourc
         self.id
     }
 
-    fn get_entity_id(&self) -> ID {
-        self.state.to_explorer_struct.explorer_id
+    fn get_entities_ids(&self) -> (Option<ID>, Option<ID>) {
+        (None, Some(self.state.to_explorer_struct.explorer_id))
     }
 
     fn get_expected_kind(&self) -> Option<PossibleExpectedKinds> {
@@ -173,8 +173,8 @@ impl Conversation<ExplorerBag> for CraftResourceConversation<WaitingCraftResourc
         self.id
     }
 
-    fn get_entity_id(&self) -> ID {
-        self.state.explorer_id
+    fn get_entities_ids(&self) -> (Option<ID>, Option<ID>) {
+        (None, Some(self.state.explorer_id))
     }
 
     fn get_expected_kind(&self) -> Option<PossibleExpectedKinds> {
@@ -335,7 +335,7 @@ mod tests {
         let state = SendingCraftResourceRequest::new(to_explorer, Hydrogen);
         let conv = CraftResourceConversation::<SendingCraftResourceRequest>::new(CONV_ID, state);
         assert_eq!(conv.get_id(), CONV_ID);
-        assert_eq!(conv.get_entity_id(), EXPLORER_ID);
+        assert_eq!(conv.get_entities_ids(), (None, Some(EXPLORER_ID)));
         assert_eq!(conv.get_expected_kind(), None);
         assert_eq!(conv.get_priority(), 2);
     }
@@ -388,7 +388,7 @@ mod tests {
         let state = WaitingCraftResourceResult::new(EXPLORER_ID, Hydrogen);
         let conv = CraftResourceConversation::<WaitingCraftResourceResult>::new(CONV_ID, state);
         assert_eq!(conv.get_id(), CONV_ID);
-        assert_eq!(conv.get_entity_id(), EXPLORER_ID);
+        assert_eq!(conv.get_entities_ids(), (None, Some(EXPLORER_ID)));
         assert_eq!(
             conv.get_expected_kind(),
             Some(PossibleExpectedKinds::ExplorerToOrchKind(

@@ -35,8 +35,11 @@ impl Conversation<ExplorerBag> for MoveToPlanetConversation<WaitingTravelRequest
     }
 
     /// Returns the ID of the explorer associated with this movement request.
-    fn get_entity_id(&self) -> ID {
-        self.state.explorer_struct.explorer_id
+    fn get_entities_ids(&self) -> (Option<ID>, Option<ID>) {
+        (
+            Some(self.state.curr_planet_struct.planet_id),
+            Some(self.state.explorer_struct.explorer_id),
+        )
     }
 
     /// Returns the specific message type this state is currently polling for.

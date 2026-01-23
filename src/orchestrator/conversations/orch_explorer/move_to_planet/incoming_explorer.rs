@@ -28,8 +28,11 @@ impl Conversation<ExplorerBag> for MoveToPlanetConversation<SendIncomingRequest>
     }
 
     /// Returns the ID of the destination planet receiving the explorer.
-    fn get_entity_id(&self) -> ID {
-        self.state.dst_planet_struct.planet_id
+    fn get_entities_ids(&self) -> (Option<ID>, Option<ID>) {
+        (
+            Some(self.state.dst_planet_struct.planet_id),
+            Some(self.state.explorer_struct.explorer_id),
+        )
     }
 
     /// This is an action state; it does not poll for incoming messages because it
@@ -144,9 +147,12 @@ impl Conversation<ExplorerBag> for MoveToPlanetConversation<WaitingIncomingRespo
         self.id
     }
 
-    /// Returns the ID of the explorer whose movement is being validated.
-    fn get_entity_id(&self) -> ID {
-        self.state.explorer_struct.explorer_id
+    /// Returns the IDs of the current planet and the explorer whose movement is being validated.
+    fn get_entities_ids(&self) -> (Option<ID>, Option<ID>) {
+        (
+            Some(self.state.curr_planet_struct.planet_id),
+            Some(self.state.explorer_struct.explorer_id),
+        )
     }
 
     /// Returns the expected message kind: [`PlanetToOrchestratorKind::IncomingExplorerResponse`].

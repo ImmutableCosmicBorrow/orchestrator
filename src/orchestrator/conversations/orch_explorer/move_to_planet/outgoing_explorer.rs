@@ -33,9 +33,12 @@ impl Conversation<ExplorerBag> for MoveToPlanetConversation<SendOutgoingRequest>
         self.id
     }
 
-    /// Returns the ID of the current planet from which the explorer is departing.
-    fn get_entity_id(&self) -> ID {
-        self.state.curr_planet_struct.planet_id
+    /// Returns the IDs of the current planet and the explorer departing.
+    fn get_entities_ids(&self) -> (Option<ID>, Option<ID>) {
+        (
+            Some(self.state.curr_planet_struct.planet_id),
+            Some(self.state.explorer_struct.explorer_id),
+        )
     }
 
     /// This state is an action state (fire-and-forget); it does not wait for a message
@@ -141,9 +144,12 @@ impl Conversation<ExplorerBag> for MoveToPlanetConversation<WaitingOutgoingRespo
         self.id
     }
 
-    /// Returns the ID of the explorer attempting to move.
-    fn get_entity_id(&self) -> ID {
-        self.state.explorer_struct.explorer_id
+    /// Returns the IDs of the destination planet and the explorer departing.
+    fn get_entities_ids(&self) -> (Option<ID>, Option<ID>) {
+        (
+            Some(self.state.dst_planet_id),
+            Some(self.state.explorer_struct.explorer_id),
+        )
     }
 
     /// Returns the expected kind: [`PlanetToOrchestratorKind::OutgoingExplorerResponse`].

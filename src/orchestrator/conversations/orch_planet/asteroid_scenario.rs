@@ -96,8 +96,8 @@ impl Conversation<ExplorerBag> for AsteroidConversation<SendingAsteroid> {
         self.id
     }
 
-    fn get_entity_id(&self) -> ID {
-        self.state.to_planet_struct.planet_id
+    fn get_entities_ids(&self) -> (Option<ID>, Option<ID>) {
+        (Some(self.state.to_planet_struct.planet_id), None)
     }
 
     fn get_expected_kind(&self) -> Option<PossibleExpectedKinds> {
@@ -167,8 +167,8 @@ impl Conversation<ExplorerBag> for AsteroidConversation<WaitingAsteroidAck> {
         self.id
     }
 
-    fn get_entity_id(&self) -> ID {
-        self.state.to_planet_struct.planet_id
+    fn get_entities_ids(&self) -> (Option<ID>, Option<ID>) {
+        (Some(self.state.to_planet_struct.planet_id), None)
     }
 
     fn get_expected_kind(&self) -> Option<PossibleExpectedKinds> {
@@ -370,7 +370,7 @@ mod tests {
         let state = SendingAsteroid::new(to_planet, forge, explorers_location, explorers_senders);
         let conv = AsteroidConversation::<SendingAsteroid>::new(CONV_ID, state);
         assert_eq!(conv.get_id(), CONV_ID);
-        assert_eq!(conv.get_entity_id(), PLANET_ID);
+        assert_eq!(conv.get_entities_ids(), (Some(PLANET_ID), None));
         assert_eq!(conv.get_expected_kind(), None);
         assert_eq!(conv.get_priority(), 4);
     }
@@ -412,7 +412,7 @@ mod tests {
         let state = WaitingAsteroidAck::new(to_planet, explorers_senders, explorers_location);
         let conv = AsteroidConversation::<WaitingAsteroidAck>::new(CONV_ID, state);
         assert_eq!(conv.get_id(), CONV_ID);
-        assert_eq!(conv.get_entity_id(), PLANET_ID);
+        assert_eq!(conv.get_entities_ids(), (Some(PLANET_ID), None));
         assert_eq!(
             conv.get_expected_kind(),
             Some(PossibleExpectedKinds::PlanetToOrchKind(

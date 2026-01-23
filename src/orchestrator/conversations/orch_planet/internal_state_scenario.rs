@@ -68,8 +68,8 @@ impl Conversation<ExplorerBag> for InternalStateConversation<SendingInternalStat
         self.id
     }
 
-    fn get_entity_id(&self) -> ID {
-        self.state.to_planet_struct.planet_id
+    fn get_entities_ids(&self) -> (Option<ID>, Option<ID>) {
+        (Some(self.state.to_planet_struct.planet_id), None)
     }
 
     fn get_expected_kind(&self) -> Option<PossibleExpectedKinds> {
@@ -135,8 +135,8 @@ impl Conversation<ExplorerBag> for InternalStateConversation<WaitingInternalStat
         self.id
     }
 
-    fn get_entity_id(&self) -> ID {
-        self.state.planet_id
+    fn get_entities_ids(&self) -> (Option<ID>, Option<ID>) {
+        (Some(self.state.planet_id), None)
     }
 
     fn get_expected_kind(&self) -> Option<PossibleExpectedKinds> {
@@ -307,7 +307,7 @@ mod tests {
         let state = SendingInternalStateRequest::new(to_planet);
         let conv = InternalStateConversation::<SendingInternalStateRequest>::new(CONV_ID, state);
         assert_eq!(conv.get_id(), CONV_ID);
-        assert_eq!(conv.get_entity_id(), PLANET_ID);
+        assert_eq!(conv.get_entities_ids(), (Some(PLANET_ID), None));
         assert_eq!(conv.get_expected_kind(), None);
         assert_eq!(conv.get_priority(), 3);
     }
@@ -344,7 +344,7 @@ mod tests {
         let conv =
             InternalStateConversation::<WaitingInternalStateResponse>::new(CONV_ID, PLANET_ID);
         assert_eq!(conv.get_id(), CONV_ID);
-        assert_eq!(conv.get_entity_id(), PLANET_ID);
+        assert_eq!(conv.get_entities_ids(), (Some(PLANET_ID), None));
         assert_eq!(
             conv.get_expected_kind(),
             Some(PlanetToOrchKind(

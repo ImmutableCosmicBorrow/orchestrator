@@ -28,8 +28,8 @@ mod util;
 pub trait Conversation<T: Debug + Eq + Hash>: Send + Sync {
     /// Returns the unique ID of the conversation instance.
     fn get_id(&self) -> ID;
-    /// Returns the ID of the entity (Planet or Explorer) this conversation is currently targeting.
-    fn get_entity_id(&self) -> ID;
+    /// Returns the tuple (planet_id, explorer_id) that represent the entities involved by the conversation. One or both may be `None`.
+    fn get_entities_ids(&self) -> (Option<ID>, Option<ID>);
     /// Returns the specific message type this state is waiting for, if any.
     fn get_expected_kind(&self) -> Option<PossibleExpectedKinds>;
     /// Consumes the current state and a message to produce the next state in the sequence.
@@ -83,10 +83,10 @@ impl<T> PossibleMessage<T> {
     }
 
     /// Retrieves the ID of the entity that sent the message.
-    pub fn get_entity_id(&self) -> ID {
+    pub fn get_entity_ids(&self) -> (Option<ID>, Option<ID>) {
         match self {
-            PossibleMessage::PlanetToOrch(msg) => msg.planet_id(),
-            PossibleMessage::ExplorerToOrch(msg) => msg.explorer_id(),
+            PossibleMessage::PlanetToOrch(msg) => (Some(msg.planet_id()), None),
+            PossibleMessage::ExplorerToOrch(msg) => (None, Some(msg.explorer_id())),
         }
     }
 }
@@ -228,8 +228,8 @@ impl Conversation<ExplorerBag> for ErrorState {
     fn get_id(&self) -> ID {
         self.id
     }
-    fn get_entity_id(&self) -> ID {
-        self.id
+    fn get_entities_ids(&self) -> (Option<ID>, Option<ID>) {
+        (None, None)
     }
     fn get_expected_kind(&self) -> Option<PossibleExpectedKinds> {
         None

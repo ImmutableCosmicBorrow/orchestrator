@@ -150,16 +150,17 @@ impl Orchestrator {
 
     fn handle_message(&mut self, message: PossibleMessage<ExplorerBag>) {
         let message_kind = message.to_kind_type();
-        let entity_id = message.get_entity_id();
+        let entities_ids = message.get_entity_ids();
 
         let matching_conversation = self
             .convo_scheduler
-            .find_matching_conversation(&message_kind, entity_id);
+            .find_matching_conversation(&message_kind, entities_ids);
 
         match matching_conversation {
             // If the message matches the expected kind, we let the message wait for the transition
-            Some(_conversation) => {
-                self.convo_scheduler.add_waiting_message(entity_id, message);
+            Some(conversation) => {
+                self.convo_scheduler
+                    .add_waiting_message(conversation.get_id(), message);
             }
             None => {
                 match message {
@@ -201,7 +202,7 @@ impl Orchestrator {
                                     payload!(
                                         action : "Received ExplorerToOrchestrator message that does not start a conversation. Ignoring.",
                                         message_kind : format!{"{:?}", message_kind},
-                                        from_explorer : entity_id,
+                                        from_explorer : entities_ids.1.unwrap(),
                                     ),
                                 );
                             }
@@ -214,7 +215,7 @@ impl Orchestrator {
                             payload!(
                                 action : "Received PlanetToOrchestrator message that does not start a conversation. Ignoring.",
                                 message_kind : format!{"{message_kind:?}"},
-                                from_planet : entity_id,
+                                from_planet : entities_ids.0.unwrap(),
                             ),
                         );
                     }

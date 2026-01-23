@@ -79,7 +79,7 @@ impl<T: Debug + Eq + Hash> ConvoScheduler<T> {
     pub fn find_matching_conversation(
         &self,
         message_kind: &PossibleExpectedKinds,
-        entity_id: ID,
+        entity_ids: (Option<ID>, Option<ID>),
     ) -> Option<Box<dyn Conversation<T> + Send + Sync>> {
         let by_expected_msg = self.by_expected_msg.lock().unwrap();
         if let Some(convo_ids) = by_expected_msg.get(message_kind) {
@@ -88,7 +88,7 @@ impl<T: Debug + Eq + Hash> ConvoScheduler<T> {
                     let active_convos = self.active_convos.lock().unwrap();
                     active_convos
                         .get(&convo_id)
-                        .is_some_and(|convo| convo.get_entity_id() == entity_id)
+                        .is_some_and(|convo| convo.get_entities_ids() == entity_ids)
                 };
 
                 if entity_matches {
@@ -203,7 +203,7 @@ mod tests {
     #[derive(Clone)]
     struct MockConversation {
         id: ID,
-        entity_id: ID,
+        planet_id: ID,
         expected_kind: Option<PossibleExpectedKinds>,
         priority: i32,
         state: Arc<Mutex<MockState>>,
@@ -219,7 +219,7 @@ mod tests {
         fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
             f.debug_struct("MockConversation")
                 .field("id", &self.id)
-                .field("entity_id", &self.entity_id)
+                .field("planet_id", &self.planet_id)
                 .field("priority", &self.priority)
                 .finish_non_exhaustive()
         }
@@ -244,8 +244,8 @@ mod tests {
             self.id
         }
 
-        fn get_entity_id(&self) -> ID {
-            self.entity_id
+        fn get_entities_ids(&self) -> (Option<ID>, Option<ID>) {
+            (Some(self.planet_id), None)
         }
 
         fn get_expected_kind(&self) -> Option<PossibleExpectedKinds> {
@@ -270,13 +270,13 @@ mod tests {
     impl MockConversation {
         fn new(
             id: ID,
-            entity_id: ID,
+            planet_id: ID,
             priority: i32,
             expected_kind: Option<PossibleExpectedKinds>,
         ) -> Self {
             Self {
                 id,
-                entity_id,
+                planet_id,
                 expected_kind,
                 priority,
                 state: Arc::new(Mutex::new(MockState {
@@ -288,13 +288,13 @@ mod tests {
 
         fn with_expected_kind(
             id: ID,
-            entity_id: ID,
+            planet_id: ID,
             priority: i32,
             expected_kind: PossibleExpectedKinds,
         ) -> Self {
             Self {
                 id,
-                entity_id,
+                planet_id,
                 expected_kind: Some(expected_kind),
                 priority,
                 state: Arc::new(Mutex::new(MockState {
@@ -335,7 +335,7 @@ mod tests {
         scheduler.add_conversation(convo);
 
         let retrieved = scheduler.get_next_conversation().unwrap();
-        assert_eq!(retrieved.get_entity_id(), 1);
+        assert_eq!(retrieved.get_entities_ids(), (Some(1), None));
         assert_eq!(retrieved.get_priority(), 10);
         assert!(scheduler.is_empty());
 
@@ -347,7 +347,7 @@ mod tests {
 
         let is_inside_expected_map = scheduler.find_matching_conversation(
             &PossibleExpectedKinds::PlanetToOrchKind(PlanetToOrchestratorKind::AsteroidAck),
-            1,
+            (Some(1), None),
         );
         assert!(is_inside_expected_map.is_none());
     }
@@ -387,7 +387,7 @@ mod tests {
         ));
         scheduler.add_conversation(convo);
 
-        let found = scheduler.find_matching_conversation(&kind, 42);
+        let found = scheduler.find_matching_conversation(&kind, (Some(42), None));
         assert!(found.is_some());
         assert_eq!(found.unwrap().get_id(), 100);
     }
@@ -405,7 +405,7 @@ mod tests {
         ));
         scheduler.add_conversation(convo);
 
-        let found = scheduler.find_matching_conversation(&kind, 999);
+        let found = scheduler.find_matching_conversation(&kind, (Some(999), None));
         assert!(found.is_none());
     }
 
@@ -418,7 +418,7 @@ mod tests {
         let convo = Box::new(MockConversation::with_expected_kind(100, 42, 10, kind1));
         scheduler.add_conversation(convo);
 
-        let found = scheduler.find_matching_conversation(&kind2, 42);
+        let found = scheduler.find_matching_conversation(&kind2, (Some(42), None));
         assert!(found.is_none());
         assert!(!scheduler.is_empty());
     }
@@ -431,7 +431,7 @@ mod tests {
         let convo = Box::new(MockConversation::new(100, 42, 10, None));
         scheduler.add_conversation(convo);
 
-        let found = scheduler.find_matching_conversation(&kind, 42);
+        let found = scheduler.find_matching_conversation(&kind, (Some(42), None));
         assert!(found.is_none());
     }
 
@@ -459,15 +459,15 @@ mod tests {
             kind.clone(),
         )));
 
-        let found1 = scheduler.find_matching_conversation(&kind, 2);
+        let found1 = scheduler.find_matching_conversation(&kind, (Some(2), None));
         assert!(found1.is_some());
         assert_eq!(found1.unwrap().get_id(), 200);
 
-        let found2 = scheduler.find_matching_conversation(&kind, 1);
+        let found2 = scheduler.find_matching_conversation(&kind, (Some(1), None));
         assert!(found2.is_some());
         assert_eq!(found2.unwrap().get_id(), 100);
 
-        let found3 = scheduler.find_matching_conversation(&kind, 3);
+        let found3 = scheduler.find_matching_conversation(&kind, (Some(3), None));
         assert!(found3.is_some());
         assert_eq!(found3.unwrap().get_id(), 300);
     }

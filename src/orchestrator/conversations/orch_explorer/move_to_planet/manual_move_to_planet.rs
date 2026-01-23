@@ -17,9 +17,12 @@ impl Conversation<ExplorerBag> for MoveToPlanetConversation<SendManualMoveReques
         self.id
     }
 
-    /// Returns the ID of the explorer being manually moved.
-    fn get_entity_id(&self) -> ID {
-        self.state.explorer_struct.explorer_id
+    /// Returns the IDs of the destination planet and the explorer being manually moved.
+    fn get_entities_ids(&self) -> (Option<ID>, Option<ID>) {
+        (
+            Some(self.state.dst_planet_struct.planet_id),
+            Some(self.state.explorer_struct.explorer_id),
+        )
     }
 
     /// This is an action state (fire-and-forget); it does not wait for an external message.

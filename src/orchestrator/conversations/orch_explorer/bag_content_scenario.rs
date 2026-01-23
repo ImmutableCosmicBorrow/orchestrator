@@ -70,8 +70,8 @@ impl Conversation<ExplorerBag> for BagContentConversation<SendingBagContentReque
         self.id
     }
 
-    fn get_entity_id(&self) -> ID {
-        self.state.to_explorer_struct.explorer_id
+    fn get_entities_ids(&self) -> (Option<ID>, Option<ID>) {
+        (None, Some(self.state.to_explorer_struct.explorer_id))
     }
 
     fn get_expected_kind(&self) -> Option<PossibleExpectedKinds> {
@@ -139,8 +139,8 @@ impl Conversation<ExplorerBag> for BagContentConversation<WaitingBagContentRespo
         self.id
     }
 
-    fn get_entity_id(&self) -> ID {
-        self.state.explorer_id
+    fn get_entities_ids(&self) -> (Option<ID>, Option<ID>) {
+        (None, Some(self.state.explorer_id))
     }
 
     fn get_expected_kind(&self) -> Option<PossibleExpectedKinds> {
@@ -290,7 +290,7 @@ mod tests {
         let state = SendingBagContentRequest::new(to_explorer);
         let conv = BagContentConversation::<SendingBagContentRequest>::new(CONV_ID, state);
         assert_eq!(conv.get_id(), CONV_ID);
-        assert_eq!(conv.get_entity_id(), EXPLORER_ID);
+        assert_eq!(conv.get_entities_ids(), (None, Some(EXPLORER_ID)));
         assert_eq!(conv.get_expected_kind(), None);
         assert_eq!(conv.get_priority(), 3);
     }
@@ -330,7 +330,7 @@ mod tests {
     fn wait_getters() {
         let conv = BagContentConversation::<WaitingBagContentResponse>::new(CONV_ID, EXPLORER_ID);
         assert_eq!(conv.get_id(), CONV_ID);
-        assert_eq!(conv.get_entity_id(), EXPLORER_ID);
+        assert_eq!(conv.get_entities_ids(), (None, Some(EXPLORER_ID)));
         assert_eq!(
             conv.get_expected_kind(),
             Some(PossibleExpectedKinds::ExplorerToOrchKind(

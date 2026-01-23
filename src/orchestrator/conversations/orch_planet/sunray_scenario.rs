@@ -77,8 +77,8 @@ impl Conversation<ExplorerBag> for SunrayConversation<SendSunray> {
         self.id
     }
 
-    fn get_entity_id(&self) -> ID {
-        self.state.to_planet_struct.planet_id
+    fn get_entities_ids(&self) -> (Option<ID>, Option<ID>) {
+        (Some(self.state.to_planet_struct.planet_id), None)
     }
 
     fn get_expected_kind(&self) -> Option<PossibleExpectedKinds> {
@@ -144,8 +144,8 @@ impl Conversation<ExplorerBag> for SunrayConversation<WaitingSunrayAck> {
         self.id
     }
 
-    fn get_entity_id(&self) -> ID {
-        self.state.planet_id
+    fn get_entities_ids(&self) -> (Option<ID>, Option<ID>) {
+        (Some(self.state.planet_id), None)
     }
 
     fn get_expected_kind(&self) -> Option<PossibleExpectedKinds> {
@@ -311,8 +311,8 @@ mod tests {
         let conv = SunrayConversation::<SendSunray>::new(CONV_ID, state);
         // get_id
         assert_eq!(conv.get_id(), CONV_ID);
-        // get_entity_id
-        assert_eq!(conv.get_entity_id(), PLANET_ID);
+        // get_entity_ids
+        assert_eq!(conv.get_entities_ids(), (Some(PLANET_ID), None));
         // get_expected_kind (should be None in SendSunray state)
         assert_eq!(conv.get_expected_kind(), None);
         // get_priority
@@ -350,8 +350,8 @@ mod tests {
         let conv = SunrayConversation::<WaitingSunrayAck>::new(CONV_ID, PLANET_ID);
         // get_id
         assert_eq!(conv.get_id(), CONV_ID);
-        // get_entity_id
-        assert_eq!(conv.get_entity_id(), PLANET_ID);
+        // get_entity_ids
+        assert_eq!(conv.get_entities_ids(), (Some(PLANET_ID), None));
         // get_expected_kind (should be Some(SunrayAck))
         assert_eq!(conv.get_expected_kind(), Some(PlanetToOrchKind(SunrayAck)));
         // get_priority

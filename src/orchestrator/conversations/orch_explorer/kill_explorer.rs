@@ -95,8 +95,8 @@ impl Conversation<ExplorerBag> for KillExplorerConversation<SendingKillExplorer>
         self.id
     }
 
-    fn get_entity_id(&self) -> ID {
-        self.state.to_explorer_struct.explorer_id
+    fn get_entities_ids(&self) -> (Option<ID>, Option<ID>) {
+        (None, Some(self.state.to_explorer_struct.explorer_id))
     }
 
     fn get_expected_kind(&self) -> Option<PossibleExpectedKinds> {
@@ -169,8 +169,8 @@ impl Conversation<ExplorerBag> for KillExplorerConversation<WaitingKillExplorerR
         self.id
     }
 
-    fn get_entity_id(&self) -> ID {
-        self.state.explorer_id
+    fn get_entities_ids(&self) -> (Option<ID>, Option<ID>) {
+        (None, Some(self.state.explorer_id))
     }
 
     fn get_expected_kind(&self) -> Option<PossibleExpectedKinds> {
@@ -348,7 +348,7 @@ mod tests {
         let conv = make_send_conv(senders, planet_senders, false);
 
         assert_eq!(conv.get_id(), CONV_ID);
-        assert_eq!(conv.get_entity_id(), EXPLORER_ID);
+        assert_eq!(conv.get_entities_ids(), (None, Some(EXPLORER_ID)));
         assert_eq!(conv.get_expected_kind(), None);
         assert_eq!(conv.get_priority(), 5);
     }
@@ -412,7 +412,7 @@ mod tests {
 
         let conv = make_wait_conv(planet_senders, false);
         assert_eq!(conv.get_id(), CONV_ID);
-        assert_eq!(conv.get_entity_id(), EXPLORER_ID);
+        assert_eq!(conv.get_entities_ids(), (None, Some(EXPLORER_ID)));
         assert_eq!(
             conv.get_expected_kind(),
             Some(PossibleExpectedKinds::ExplorerToOrchKind(

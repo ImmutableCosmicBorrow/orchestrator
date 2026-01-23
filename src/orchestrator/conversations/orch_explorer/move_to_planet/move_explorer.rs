@@ -29,9 +29,12 @@ impl Conversation<ExplorerBag> for MoveToPlanetConversation<SendMoveRequest> {
         self.id
     }
 
-    /// Returns the ID of the explorer being commanded to move.
-    fn get_entity_id(&self) -> ID {
-        self.state.explorer_struct.explorer_id
+    /// Returns the IDs of the destination planet and the explorer being commanded to move.
+    fn get_entities_ids(&self) -> (Option<ID>, Option<ID>) {
+        (
+            Some(self.state.dst_planet_id),
+            Some(self.state.explorer_struct.explorer_id),
+        )
     }
 
     fn get_expected_kind(&self) -> Option<PossibleExpectedKinds> {
@@ -154,9 +157,9 @@ impl Conversation<ExplorerBag> for MoveToPlanetConversation<WaitMoveToPlanetResp
         self.id
     }
 
-    /// Returns the ID of the explorer finalizing the move.
-    fn get_entity_id(&self) -> ID {
-        self.state.explorer_id
+    /// Returns the IDs of the destination planet and the explorer finalizing the move.
+    fn get_entities_ids(&self) -> (Option<ID>, Option<ID>) {
+        (Some(self.state.dst_planet_id), Some(self.state.explorer_id))
     }
 
     /// Listens specifically for [`ExplorerToOrchestratorKind::MovedToPlanetResult`].

@@ -71,8 +71,8 @@ impl Conversation<ExplorerBag> for StopPlanetConversation<SendingPlanetStop> {
         self.id
     }
 
-    fn get_entity_id(&self) -> ID {
-        self.state.to_planet_struct.planet_id
+    fn get_entities_ids(&self) -> (Option<ID>, Option<ID>) {
+        (Some(self.state.to_planet_struct.planet_id), None)
     }
 
     fn get_expected_kind(&self) -> Option<PossibleExpectedKinds> {
@@ -138,8 +138,8 @@ impl Conversation<ExplorerBag> for StopPlanetConversation<WaitingPlanetStopResul
         self.id
     }
 
-    fn get_entity_id(&self) -> ID {
-        self.state.planet_id
+    fn get_entities_ids(&self) -> (Option<ID>, Option<ID>) {
+        (Some(self.state.planet_id), None)
     }
 
     fn get_expected_kind(&self) -> Option<PossibleExpectedKinds> {
@@ -300,7 +300,7 @@ mod tests {
         let state = SendingPlanetStop::new(to_planet);
         let conv = StopPlanetConversation::<SendingPlanetStop>::new(CONV_ID, state);
         assert_eq!(conv.get_id(), CONV_ID);
-        assert_eq!(conv.get_entity_id(), PLANET_ID);
+        assert_eq!(conv.get_entities_ids(), (Some(PLANET_ID), None));
         assert_eq!(conv.get_expected_kind(), None);
         assert_eq!(conv.get_priority(), 5);
     }
@@ -338,7 +338,7 @@ mod tests {
     fn wait_getters() {
         let conv = StopPlanetConversation::<WaitingPlanetStopResult>::new(CONV_ID, PLANET_ID);
         assert_eq!(conv.get_id(), CONV_ID);
-        assert_eq!(conv.get_entity_id(), PLANET_ID);
+        assert_eq!(conv.get_entities_ids(), (Some(PLANET_ID), None));
         assert_eq!(
             conv.get_expected_kind(),
             Some(PlanetToOrchKind(

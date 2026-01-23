@@ -91,8 +91,8 @@ impl Conversation<ExplorerBag> for NeighborsDiscoveryConversation<SendingNeighbo
         self.id
     }
 
-    fn get_entity_id(&self) -> ID {
-        self.state.to_explorer_struct.explorer_id
+    fn get_entities_ids(&self) -> (Option<ID>, Option<ID>) {
+        (None, Some(self.state.to_explorer_struct.explorer_id))
     }
 
     fn get_expected_kind(&self) -> Option<PossibleExpectedKinds> {
@@ -164,8 +164,8 @@ impl Conversation<ExplorerBag> for NeighborsDiscoveryConversation<WaitingExplore
         self.id
     }
 
-    fn get_entity_id(&self) -> ID {
-        self.state.to_explorer_struct.explorer_id
+    fn get_entities_ids(&self) -> (Option<ID>, Option<ID>) {
+        (None, Some(self.state.to_explorer_struct.explorer_id))
     }
 
     fn get_expected_kind(&self) -> Option<PossibleExpectedKinds> {
@@ -344,7 +344,7 @@ mod tests {
         let explorer_senders = make_empty_senders();
         let conv = make_wait_conv(explorer_senders, INIT_PATH);
         assert_eq!(conv.get_id(), CONV_ID);
-        assert_eq!(conv.get_entity_id(), EXPLORER_ID);
+        assert_eq!(conv.get_entities_ids(), (None, Some(EXPLORER_ID)));
         assert_eq!(
             conv.get_expected_kind(),
             Some(PossibleExpectedKinds::ExplorerToOrchKind(
@@ -423,7 +423,7 @@ mod tests {
         let state = SendingNeighborsResponse::new(to_explorer, vec![10, 20, 30]);
         let conv = NeighborsDiscoveryConversation::<SendingNeighborsResponse>::new(CONV_ID, state);
         assert_eq!(conv.get_id(), CONV_ID);
-        assert_eq!(conv.get_entity_id(), EXPLORER_ID);
+        assert_eq!(conv.get_entities_ids(), (None, Some(EXPLORER_ID)));
         assert_eq!(conv.get_expected_kind(), None);
         assert_eq!(conv.get_priority(), 3);
     }
