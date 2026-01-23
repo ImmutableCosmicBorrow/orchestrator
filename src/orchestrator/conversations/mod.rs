@@ -1,8 +1,8 @@
 use crate::galaxy_setup::OrchPlanSenderMap;
-use crate::logging_utils::log_internal;
+use crate::logging_utils::{log_internal, log_msg_to};
 use crate::orchestrator::ExplorerBag;
 use crate::payload;
-use common_game::logging::Channel;
+use common_game::logging::{ActorType, Channel, EventType};
 use common_game::protocols::orchestrator_explorer::{
     ExplorerToOrchestrator, ExplorerToOrchestratorKind, OrchestratorToExplorer,
 };
@@ -28,7 +28,7 @@ mod util;
 pub trait Conversation<T: Debug + Eq + Hash>: Send + Sync {
     /// Returns the unique ID of the conversation instance.
     fn get_id(&self) -> ID;
-    /// Returns the tuple (planet_id, explorer_id) that represent the entities involved by the conversation. One or both may be `None`.
+    /// Returns the tuple (`planet_id`, `explorer_id`) that represent the entities involved by the conversation. One or both may be `None`.
     fn get_entities_ids(&self) -> (Option<ID>, Option<ID>);
     /// Returns the specific message type this state is waiting for, if any.
     fn get_expected_kind(&self) -> Option<PossibleExpectedKinds>;
@@ -122,6 +122,14 @@ impl ToPlanetStruct {
         };
 
         if let Some(s) = sender {
+            log_msg_to(
+                Channel::Trace,
+                EventType::MessageOrchestratorToPlanet,
+                (ActorType::Planet, self.planet_id),
+                payload!(
+                    message : format!("{:?}", msg)
+                ),
+            );
             s.send(msg)
                 .map_err(|_| ToPlanetError::SendingMessageFailure(self.planet_id))
         } else {
@@ -153,6 +161,14 @@ impl ToExplorerStruct {
         };
 
         if let Some(s) = sender {
+            log_msg_to(
+                Channel::Trace,
+                EventType::MessageOrchestratorToExplorer,
+                (ActorType::Explorer, self.explorer_id),
+                payload!(
+                    message : format!("{:?}", msg)
+                ),
+            );
             s.send(msg)
                 .map_err(|_| ToExplorerError::SendingMessageFailure(self.explorer_id))
         } else {
