@@ -281,6 +281,33 @@ fn conns_write(conns: &ConnHandle) -> std::sync::RwLockWriteGuard<'_, Connection
     }
 }
 
+/// Internal helper: ensure node exists in an *already-held* `PlanetMap` write guard.
+/// Mirrors `ensure_node` logic but avoids re-locking the map.
+fn ensure_node_in_guard(
+    guard: &mut HashMap<ID, Arc<PlanetNode>>,
+    id: ID,
+    key: usize,
+) -> Arc<PlanetNode> {
+    if let Some(existing) = guard.get(&id)
+        && existing.is_alive()
+    {
+        return Arc::clone(existing);
+    }
+
+    let fresh = Arc::new(PlanetNode::new(id, key));
+    guard.insert(id, Arc::clone(&fresh));
+
+    log_internal(
+        Channel::Warning,
+        payload! {
+            event: "Created a fresh PlanetNode (replacing dead or missing)",
+            planet_id: id,
+        },
+    );
+
+    fresh
+}
+
 /* -------------------- Public API (UNCHANGED) -------------------- */
 
 /// Insert node if missing, return Arc.
@@ -374,4 +401,48 @@ where
     // 5) Callback after consistent.
     stop_fn(dead_id);
     true
+}
+
+/// Add (or ensure) a planet node and connect it to the provided neighbors.
+///
+/// - Creates/replaces the planet node if missing or dead
+/// - Creates/replaces neighbor nodes if missing or dead
+/// - Adds undirected edges using the centralized connection store (no one-sided edges possible)
+///
+/// Returns the Arc<PlanetNode> for `id`.
+pub fn add_planet_with_neighbors<I>(map: &PlanetMap, id: ID, neighbors: I) -> Arc<PlanetNode>
+where
+    I: IntoIterator<Item = ID>,
+{
+    let key = map_key(map);
+
+    // Ensure the side-car connection store exists for this map.
+    let conns = conns_for_map(map);
+
+    // 1) Lock the planet map once and ensure all nodes exist & are alive.
+    let mut mg = map_write(map);
+
+    let node = ensure_node_in_guard(&mut mg, id, key);
+
+    // Collect unique neighbor IDs (skip self).
+    let mut uniq_neighbors: HashSet<ID> = HashSet::new();
+    for n in neighbors {
+        if n != id {
+            uniq_neighbors.insert(n);
+        }
+    }
+
+    // Ensure all neighbor nodes exist too.
+    for nid in uniq_neighbors.iter().copied() {
+        let _ = ensure_node_in_guard(&mut mg, nid, key);
+    }
+
+    // 2) Lock connections once and add all edges (single source of truth).
+    // Lock order remains: PlanetMap(write) -> Connections(write)
+    let mut cg = conns_write(&conns);
+    for nid in uniq_neighbors {
+        cg.insert_edge(id, nid);
+    }
+
+    node
 }
