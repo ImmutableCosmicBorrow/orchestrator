@@ -1,7 +1,7 @@
 //! Background event senders for asteroids and sunrays.
 //!
 //! - Singleton background scheduler thread
-//! - External control ONLY via thread-safe flags
+//! - External control only via thread-safe flags
 //! - Graceful shutdown support
 //! - Clippy-friendly (no mega-functions, reduced argument lists)
 
@@ -165,52 +165,40 @@ struct ConversationCtx {
     convo_scheduler: ConvoScheduler<ExplorerBag>,
 }
 
-struct AsteroidCtx<'a> {
-    universe: &'a UniverseCtx,
-    convo: &'a ConversationCtx,
-}
-
-struct SunrayCtx<'a> {
-    universe: &'a UniverseCtx,
-    convo: &'a ConversationCtx,
-}
-
 //
 // ──────────────────────────────────────────────────────────────────────────
-// Conversation helpers (ctx + raw values)
+// Conversation helpers (context + raw values)
 // ──────────────────────────────────────────────────────────────────────────
 //
 
-fn send_asteroid(ctx: &AsteroidCtx<'_>, planet_id: ID) {
-    let to_planet =
-        conversations::ToPlanetStruct::new(ctx.convo.planets_senders.clone(), planet_id);
+fn send_asteroid(universe: &UniverseCtx, convo: &ConversationCtx, planet_id: ID) {
+    let to_planet = conversations::ToPlanetStruct::new(convo.planets_senders.clone(), planet_id);
 
     let state = conversations::orch_planet::SendingAsteroid::new(
         to_planet,
-        ctx.convo.forge.clone(),
-        ctx.universe.explorers_location.clone(),
-        ctx.convo.explorer_senders.clone(),
+        convo.forge.clone(),
+        universe.explorers_location.clone(),
+        convo.explorer_senders.clone(),
     );
 
-    // TODO: Use proper conversation ID
-    let convo = conversations::orch_planet::AsteroidConversation::new(0, state);
+    let convo_id = crate::globals::get_id_manager().get_next_conversation_id();
+    let conversation = conversations::orch_planet::AsteroidConversation::new(convo_id, state);
 
-    ctx.convo.convo_scheduler.add_conversation(
-        Box::new(convo) as Box<dyn conversations::Conversation<ExplorerBag> + Send + Sync>
+    convo.convo_scheduler.add_conversation(
+        Box::new(conversation) as Box<dyn conversations::Conversation<ExplorerBag> + Send + Sync>
     );
 }
 
-fn send_sunray(ctx: &SunrayCtx<'_>, planet_id: ID) {
-    let to_planet =
-        conversations::ToPlanetStruct::new(ctx.convo.planets_senders.clone(), planet_id);
+fn send_sunray(convo: &ConversationCtx, planet_id: ID) {
+    let to_planet = conversations::ToPlanetStruct::new(convo.planets_senders.clone(), planet_id);
 
-    let state = conversations::orch_planet::SendSunray::new(to_planet, ctx.convo.forge.clone());
+    let state = conversations::orch_planet::SendSunray::new(to_planet, convo.forge.clone());
 
-    // TODO: Use proper conversation ID
-    let convo = conversations::orch_planet::SunrayConversation::new(0, state);
+    let convo_id = crate::globals::get_id_manager().get_next_conversation_id();
+    let conversation = conversations::orch_planet::SunrayConversation::new(convo_id, state);
 
-    ctx.convo.convo_scheduler.add_conversation(
-        Box::new(convo) as Box<dyn conversations::Conversation<ExplorerBag> + Send + Sync>
+    convo.convo_scheduler.add_conversation(
+        Box::new(conversation) as Box<dyn conversations::Conversation<ExplorerBag> + Send + Sync>
     );
 }
 
@@ -298,7 +286,8 @@ fn maybe_send_asteroid(
     state: &mut SchedState,
     now: Instant,
     planet_ids: &[ID],
-    ctx: &AsteroidCtx<'_>,
+    universe: &UniverseCtx,
+    convo: &ConversationCtx,
 ) {
     let Some(t) = state.next_asteroid_at else {
         return;
@@ -307,12 +296,12 @@ fn maybe_send_asteroid(
         return;
     }
 
-    if let Some((_delay, planet)) = asteroid_delay(planet_ids, &ctx.universe.explorers_location) {
+    if let Some((_delay, planet)) = asteroid_delay(planet_ids, &universe.explorers_location) {
         log_internal(
             Channel::Info,
             payload!(action: "Sending asteroid", planet_id: planet),
         );
-        send_asteroid(ctx, planet);
+        send_asteroid(universe, convo, planet);
     } else {
         log_internal(
             Channel::Warning,
@@ -323,7 +312,13 @@ fn maybe_send_asteroid(
     state.next_asteroid_at = None;
 }
 
-fn maybe_send_sunray(state: &mut SchedState, now: Instant, planet_ids: &[ID], ctx: &SunrayCtx<'_>) {
+fn maybe_send_sunray(
+    state: &mut SchedState,
+    now: Instant,
+    planet_ids: &[ID],
+    universe: &UniverseCtx,
+    convo: &ConversationCtx,
+) {
     let Some(t) = state.next_sunray_at else {
         return;
     };
@@ -331,12 +326,12 @@ fn maybe_send_sunray(state: &mut SchedState, now: Instant, planet_ids: &[ID], ct
         return;
     }
 
-    if let Some((_delay, planet)) = sunray_delay(planet_ids, &ctx.universe.explorers_location) {
+    if let Some((_delay, planet)) = sunray_delay(planet_ids, &universe.explorers_location) {
         log_internal(
             Channel::Info,
             payload!(action: "Sending sunray", planet_id: planet),
         );
-        send_sunray(ctx, planet);
+        send_sunray(convo, planet);
     } else {
         log_internal(
             Channel::Warning,
@@ -348,9 +343,6 @@ fn maybe_send_sunray(state: &mut SchedState, now: Instant, planet_ids: &[ID], ct
 }
 
 fn scheduler_loop(universe: &UniverseCtx, convo: &ConversationCtx) {
-    let asteroid_ctx = AsteroidCtx { universe, convo };
-    let sunray_ctx = SunrayCtx { universe, convo };
-
     let mut state = SchedState::new();
 
     loop {
@@ -394,13 +386,13 @@ fn scheduler_loop(universe: &UniverseCtx, convo: &ConversationCtx) {
         let now = Instant::now();
 
         if asteroids_on {
-            maybe_send_asteroid(&mut state, now, &planet_ids, &asteroid_ctx);
+            maybe_send_asteroid(&mut state, now, &planet_ids, universe, convo);
         } else {
             state.next_asteroid_at = None;
         }
 
         if sunrays_on {
-            maybe_send_sunray(&mut state, now, &planet_ids, &sunray_ctx);
+            maybe_send_sunray(&mut state, now, &planet_ids, universe, convo);
         } else {
             state.next_sunray_at = None;
         }
@@ -409,7 +401,7 @@ fn scheduler_loop(universe: &UniverseCtx, convo: &ConversationCtx) {
 
 //
 // ──────────────────────────────────────────────────────────────────────────
-// Public init
+// Public initialization
 // ──────────────────────────────────────────────────────────────────────────
 //
 

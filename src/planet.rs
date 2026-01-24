@@ -323,7 +323,7 @@ pub fn ensure_node(map: &PlanetMap, id: ID) -> Arc<PlanetNode> {
         return Arc::clone(existing);
     }
 
-    // Ensure side-car exists (no-op if already created).
+    // Ensure side-car exists (does nothing if already created).
     let _ = conns_for_map(map);
 
     let fresh = Arc::new(PlanetNode::new(id, key));
@@ -416,15 +416,15 @@ where
 {
     let key = map_key(map);
 
-    // Ensure the side-car connection store exists for this map.
+    // Ensure the connection store exists for this map.
     let conns = conns_for_map(map);
 
-    // 1) Lock the planet map once and ensure all nodes exist & are alive.
+    // Lock the planet map and ensure all nodes exist and are alive.
     let mut mg = map_write(map);
 
     let node = ensure_node_in_guard(&mut mg, id, key);
 
-    // Collect unique neighbor IDs (skip self).
+    // Collect unique neighbor IDs, skipping self.
     let mut uniq_neighbors: HashSet<ID> = HashSet::new();
     for n in neighbors {
         if n != id {
@@ -432,13 +432,13 @@ where
         }
     }
 
-    // Ensure all neighbor nodes exist too.
+    // Ensure all neighbor nodes exist.
     for nid in uniq_neighbors.iter().copied() {
         let _ = ensure_node_in_guard(&mut mg, nid, key);
     }
 
-    // 2) Lock connections once and add all edges (single source of truth).
-    // Lock order remains: PlanetMap(write) -> Connections(write)
+    // Lock connections and add all edges.
+    // Lock order: PlanetMap(write) then Connections(write)
     let mut cg = conns_write(&conns);
     for nid in uniq_neighbors {
         cg.insert_edge(id, nid);

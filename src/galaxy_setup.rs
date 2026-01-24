@@ -20,13 +20,13 @@ use std::path::Path;
 use std::thread;
 use std::thread::JoinHandle;
 
-// Dead state removed: planets are removed from PlanetMap and stopped via OrchestratorToPlanet message.
+// Planets are removed from PlanetMap and stopped via OrchestratorToPlanet message.
 pub(crate) type OrchPlanSenderMap = HashMap<ID, Sender<OrchestratorToPlanet>>;
 pub(crate) type OrchExplSenderMap = HashMap<ID, Sender<OrchestratorToExplorer>>;
 pub(crate) type ExplPlanSenderMap = HashMap<ID, Sender<ExplorerToPlanet>>;
 pub(crate) type PlanExplSenderMap = HashMap<ID, Sender<PlanetToExplorer>>;
 
-/// NEW: keep handles so the orchestrator can join/inspect planet threads if needed.
+/// Holds handles so the orchestrator can join or inspect planet threads if needed.
 pub(crate) type PlanetThreadMap = HashMap<ID, JoinHandle<()>>;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -64,9 +64,8 @@ fn planet_kind(id: ID) -> PlanetKind {
 
 // TODO: add a parameter to customize planet creation with other groups planets
 //
-// Option A: spawn planet threads at creation time.
-// Returns:
-// - JoinHandle<()> for the spawned planet thread
+// Option: spawn planet threads at creation time.
+// Returns a JoinHandle<()> for the spawned planet thread.
 pub(crate) fn spawn_planet_with_channels(
     orch_sender_map: &mut OrchPlanSenderMap,
     expl_sender_map: &mut ExplPlanSenderMap,
@@ -200,7 +199,7 @@ pub fn galaxy_loader(
     let mut expl_to_plan_send: ExplPlanSenderMap = HashMap::new();
     let mut planet_threads: PlanetThreadMap = HashMap::new();
 
-    // Read file: build topology with the new centralized edge store (planet.rs) and
+    // Read file: build topology with the centralized edge store (planet.rs) and
     // spawn planet threads once per unique planet id.
     let file = File::open(file_path).expect("Failed to open galaxy file");
     let reader = BufReader::new(file);
@@ -222,11 +221,11 @@ pub fn galaxy_loader(
             .map(|s| s.parse().expect("Invalid neighbor id"))
             .collect();
 
-        // 1) Topology: ensure nodes exist and connect id <-> neighbors in ONE lock pass.
-        //    (Edges are stored centrally, so we can't accidentally create one-sided links.)
+        // Topology: ensure nodes exist and connect id <-> neighbors in one lock pass.
+        // Edges are stored centrally, so one-sided links cannot be created.
         add_planet_with_neighbors(&planet_map, id, neighbors.iter().copied());
 
-        // 2) Runtime: spawn planet threads once per unique id (including neighbors).
+        // Runtime: spawn planet threads once per unique id, including neighbors.
         planet_threads.entry(id).or_insert_with(|| {
             spawn_planet_with_channels(
                 &mut orch_to_plan_send,
@@ -260,8 +259,8 @@ pub fn galaxy_loader(
 /// Creates Explorers and starts their threads.
 /// Returns:
 /// - A `HashMap<ID, JoinHandle<()>>` containing the handles of the Explorers' threads
-/// - An `OrchExplSenderMap`, which is an hashmap with the senders from Orchestrator to Explorer
-/// - A `PlanExplSenderMap`, which is an hashmap with the senders from Planet to Explorer
+/// - An `OrchExplSenderMap`, a hashmap with the senders from Orchestrator to Explorer
+/// - A `PlanExplSenderMap`, a hashmap with the senders from Planet to Explorer
 // TODO: right now it just spawns an explorer_nico, needs to be changed. Also, Explorer is not sent to any Planet right now
 pub(crate) fn create_and_spawn_explorers(
     tx_to_orchestrator: Sender<ExplorerToOrchestrator<ExplorerBagContent>>,
