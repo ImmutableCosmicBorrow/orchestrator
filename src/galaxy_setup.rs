@@ -1,21 +1,28 @@
+use crate::id::IdManager;
+use crate::logging_utils::log_internal;
 use crate::planet::{Alive, PlanetNode};
+use crate::{get_id_manager, payload};
+use common_explorer::{ExplorerAI, ExplorerBagContent};
 use common_game::logging::Channel;
+use common_game::protocols::orchestrator_explorer::{
+    ExplorerToOrchestrator, OrchestratorToExplorer,
+};
 use common_game::protocols::orchestrator_planet::{OrchestratorToPlanet, PlanetToOrchestrator};
-use common_game::protocols::planet_explorer::ExplorerToPlanet;
+use common_game::protocols::planet_explorer::{ExplorerToPlanet, PlanetToExplorer};
 use common_game::utils::ID;
 use crossbeam_channel::unbounded;
 use crossbeam_channel::{Receiver, Sender};
 use std::collections::HashMap;
 use std::path::Path;
 use std::sync::{Arc, Mutex};
-
-use crate::id::IdManager;
-use crate::logging_utils::log_internal;
-use crate::payload;
+use std::thread;
+use std::thread::JoinHandle;
 
 //TODO: Allow the PlanetMap to have dead planets so that they can be revived later
 pub(crate) type OrchPlanSenderMap = HashMap<ID, Sender<OrchestratorToPlanet>>;
+pub(crate) type OrchExplSenderMap = HashMap<ID, Sender<OrchestratorToExplorer>>;
 pub(crate) type ExplPlanSenderMap = HashMap<ID, Sender<ExplorerToPlanet>>;
+pub(crate) type PlanExplSenderMap = HashMap<ID, Sender<PlanetToExplorer>>;
 pub(crate) type PlanetMap = Arc<Mutex<HashMap<ID, PlanetNode<Alive>>>>;
 
 // TODO: add a parameter to customize planet creation with other groups planets
@@ -191,4 +198,63 @@ pub fn galaxy_loader(
         orch_to_plan_send,
         expl_to_plan_send,
     )
+}
+
+/// Creates Explorers and starts their threads.
+/// Returns:
+/// - A `HashMap<ID, JoinHandle<()>>` containing the handles of the Explorers' threads
+/// - An `OrchExplSenderMap`, which is an hashmap with the senders from Orchestrator to Explorer
+/// - A `PlanExplSenderMap`, which is an hashmap with the senders from Planet to Explorer
+// TODO: right now it just spawns an explorer_nico, needs to be changed. Also, Explorer is not sent to any Planet right now
+pub(crate) fn create_and_spawn_explorers(
+    tx_to_orchestrator: Sender<ExplorerToOrchestrator<ExplorerBagContent>>,
+) -> (
+    HashMap<ID, JoinHandle<()>>,
+    OrchExplSenderMap,
+    PlanExplSenderMap,
+) {
+    let mut handles = HashMap::new();
+    let mut explorers_senders = HashMap::new();
+    let mut planet_to_explorer_senders = HashMap::new();
+
+    let (tx_orchestrator_to_explorer, rx_orchestrator_to_explorer) =
+        unbounded::<OrchestratorToExplorer>();
+    let (tx_planet_to_explorer, rx_planet_to_explorer) = unbounded::<PlanetToExplorer>();
+    let id = get_id_manager().get_next_explorer_id();
+    let mut explorer = explorer_nico::Explorer::new(
+        id,
+        tx_to_orchestrator,
+        rx_orchestrator_to_explorer,
+        rx_planet_to_explorer,
+    );
+
+    let handle = thread::spawn(move || {
+        let res = explorer.run();
+
+        match res {
+            Ok(()) => {
+                log_internal(
+                    Channel::Debug,
+                    payload!(
+                        action : "Explorer thread closed correctly"
+                    ),
+                );
+            }
+            Err(e) => {
+                log_internal(
+                    Channel::Warning,
+                    payload!(
+                        action : "Error in closing Explorer thread",
+                        error : e
+                    ),
+                );
+            }
+        }
+    });
+
+    handles.insert(id, handle);
+    explorers_senders.insert(id, tx_orchestrator_to_explorer);
+    planet_to_explorer_senders.insert(id, tx_planet_to_explorer);
+
+    (handles, explorers_senders, planet_to_explorer_senders)
 }
