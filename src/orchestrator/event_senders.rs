@@ -184,9 +184,10 @@ fn send_asteroid(universe: &UniverseCtx, convo: &ConversationCtx, planet_id: ID)
     let convo_id = crate::globals::get_id_manager().get_next_conversation_id();
     let conversation = conversations::orch_planet::AsteroidConversation::new(convo_id, state);
 
-    convo.convo_scheduler.add_conversation(
-        Box::new(conversation) as Box<dyn conversations::Conversation<ExplorerBag> + Send + Sync>
-    );
+    convo
+        .convo_scheduler
+        .add_conversation(Box::new(conversation)
+            as Box<dyn conversations::Conversation<ExplorerBag> + Send + Sync>);
 }
 
 fn send_sunray(convo: &ConversationCtx, planet_id: ID) {
@@ -197,9 +198,10 @@ fn send_sunray(convo: &ConversationCtx, planet_id: ID) {
     let convo_id = crate::globals::get_id_manager().get_next_conversation_id();
     let conversation = conversations::orch_planet::SunrayConversation::new(convo_id, state);
 
-    convo.convo_scheduler.add_conversation(
-        Box::new(conversation) as Box<dyn conversations::Conversation<ExplorerBag> + Send + Sync>
-    );
+    convo
+        .convo_scheduler
+        .add_conversation(Box::new(conversation)
+            as Box<dyn conversations::Conversation<ExplorerBag> + Send + Sync>);
 }
 
 //

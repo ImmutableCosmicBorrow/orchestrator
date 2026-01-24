@@ -7,6 +7,7 @@ use priority_queue::PriorityQueue;
 use std::collections::HashSet;
 use std::hash::Hash;
 use std::sync::{Arc, Mutex};
+use std::time::{Duration, Instant};
 use std::{collections::HashMap, fmt::Debug};
 pub(crate) struct PQueue {
     queue: Arc<Mutex<PriorityQueue<ID, i32>>>,
@@ -50,6 +51,8 @@ pub struct ConvoScheduler<T: Debug + Eq + Hash> {
     active_convos: ConversationMap<T>,
     by_expected_msg: Arc<Mutex<HashMap<PossibleExpectedKinds, HashSet<ID>>>>,
     waiting_msgs: Arc<Mutex<HashMap<ID, PossibleMessage<ExplorerBag>>>>,
+    /// Maps conversation IDs to their timeout info: (start time, timeout duration)
+    timeouts: Arc<Mutex<HashMap<ID, (Instant, Duration)>>>,
 }
 
 impl<T: Debug + Eq + Hash> Clone for ConvoScheduler<T> {
@@ -59,6 +62,7 @@ impl<T: Debug + Eq + Hash> Clone for ConvoScheduler<T> {
             active_convos: Arc::clone(&self.active_convos),
             by_expected_msg: Arc::clone(&self.by_expected_msg),
             waiting_msgs: Arc::clone(&self.waiting_msgs),
+            timeouts: Arc::clone(&self.timeouts),
         }
     }
 }
@@ -70,6 +74,46 @@ impl<T: Debug + Eq + Hash> ConvoScheduler<T> {
             active_convos: Arc::new(Mutex::new(HashMap::new())),
             by_expected_msg: Arc::new(Mutex::new(HashMap::new())),
             waiting_msgs: Arc::new(Mutex::new(HashMap::new())),
+            timeouts: Arc::new(Mutex::new(HashMap::new())),
+        }
+    }
+
+    /// Register a timeout for a conversation.
+    /// The conversation will be considered timed out after the specified duration
+    /// from when this method is called.
+    pub fn set_timeout(&self, convo_id: ID, duration: Duration) {
+        self.timeouts
+            .lock()
+            .unwrap()
+            .insert(convo_id, (Instant::now(), duration));
+    }
+
+    /// Check for and return IDs of conversations that have timed out.
+    /// Does not remove them from tracking - call `clear_timeout` after handling.
+    pub fn get_timed_out_conversations(&self) -> Vec<ID> {
+        let timeouts = self.timeouts.lock().unwrap();
+        let now = Instant::now();
+        timeouts
+            .iter()
+            .filter(|(_, (start, duration))| now.duration_since(*start) > *duration)
+            .map(|(id, _)| *id)
+            .collect()
+    }
+
+    /// Clear the timeout for a conversation.
+    /// Call this after a conversation successfully receives its expected message
+    /// or after handling a timeout.
+    pub fn clear_timeout(&self, convo_id: ID) {
+        self.timeouts.lock().unwrap().remove(&convo_id);
+    }
+
+    /// Check if a specific conversation has timed out.
+    pub fn is_timed_out(&self, convo_id: ID) -> bool {
+        let timeouts = self.timeouts.lock().unwrap();
+        if let Some((start, duration)) = timeouts.get(&convo_id) {
+            Instant::now().duration_since(*start) > *duration
+        } else {
+            false
         }
     }
 

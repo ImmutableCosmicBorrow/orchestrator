@@ -15,6 +15,7 @@ use std::collections::HashMap;
 use std::fmt::Debug;
 use std::hash::Hash;
 use std::sync::{Arc, Mutex};
+use std::time::{Duration, Instant};
 
 pub(crate) mod orch_explorer;
 pub(crate) mod orch_planet;
@@ -49,6 +50,29 @@ pub trait Conversation<T: Debug + Eq + Hash>: Send + Sync {
     ///Used to get the explorers to kill in case a planet is killed (None in any case but in killing planet scenario)
     fn get_kill_explorers_vec(&self) -> Option<(KillExplorersList, bool)> {
         None
+    }
+
+    /// Returns when this conversation started waiting for a message.
+    /// Override this in states that wait for external messages.
+    fn get_wait_start(&self) -> Option<Instant> {
+        None
+    }
+
+    /// Returns the timeout duration for this conversation state.
+    /// Override this in states that should time out after a certain period.
+    fn get_timeout(&self) -> Option<Duration> {
+        None
+    }
+
+    /// Called when the conversation times out.
+    /// Returns the next state to transition to, or None to terminate the conversation.
+    /// Override this to implement custom timeout handling (e.g., retry logic, error states).
+    fn on_timeout(self: Box<Self>) -> Option<Box<dyn Conversation<T> + Send + Sync>> {
+        panic!(
+            "Conversation {} timed out waiting for {:?}",
+            self.get_id(),
+            self.get_expected_kind()
+        )
     }
 }
 
@@ -199,6 +223,38 @@ enum CommonErrorTypes {
     ExplorerSenderNotFound(ID),
     MessageToExplorerFailed(ID),
     MessageToPlanetFailed(ID),
+}
+
+/// **Timeout Error**
+///
+/// Error type for when a conversation times out waiting for a message.
+pub(crate) struct TimeoutErrorType {
+    pub(crate) conversation_id: ID,
+    pub(crate) entity_ids: (Option<ID>, Option<ID>),
+    pub(crate) expected_kind: Option<PossibleExpectedKinds>,
+}
+
+impl TimeoutErrorType {
+    pub(crate) fn new(
+        conversation_id: ID,
+        entity_ids: (Option<ID>, Option<ID>),
+        expected_kind: Option<PossibleExpectedKinds>,
+    ) -> Self {
+        Self {
+            conversation_id,
+            entity_ids,
+            expected_kind,
+        }
+    }
+}
+
+impl ErrorType for TimeoutErrorType {
+    fn stringify(&self) -> String {
+        format!(
+            "Conversation {} timed out waiting for {:?} (entities: {:?})",
+            self.conversation_id, self.expected_kind, self.entity_ids
+        )
+    }
 }
 
 impl ErrorType for CommonErrorTypes {
