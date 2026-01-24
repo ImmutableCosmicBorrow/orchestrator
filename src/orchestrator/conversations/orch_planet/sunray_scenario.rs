@@ -189,7 +189,7 @@ impl Conversation<ExplorerBag> for SunrayConversation<WaitingSunrayAck> {
 
 impl SunrayConversation<WaitingSunrayAck> {
     /// The constructor for [`SunrayConversation`] in the [`WaitingSunrayAck`] state
-    pub(crate) fn new(id: ID, planet_id: ID) -> Self {
+    fn new(id: ID, planet_id: ID) -> Self {
         Self {
             id,
             expected_message: Some(PlanetToOrchKind(SunrayAck)),
