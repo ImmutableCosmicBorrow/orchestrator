@@ -1,6 +1,6 @@
 use crate::id::IdManager;
 use crate::logging_utils::log_internal;
-use crate::planet::{Alive, PlanetNode};
+use crate::planet::{Alive, PlanetMap, PlanetNode};
 use crate::{get_id_manager, payload};
 use common_explorer::{ExplorerAI, ExplorerBagContent};
 use common_game::logging::Channel;
@@ -23,7 +23,6 @@ pub(crate) type OrchPlanSenderMap = HashMap<ID, Sender<OrchestratorToPlanet>>;
 pub(crate) type OrchExplSenderMap = HashMap<ID, Sender<OrchestratorToExplorer>>;
 pub(crate) type ExplPlanSenderMap = HashMap<ID, Sender<ExplorerToPlanet>>;
 pub(crate) type PlanExplSenderMap = HashMap<ID, Sender<PlanetToExplorer>>;
-pub(crate) type PlanetMap = Arc<Mutex<HashMap<ID, PlanetNode<Alive>>>>;
 
 // TODO: add a parameter to customize planet creation with other groups planets
 pub(crate) fn create_planet_with_channels(
@@ -233,7 +232,7 @@ pub(crate) fn create_and_spawn_explorers(
         payload!(
             action : "Created Explorer",
             explorer_id : id,
-        )
+        ),
     );
 
     let handle = thread::spawn(move || {

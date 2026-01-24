@@ -3,12 +3,12 @@
 //! This module contains the logic for spawning background threads that
 //! periodically send asteroids and sunrays to random planets in the galaxy.
 
-use crate::galaxy_setup::PlanetMap;
 use crate::logging_utils::log_internal;
 use crate::orchestrator::conversations::{self, SendersToExplorer, SendersToPlanet};
 use crate::orchestrator::queue::ConvoScheduler;
 use crate::orchestrator::{ExplorerBag, ExplorersLocationRef};
 use crate::payload;
+use crate::planet::PlanetMap;
 use common_game::components::forge::Forge;
 use common_game::logging::Channel;
 use common_game::utils::ID;

@@ -1,6 +1,12 @@
 // Temporary allow dead code warnings for this module while in development
 #![allow(dead_code)]
 
+use std::collections::HashMap;
+// ...removed duplicate import...
+
+/// Type alias for the map of planet nodes (alive)
+pub type PlanetMap = Arc<Mutex<HashMap<ID, PlanetNode<Alive>>>>;
+
 use common_game::components::planet::Planet;
 use common_game::utils::ID;
 use std::marker::PhantomData;

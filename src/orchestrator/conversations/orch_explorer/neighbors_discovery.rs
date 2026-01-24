@@ -1,4 +1,3 @@
-use crate::galaxy_setup::PlanetMap;
 use crate::logging_utils::log_internal;
 use crate::orchestrator::ExplorerBag;
 use crate::orchestrator::conversations::PossibleExpectedKinds::ExplorerToOrchKind;
@@ -7,6 +6,7 @@ use crate::orchestrator::conversations::{
     ToExplorerError, ToExplorerStruct,
 };
 use crate::payload;
+use crate::planet::PlanetMap;
 use common_game::logging::Channel;
 use common_game::protocols::orchestrator_explorer::{
     ExplorerToOrchestrator, ExplorerToOrchestratorKind, OrchestratorToExplorer,

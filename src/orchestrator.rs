@@ -4,12 +4,15 @@ mod conversations;
 mod event_senders;
 mod queue;
 
-use crate::galaxy_setup::{create_and_spawn_explorers, galaxy_loader, PlanetMap};
+use crate::galaxy_setup::{create_and_spawn_explorers, galaxy_loader};
 use crate::orchestrator::conversations::{PossibleMessage, SendersToExplorer, SendersToPlanet};
 use crate::orchestrator::queue::ConvoScheduler;
+use crate::planet::PlanetMap;
 use crate::{get_id_manager, payload};
 
 use crate::logging_utils::log_internal;
+use crate::orchestrator::conversations::ToExplorerStruct;
+use crate::orchestrator::conversations::ToPlanetStruct;
 use crate::orchestrator::conversations::orch_explorer::kill_explorer::KillExplorerConversation;
 use crate::orchestrator::conversations::orch_explorer::kill_explorer::SendingKillExplorer;
 use crate::orchestrator::conversations::orch_explorer::start_explorer::{
@@ -18,8 +21,6 @@ use crate::orchestrator::conversations::orch_explorer::start_explorer::{
 use crate::orchestrator::conversations::orch_planet::{
     SendingPlanetStart, StartPlanetConversation,
 };
-use crate::orchestrator::conversations::ToExplorerStruct;
-use crate::orchestrator::conversations::ToPlanetStruct;
 pub(crate) use common_explorer::ExplorerBagContent;
 use common_game::components::forge::Forge;
 use common_game::logging::Channel;
@@ -27,7 +28,7 @@ use common_game::protocols::orchestrator_explorer::ExplorerToOrchestrator;
 use common_game::protocols::orchestrator_planet::PlanetToOrchestrator;
 use common_game::protocols::planet_explorer::{ExplorerToPlanet, PlanetToExplorer};
 use common_game::utils::ID;
-use crossbeam_channel::{select, unbounded, Receiver, Sender};
+use crossbeam_channel::{Receiver, Sender, select, unbounded};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::thread;
