@@ -7,6 +7,7 @@ mod stop_planet;
 mod sunray_scenario;
 
 pub(crate) use asteroid_scenario::{AsteroidConversation, SendingAsteroid};
+pub(crate) use start_planet::{SendingPlanetStart, StartPlanetConversation};
 pub(crate) use sunray_scenario::{SendSunray, SunrayConversation};
 
 use common_game::protocols::orchestrator_planet::PlanetToOrchestratorKind;

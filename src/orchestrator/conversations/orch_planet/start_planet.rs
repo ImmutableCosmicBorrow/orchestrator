@@ -39,14 +39,14 @@ impl WaitingPlanetStartResult {
 ///
 /// The conversation starts in the [`SendingPlanetStart`] state, which sends an
 /// [`OrchestratorToPlanet::StartPlanetAI`] when the [`Conversation::transition`] method is called.
-struct SendingPlanetStart {
+pub(crate) struct SendingPlanetStart {
     /// A struct containing fields to send messages to the indicated planet
     to_planet_struct: ToPlanetStruct,
 }
 
 impl SendingPlanetStart {
     /// Constructor for [`SendingPlanetStart`] state struct
-    fn new(to_planet_struct: ToPlanetStruct) -> Self {
+    pub(crate) fn new(to_planet_struct: ToPlanetStruct) -> Self {
         Self { to_planet_struct }
     }
 }
@@ -55,7 +55,7 @@ impl SendingPlanetStart {
 ///
 /// This is the generic FSM struct that takes the generic type `State` to ensure only methods
 /// of that specific state can be called during the conversation.
-struct StartPlanetConversation<State> {
+pub(crate) struct StartPlanetConversation<State> {
     /// Conversation ID
     id: ID,
     /// Optional expected message to trigger the conversation

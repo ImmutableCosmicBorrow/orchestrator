@@ -228,6 +228,14 @@ pub(crate) fn create_and_spawn_explorers(
         rx_planet_to_explorer,
     );
 
+    log_internal(
+        Channel::Info,
+        payload!(
+            action : "Created Explorer",
+            explorer_id : id,
+        )
+    );
+
     let handle = thread::spawn(move || {
         let res = explorer.run();
 
