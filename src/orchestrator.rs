@@ -119,9 +119,8 @@ impl Orchestrator {
         // Start message processing thread
         self.process_messages();
 
-        // Enable Sunrays and Asteroids event senders
-        crate::orchestrator::event_senders::enable_sunrays();
-        crate::orchestrator::event_senders::enable_asteroids();
+        // Start background event senders
+        self.start_background_event_senders();
 
         // Main loop
         // TODO: handle manual mode, since right now we are just waiting to receive messages
@@ -161,6 +160,20 @@ impl Orchestrator {
                 }
             }
         }
+    }
+
+    fn start_background_event_senders(&self) {
+        crate::orchestrator::event_senders::init_background_event_scheduler(
+            self.planets_senders.clone(),
+            self.forge.clone(),
+            self.explorers_location.clone(),
+            self.explorer_senders.clone(),
+            self.convo_scheduler.clone(),
+            self.galaxy.clone(),
+        );
+
+        crate::orchestrator::event_senders::enable_sunrays();
+        crate::orchestrator::event_senders::enable_asteroids();
     }
 
     fn handle_message(&mut self, message: PossibleMessage<ExplorerBag>) {
