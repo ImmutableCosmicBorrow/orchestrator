@@ -258,6 +258,10 @@ impl Orchestrator {
         let planets_senders = self.planets_senders.clone();
         thread::spawn(move || {
             loop {
+                // Check for timed-out conversations and handle them
+                // (will panic for conversations that don't override on_timeout)
+                convo_scheduler.handle_timeouts();
+
                 if convo_scheduler.is_empty() {
                     // Wait for new messages to arrive
                     thread::sleep(std::time::Duration::from_millis(10));

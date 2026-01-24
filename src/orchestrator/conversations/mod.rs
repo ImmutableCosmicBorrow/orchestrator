@@ -65,9 +65,9 @@ pub trait Conversation<T: Debug + Eq + Hash>: Send + Sync {
     }
 
     /// Called when the conversation times out.
-    /// Returns the next state to transition to, or None to terminate the conversation.
-    /// Override this to implement custom timeout handling (e.g., retry logic, error states).
-    fn on_timeout(self: Box<Self>) -> Option<Box<dyn Conversation<T> + Send + Sync>> {
+    /// Default behavior is to panic - override this to implement custom timeout handling
+    /// (e.g., logging, cleanup, graceful degradation).
+    fn on_timeout(self: Box<Self>) {
         panic!(
             "Conversation {} timed out waiting for {:?}",
             self.get_id(),

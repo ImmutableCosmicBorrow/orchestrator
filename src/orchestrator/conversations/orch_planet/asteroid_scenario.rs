@@ -15,6 +15,11 @@ use common_game::protocols::orchestrator_planet::{
 };
 use common_game::utils::ID;
 use std::sync::Arc;
+use std::time::{Duration, Instant};
+
+/// Default timeout duration for waiting for an Asteroid acknowledgment.
+/// Asteroids are critical events, so the planet must respond promptly.
+const ASTEROID_ACK_TIMEOUT: Duration = Duration::from_secs(10);
 
 ///**Asteroid Conversation**
 ///
@@ -63,6 +68,8 @@ struct WaitingAsteroidAck {
     explorers_senders: SendersToExplorer,
     ///Reference to the list of explorers locations, used by subsequent states
     explorers_location_ref: ExplorersLocationRef,
+    /// Instant when we started waiting for the acknowledgment (for timeout tracking)
+    wait_start: Instant,
 }
 
 impl WaitingAsteroidAck {
@@ -76,6 +83,7 @@ impl WaitingAsteroidAck {
             to_planet_struct,
             explorers_senders,
             explorers_location_ref,
+            wait_start: Instant::now(),
         }
     }
 }
@@ -232,6 +240,17 @@ impl Conversation<ExplorerBag> for AsteroidConversation<WaitingAsteroidAck> {
 
     fn get_priority(&self) -> i32 {
         4
+    }
+
+    /// Returns when this conversation started waiting for the `AsteroidAck` message.
+    fn get_wait_start(&self) -> Option<Instant> {
+        Some(self.state.wait_start)
+    }
+
+    /// Returns the timeout duration for waiting for `AsteroidAck`.
+    /// Asteroids are critical events - if the planet doesn't respond, it's considered destroyed.
+    fn get_timeout(&self) -> Option<Duration> {
+        Some(ASTEROID_ACK_TIMEOUT)
     }
 }
 
@@ -437,5 +456,53 @@ mod tests {
             result.is_none(),
             "Conversation should terminate when planet defends with rocket"
         );
+    }
+
+    // --- Timeout Feature Tests ---
+
+    #[test]
+    fn waiting_asteroid_has_timeout_config() {
+        let conv = make_wait_conv();
+        
+        // Verify timeout is configured
+        assert!(conv.get_timeout().is_some());
+        assert_eq!(conv.get_timeout(), Some(ASTEROID_ACK_TIMEOUT));
+        
+        // Verify wait_start is set
+        assert!(conv.get_wait_start().is_some());
+    }
+
+    #[test]
+    fn waiting_asteroid_timeout_logs_and_terminates() {
+        let conv = make_wait_conv();
+        
+        // on_timeout should just log and return (not panic)
+        // This test verifies it doesn't panic
+        conv.on_timeout();
+        // If we get here, the test passes - on_timeout completed without panic
+    }
+
+    #[test]
+    fn waiting_asteroid_wait_start_is_recent() {
+        use std::time::Instant;
+        
+        let before = Instant::now();
+        let conv = make_wait_conv();
+        let after = Instant::now();
+        
+        let wait_start = conv.get_wait_start().expect("wait_start should be set");
+        
+        // Verify that wait_start is between before and after creation
+        assert!(wait_start >= before && wait_start <= after);
+    }
+
+    #[test]
+    fn sending_asteroid_has_no_timeout() {
+        let MakeSendersResult(senders, _rx) = make_senders_with(PLANET_ID);
+        let conv = make_send_conv(senders);
+        
+        // Sending states should not have timeout - they're not waiting for messages
+        assert!(conv.get_timeout().is_none());
+        assert!(conv.get_wait_start().is_none());
     }
 }

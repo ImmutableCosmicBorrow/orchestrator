@@ -170,6 +170,7 @@ impl<T: Debug + Eq + Hash> ConvoScheduler<T> {
     /// It assigns a unique ID to the conversation, stores it in the active conversations map,
     /// and pushes it onto the priority queue. Moreover, if it has an expected message kind,
     /// it updates the mapping of expected kinds to conversation IDs.
+    /// If the conversation has a timeout configured, it registers the timeout.
     pub fn add_conversation(&self, conversation: Box<dyn Conversation<T> + Send + Sync>) {
         // let id = crate::get_id_manager().get_next_conversation_id(); //TODO: refactor to keep old id?
         let id = conversation.get_id();
@@ -182,6 +183,11 @@ impl<T: Debug + Eq + Hash> ConvoScheduler<T> {
                 .entry(kind)
                 .or_default()
                 .insert(id);
+        }
+
+        // Register timeout if the conversation has one configured
+        if let Some(timeout_duration) = conversation.get_timeout() {
+            self.set_timeout(id, timeout_duration);
         }
 
         let priority = conversation.get_priority();
@@ -223,11 +229,46 @@ impl<T: Debug + Eq + Hash> ConvoScheduler<T> {
     }
 
     pub fn add_waiting_message(&self, convo_id: ID, message: PossibleMessage<ExplorerBag>) {
+        // Clear any timeout when a message arrives - the conversation is no longer waiting
+        self.clear_timeout(convo_id);
         self.waiting_msgs.lock().unwrap().insert(convo_id, message);
     }
 
     pub fn get_waiting_message(&self, convo_id: ID) -> Option<PossibleMessage<ExplorerBag>> {
         self.waiting_msgs.lock().unwrap().remove(&convo_id)
+    }
+
+    /// Process all timed-out conversations.
+    /// Calls `on_timeout()` for each timed-out conversation, which will panic by default
+    /// unless the conversation has overridden `on_timeout()` with custom handling.
+    pub fn handle_timeouts(&self) {
+        let timed_out_ids = self.get_timed_out_conversations();
+
+        for convo_id in timed_out_ids {
+            // Remove the conversation from active conversations
+            let conversation = {
+                let mut active = self.active_convos.lock().unwrap();
+                active.remove(&convo_id)
+            };
+
+            if let Some(convo) = conversation {
+                // Remove from expected message mapping
+                if let Some(kind) = convo.get_expected_kind() {
+                    self.by_expected_msg
+                        .lock()
+                        .unwrap()
+                        .entry(kind)
+                        .or_default()
+                        .remove(&convo_id);
+                }
+
+                // Clear the timeout tracking
+                self.clear_timeout(convo_id);
+
+                // Call on_timeout - will panic unless overridden
+                convo.on_timeout();
+            }
+        }
     }
 }
 
@@ -648,5 +689,205 @@ mod tests {
         consumer.join().unwrap();
 
         assert_eq!(results.lock().unwrap().len(), 50);
+    }
+
+    // ============================================================================
+    // Timeout Integration Tests
+    // ============================================================================
+
+    /// Mock conversation that supports timeout
+    struct TimeoutMockConversation {
+        id: ID,
+        planet_id: ID,
+        timeout_duration: Option<Duration>,
+        on_timeout_called: Arc<Mutex<bool>>,
+    }
+
+    impl std::fmt::Debug for TimeoutMockConversation {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            f.debug_struct("TimeoutMockConversation")
+                .field("id", &self.id)
+                .finish_non_exhaustive()
+        }
+    }
+
+    impl TimeoutMockConversation {
+        fn new(id: ID, planet_id: ID, timeout: Option<Duration>) -> Self {
+            Self {
+                id,
+                planet_id,
+                timeout_duration: timeout,
+                on_timeout_called: Arc::new(Mutex::new(false)),
+            }
+        }
+
+        fn was_timeout_called(&self) -> bool {
+            *self.on_timeout_called.lock().unwrap()
+        }
+    }
+
+    impl Conversation<ExplorerBag> for TimeoutMockConversation {
+        fn get_id(&self) -> ID {
+            self.id
+        }
+
+        fn get_entities_ids(&self) -> (Option<ID>, Option<ID>) {
+            (Some(self.planet_id), None)
+        }
+
+        fn get_expected_kind(&self) -> Option<PossibleExpectedKinds> {
+            Some(PossibleExpectedKinds::PlanetToOrchKind(
+                PlanetToOrchestratorKind::SunrayAck,
+            ))
+        }
+
+        fn transition(
+            self: Box<Self>,
+            _msg: Option<PossibleMessage<ExplorerBag>>,
+        ) -> Option<Box<dyn Conversation<ExplorerBag> + Send + Sync>> {
+            None
+        }
+
+        fn get_priority(&self) -> i32 {
+            1
+        }
+
+        fn get_timeout(&self) -> Option<Duration> {
+            self.timeout_duration
+        }
+
+        fn on_timeout(self: Box<Self>) {
+            *self.on_timeout_called.lock().unwrap() = true;
+            // Just mark as called - no return value
+        }
+    }
+
+    #[test]
+    fn timeout_registered_when_conversation_added() {
+        let scheduler = ConvoScheduler::<ExplorerBag>::new();
+        let timeout_duration = Duration::from_millis(100);
+        
+        let convo = TimeoutMockConversation::new(1, 10, Some(timeout_duration));
+        scheduler.add_conversation(Box::new(convo));
+        
+        // Timeout should be registered
+        let timeouts = scheduler.timeouts.lock().unwrap();
+        assert!(timeouts.contains_key(&1));
+        let (_, duration) = timeouts.get(&1).unwrap();
+        assert_eq!(*duration, timeout_duration);
+    }
+
+    #[test]
+    fn no_timeout_registered_for_conversation_without_timeout() {
+        let scheduler = ConvoScheduler::<ExplorerBag>::new();
+        
+        let convo = MockConversation::new(1, 10, 1, None);
+        scheduler.add_conversation(Box::new(convo));
+        
+        // No timeout should be registered
+        let timeouts = scheduler.timeouts.lock().unwrap();
+        assert!(!timeouts.contains_key(&1));
+    }
+
+    #[test]
+    fn timeout_cleared_when_message_arrives() {
+        let scheduler = ConvoScheduler::<ExplorerBag>::new();
+        let timeout_duration = Duration::from_secs(10);
+        
+        let convo = TimeoutMockConversation::new(1, 10, Some(timeout_duration));
+        scheduler.add_conversation(Box::new(convo));
+        
+        // Timeout should be registered initially
+        assert!(scheduler.timeouts.lock().unwrap().contains_key(&1));
+        
+        // Simulate message arrival
+        let msg = PossibleMessage::PlanetToOrch(
+            common_game::protocols::orchestrator_planet::PlanetToOrchestrator::SunrayAck {
+                planet_id: 10,
+            },
+        );
+        scheduler.add_waiting_message(1, msg);
+        
+        // Timeout should be cleared
+        assert!(!scheduler.timeouts.lock().unwrap().contains_key(&1));
+    }
+
+    #[test]
+    fn handle_timeouts_calls_on_timeout() {
+        let scheduler = ConvoScheduler::<ExplorerBag>::new();
+        
+        // Add a conversation with a very short timeout
+        let on_timeout_called = Arc::new(Mutex::new(false));
+        let convo = TimeoutMockConversation {
+            id: 1,
+            planet_id: 10,
+            timeout_duration: Some(Duration::from_millis(1)),
+            on_timeout_called: on_timeout_called.clone(),
+        };
+        scheduler.add_conversation(Box::new(convo));
+        
+        // Wait for timeout to expire
+        std::thread::sleep(Duration::from_millis(10));
+        
+        // Handle timeouts should call on_timeout
+        scheduler.handle_timeouts();
+        
+        // Verify on_timeout was called
+        assert!(*on_timeout_called.lock().unwrap(), "on_timeout should have been called");
+        
+        // Original conversation should be removed from active
+        assert!(!scheduler.active_convos.lock().unwrap().contains_key(&1));
+        
+        // Timeout tracking should be cleared
+        assert!(!scheduler.timeouts.lock().unwrap().contains_key(&1));
+    }
+
+    #[test]
+    fn handle_timeouts_does_nothing_before_expiry() {
+        let scheduler = ConvoScheduler::<ExplorerBag>::new();
+        
+        // Add a conversation with a long timeout
+        let convo = TimeoutMockConversation::new(1, 10, Some(Duration::from_secs(60)));
+        scheduler.add_conversation(Box::new(convo));
+        
+        // Handle timeouts immediately - should do nothing
+        scheduler.handle_timeouts();
+        
+        // Conversation should still be active
+        assert!(scheduler.active_convos.lock().unwrap().contains_key(&1));
+    }
+
+    #[test]
+    fn get_timed_out_conversations_works() {
+        let scheduler = ConvoScheduler::<ExplorerBag>::new();
+        
+        // Manually set a timeout that has already expired
+        scheduler.timeouts.lock().unwrap().insert(
+            42,
+            (Instant::now().checked_sub(Duration::from_secs(10)).unwrap(), Duration::from_secs(1)),
+        );
+        
+        let timed_out = scheduler.get_timed_out_conversations();
+        assert_eq!(timed_out.len(), 1);
+        assert_eq!(timed_out[0], 42);
+    }
+
+    #[test]
+    fn is_timed_out_works() {
+        let scheduler = ConvoScheduler::<ExplorerBag>::new();
+        
+        // Not registered = not timed out
+        assert!(!scheduler.is_timed_out(1));
+        
+        // Set a timeout that hasn't expired
+        scheduler.set_timeout(1, Duration::from_secs(60));
+        assert!(!scheduler.is_timed_out(1));
+        
+        // Set a timeout in the past (already expired)
+        scheduler.timeouts.lock().unwrap().insert(
+            2,
+            (Instant::now().checked_sub(Duration::from_secs(10)).unwrap(), Duration::from_secs(1)),
+        );
+        assert!(scheduler.is_timed_out(2));
     }
 }
