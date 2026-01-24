@@ -53,45 +53,17 @@ pub(crate) struct Orchestrator {
     galaxy: PlanetMap,
     planet_explorer_channels: PlanetExplorerChannels,
     explorers_location: ExplorersLocationRef,
-    planet_threads: Vec<std::thread::JoinHandle<()>>,
+    planet_threads: HashMap<ID, JoinHandle<()>>,
     explorer_threads: HashMap<ID, JoinHandle<()>>,
 }
 
 impl Orchestrator {
     pub fn new(file_path: &std::path::Path) -> Self {
-        //TODO: fix receivers and senders initialization
-        let (galaxy, planets_receiver, orch_to_plan_senders, expl_to_plan_senders) =
+        // galaxy_loader now returns 5 values (the last one is planet thread handles)
+        let (galaxy, planets_receiver, orch_to_plan_senders, expl_to_plan_senders, planet_threads) =
             galaxy_loader(file_path);
 
         let forge = Arc::new(Forge::new().expect("Couldn't create forge!"));
-
-        // Spawn planet threads immediately
-        let planet_threads = {
-            let mut handles = Vec::new();
-            let map = galaxy.lock().unwrap();
-            for node in map.values() {
-                let inner = Arc::clone(&node.inner);
-                let node_id = node.id;
-                let handle = std::thread::spawn(move || {
-                    let mut inner_guard = inner.lock().unwrap();
-                    let planet = &mut inner_guard.planet;
-                    let res = planet.run();
-
-                    if let Err(e) = res {
-                        log_internal(
-                            Channel::Error,
-                            payload!(
-                                action : "Planet encountered an error during its main loop",
-                                planet_id : node_id,
-                                error : e,
-                            ),
-                        );
-                    }
-                });
-                handles.push(handle);
-            }
-            handles
-        };
 
         // Channel for Explorers to Orchestrator communications
         let (tx_explorer_to_orchestrator, explorers_receiver) =
@@ -117,7 +89,7 @@ impl Orchestrator {
             convo_scheduler: ConvoScheduler::new(),
             planet_explorer_channels,
             explorers_location: Arc::new(Mutex::new(HashMap::new())),
-            planet_threads,
+            planet_threads, // threads were spawned in galaxy_loader/create_planet_with_channels
             explorer_threads,
         }
     }

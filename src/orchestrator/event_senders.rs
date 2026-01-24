@@ -102,7 +102,7 @@ pub fn start_asteroid_sender(
         loop {
             // Get list of planet IDs
             let planet_ids: Vec<ID> = {
-                let galaxy_lock = galaxy.lock().unwrap();
+                let galaxy_lock = galaxy.read().unwrap();
                 galaxy_lock.keys().copied().collect()
             };
 
@@ -152,7 +152,7 @@ pub fn start_sunray_sender(
         loop {
             // Get list of planet IDs
             let planet_ids: Vec<ID> = {
-                let galaxy_lock = galaxy.lock().unwrap();
+                let galaxy_lock = galaxy.read().unwrap();
                 galaxy_lock.keys().copied().collect()
             };
 

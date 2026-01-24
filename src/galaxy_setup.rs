@@ -1,7 +1,8 @@
 use crate::id::IdManager;
 use crate::logging_utils::log_internal;
-use crate::planet::{Alive, PlanetMap, PlanetNode};
+use crate::planet::{PlanetMap, PlanetNode};
 use crate::{get_id_manager, payload};
+
 use common_explorer::{ExplorerAI, ExplorerBagContent};
 use common_game::logging::Channel;
 use common_game::protocols::orchestrator_explorer::{
@@ -10,34 +11,44 @@ use common_game::protocols::orchestrator_explorer::{
 use common_game::protocols::orchestrator_planet::{OrchestratorToPlanet, PlanetToOrchestrator};
 use common_game::protocols::planet_explorer::{ExplorerToPlanet, PlanetToExplorer};
 use common_game::utils::ID;
+
 use crossbeam_channel::unbounded;
 use crossbeam_channel::{Receiver, Sender};
+
 use std::collections::HashMap;
 use std::path::Path;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use std::thread;
 use std::thread::JoinHandle;
 
-//TODO: Allow the PlanetMap to have dead planets so that they can be revived later
+// Dead state removed: planets are removed from PlanetMap and stopped via OrchestratorToPlanet message.
 pub(crate) type OrchPlanSenderMap = HashMap<ID, Sender<OrchestratorToPlanet>>;
 pub(crate) type OrchExplSenderMap = HashMap<ID, Sender<OrchestratorToExplorer>>;
 pub(crate) type ExplPlanSenderMap = HashMap<ID, Sender<ExplorerToPlanet>>;
 pub(crate) type PlanExplSenderMap = HashMap<ID, Sender<PlanetToExplorer>>;
 
+/// NEW: keep handles so the orchestrator can join/inspect planet threads if needed.
+pub(crate) type PlanetThreadMap = HashMap<ID, JoinHandle<()>>;
+
 // TODO: add a parameter to customize planet creation with other groups planets
+//
+// Option A: spawn planet threads at creation time.
+// Returns:
+// - Arc<PlanetNode> for the galaxy graph
+// - JoinHandle<()> for the spawned planet thread
 pub(crate) fn create_planet_with_channels(
     orch_sender_map: &mut OrchPlanSenderMap,
     expl_sender_map: &mut ExplPlanSenderMap,
     planet_id: ID,
     tx_orch_out: Sender<PlanetToOrchestrator>,
-) -> PlanetNode<Alive> {
+) -> (Arc<PlanetNode>, JoinHandle<()>) {
     let (tx_orch_in, rx_orch_in) = unbounded::<OrchestratorToPlanet>();
     orch_sender_map.insert(planet_id, tx_orch_in);
 
     let (tx_expl_in, rx_expl_in) = unbounded::<ExplorerToPlanet>();
     expl_sender_map.insert(planet_id, tx_expl_in);
 
-    let planet = if IdManager::is_trip_id(planet_id) {
+    let planet_res = if IdManager::is_trip_id(planet_id) {
         crate::planet_factory::create_trip_planet(planet_id, rx_orch_in, tx_orch_out, rx_expl_in)
     } else if IdManager::is_rustrelli_id(planet_id) {
         crate::planet_factory::create_rustrelli_planet(
@@ -83,7 +94,7 @@ pub(crate) fn create_planet_with_channels(
         panic!("Unknown planet type for id: {planet_id}")
     };
 
-    if let Err(ref e) = planet {
+    if let Err(ref e) = planet_res {
         log_internal(
             Channel::Error,
             payload!(
@@ -102,7 +113,31 @@ pub(crate) fn create_planet_with_channels(
         );
     }
 
-    PlanetNode::<Alive>::new(planet.expect("Failed to create planet"))
+    // Own the Planet in this scope so we can move it into the thread.
+    let mut planet = planet_res.expect("Failed to create planet");
+
+    // Graph node stores only topology info (id + neighbor IDs)
+    // Assumption from your refactor: PlanetNode::new(id)
+    let node = Arc::new(PlanetNode::new(planet_id));
+    let node_id_for_log = planet_id;
+
+    // Spawn the blocking planet.run() immediately (Option A)
+    let handle = thread::spawn(move || {
+        let res = planet.run();
+
+        if let Err(e) = res {
+            log_internal(
+                Channel::Error,
+                payload!(
+                    action : "Planet encountered an error during its main loop",
+                    planet_id : node_id_for_log,
+                    error : e,
+                ),
+            );
+        }
+    });
+
+    (node, handle)
 }
 
 pub fn galaxy_loader(
@@ -112,6 +147,7 @@ pub fn galaxy_loader(
     Receiver<PlanetToOrchestrator>,
     OrchPlanSenderMap,
     ExplPlanSenderMap,
+    PlanetThreadMap, // NEW
 ) {
     use std::fs::File;
     use std::io::{BufRead, BufReader};
@@ -123,16 +159,20 @@ pub fn galaxy_loader(
 
     let (tx_orch_out, rx_orch_out) = unbounded::<PlanetToOrchestrator>();
 
-    // First pass: create all planet nodes
+    // First pass: create all planet nodes (Arc<PlanetNode>)
     let file = File::open(file_path).expect("Failed to open galaxy file");
     let reader = BufReader::new(file);
-    let mut out: HashMap<ID, PlanetNode<Alive>> = HashMap::new();
+    let mut out: HashMap<ID, Arc<PlanetNode>> = HashMap::new();
 
     // Store edges for second pass
     let mut edges: Vec<(ID, Vec<ID>)> = Vec::new();
 
-    let mut orch_to_plan_send = HashMap::new();
-    let mut expl_to_plan_send = HashMap::new();
+    let mut orch_to_plan_send: OrchPlanSenderMap = HashMap::new();
+    let mut expl_to_plan_send: ExplPlanSenderMap = HashMap::new();
+
+    // NEW: thread handles
+    let mut planet_threads: PlanetThreadMap = HashMap::new();
+
     for line in reader.lines() {
         let line = line.expect("Failed to read line");
         if line.trim().is_empty() {
@@ -154,33 +194,40 @@ pub fn galaxy_loader(
 
         // Create planet node if not already present
         out.entry(id).or_insert_with(|| {
-            create_planet_with_channels(
+            let (node, handle) = create_planet_with_channels(
                 &mut orch_to_plan_send,
                 &mut expl_to_plan_send,
                 id,
                 tx_orch_out.clone(),
-            )
+            );
+            planet_threads.insert(id, handle);
+            node
         });
 
         // Also ensure all neighbors exist as nodes
         for &neighbor_id in &neighbors {
             out.entry(neighbor_id).or_insert_with(|| {
-                create_planet_with_channels(
+                let (node, handle) = create_planet_with_channels(
                     &mut orch_to_plan_send,
                     &mut expl_to_plan_send,
                     neighbor_id,
                     tx_orch_out.clone(),
-                )
+                );
+                planet_threads.insert(neighbor_id, handle);
+                node
             });
         }
     }
 
-    // Second pass: add neighbors (edges)
+    // ✅ FIX: build ONE shared PlanetMap ONCE, then connect edges on it.
+    // This prevents connecting on a temporary cloned map (the bug).
+    let planet_map: PlanetMap = Arc::new(std::sync::RwLock::new(out));
+
+    // Second pass: add neighbors (undirected edges) using ID sets
     for (id, neighbors) in edges {
-        let node = out.get(&id).expect("Node missing");
         for neighbor_id in neighbors {
-            let neighbor = out.get(&neighbor_id).expect("Neighbor node missing");
-            node.add_neighbor(neighbor);
+            // Use connect_undirected to ensure proper locking and error handling
+            let _ = crate::planet::connect_undirected(&planet_map, id, neighbor_id);
         }
     }
 
@@ -192,10 +239,11 @@ pub fn galaxy_loader(
     );
 
     (
-        Arc::new(Mutex::new(out)),
+        planet_map,
         rx_orch_out,
         orch_to_plan_send,
         expl_to_plan_send,
+        planet_threads,
     )
 }
 

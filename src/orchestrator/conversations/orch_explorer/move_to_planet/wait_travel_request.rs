@@ -119,12 +119,15 @@ impl MoveToPlanetConversation<WaitingTravelRequest> {
     ///
     /// Returns `true` if they are neighbors, `false` otherwise.
     fn check_neighbors(&self) -> bool {
-        let galaxy = self.state.galaxy.lock().unwrap();
+        let galaxy = self.state.galaxy.read().unwrap();
         if let (Some(curr_planet_ref), Some(dst_planet_ref)) = (
             galaxy.get(&self.state.curr_planet_struct.planet_id),
             galaxy.get(&self.state.dst_planet_struct.planet_id),
         ) {
-            return curr_planet_ref.has_neighbor(&dst_planet_ref.inner);
+            // Check if dst_planet_id is in the neighbors of curr_planet_ref
+            return curr_planet_ref
+                .neighbors_snapshot()
+                .contains(&dst_planet_ref.id());
         }
         false
     }
