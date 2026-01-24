@@ -445,6 +445,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "explorer_nico"
+version = "0.1.0"
+source = "git+https://github.com/ImmutableCosmicBorrow/explorer_nico#2f3b29fda7b036dd7f9324e29f144802af518032"
+dependencies = [
+ "common-explorer",
+ "common-game",
+ "crossbeam-channel",
+]
+
+[[package]]
 name = "fern"
 version = "0.7.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -689,6 +699,7 @@ dependencies = [
  "crossbeam-channel",
  "enterprise",
  "env_logger",
+ "explorer_nico",
  "luna4",
  "orbitron",
  "priority-queue",
