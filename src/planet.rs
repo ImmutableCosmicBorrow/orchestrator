@@ -2,7 +2,7 @@
 
 use std::collections::{HashMap, HashSet};
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, Mutex, RwLock};
+use std::sync::{Arc, Mutex, OnceLock, RwLock};
 
 use crate::logging_utils::log_internal;
 use crate::payload;
@@ -21,19 +21,137 @@ pub enum ConnectError {
     EndpointDead,
 }
 
-/// A planet node in the galaxy graph (undirected).
+/// Canonical undirected edge key: always (min, max).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+struct EdgeKey {
+    lo: ID,
+    hi: ID,
+}
+impl EdgeKey {
+    #[inline]
+    fn new(a: ID, b: ID) -> Option<Self> {
+        use std::cmp::Ordering;
+        match a.cmp(&b) {
+            Ordering::Equal => None,
+            Ordering::Less => Some(Self { lo: a, hi: b }),
+            Ordering::Greater => Some(Self { lo: b, hi: a }),
+        }
+    }
+
+    #[inline]
+    fn contains(self, id: ID) -> bool {
+        self.lo == id || self.hi == id
+    }
+
+    #[inline]
+    fn other(self, id: ID) -> Option<ID> {
+        if self.lo == id {
+            Some(self.hi)
+        } else if self.hi == id {
+            Some(self.lo)
+        } else {
+            None
+        }
+    }
+}
+
+/// Stores ONLY “connection between 2 ids”.
+#[derive(Default)]
+struct ConnectionStore {
+    edges: HashSet<EdgeKey>,
+}
+impl ConnectionStore {
+    fn insert_edge(&mut self, a: ID, b: ID) {
+        if let Some(k) = EdgeKey::new(a, b) {
+            self.edges.insert(k);
+        }
+    }
+
+    fn remove_edge(&mut self, a: ID, b: ID) {
+        if let Some(k) = EdgeKey::new(a, b) {
+            self.edges.remove(&k);
+        }
+    }
+
+    fn remove_all_for(&mut self, id: ID) {
+        self.edges.retain(|k| !k.contains(id));
+    }
+
+    fn neighbors_snapshot(&self, id: ID) -> Vec<ID> {
+        self.edges.iter().filter_map(|k| k.other(id)).collect()
+    }
+
+    fn has_neighbor(&self, id: ID, neighbor: ID) -> bool {
+        EdgeKey::new(id, neighbor).is_some_and(|k| self.edges.contains(&k))
+    }
+}
+
+/* -------------------- PRIVATE side-car registry -------------------- */
+
+type ConnHandle = Arc<RwLock<ConnectionStore>>;
+
+static CONN_REGISTRY: OnceLock<Mutex<HashMap<usize, ConnHandle>>> = OnceLock::new();
+
+#[inline]
+fn registry() -> &'static Mutex<HashMap<usize, ConnHandle>> {
+    CONN_REGISTRY.get_or_init(|| Mutex::new(HashMap::new()))
+}
+
+#[inline]
+fn map_key(map: &PlanetMap) -> usize {
+    // stable for the lifetime of this Arc allocation
+    Arc::as_ptr(map) as usize
+}
+
+#[inline]
+fn conns_for_map(map: &PlanetMap) -> ConnHandle {
+    let key = map_key(map);
+
+    let mut reg = match registry().lock() {
+        Ok(g) => g,
+        Err(poison) => {
+            log_internal(
+                Channel::Warning,
+                payload! {
+                    event: "mutex_poison_recovered",
+                    mutex: "CONN_REGISTRY",
+                },
+            );
+            poison.into_inner()
+        }
+    };
+
+    reg.entry(key)
+        .or_insert_with(|| Arc::new(RwLock::new(ConnectionStore::default())))
+        .clone()
+}
+
+/// Optional: if you *do* know you’re done with a `PlanetMap` and want to drop its side-car.
+/// (Not required for correctness; only for freeing registry memory deterministically.)
+pub fn unregister_connections(map: &PlanetMap) {
+    let key = map_key(map);
+    let mut reg = registry()
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    reg.remove(&key);
+}
+
+/* -------------------- PlanetNode (no neighbors stored) -------------------- */
+
+/// A planet node in the galaxy graph (undirected connections live elsewhere).
 pub struct PlanetNode {
     id: ID,
     alive: AtomicBool,
-    neighbors: Mutex<HashSet<ID>>,
+    // Not a neighbor set. Just a pointer key so node methods can find the right ConnectionStore.
+    map_key: usize,
 }
 
 impl PlanetNode {
-    pub fn new(id: ID) -> Self {
+    fn new(id: ID, map_key: usize) -> Self {
         Self {
             id,
             alive: AtomicBool::new(true),
-            neighbors: Mutex::new(HashSet::new()),
+            map_key,
         }
     }
 
@@ -41,58 +159,56 @@ impl PlanetNode {
         self.id
     }
 
-    // (3) Relaxed is sufficient here since `alive` is a logical gate and
-    // not used to publish/guard other memory.
     pub fn is_alive(&self) -> bool {
         self.alive.load(Ordering::Relaxed)
     }
 
-    // (3) Same reasoning as above.
     fn mark_dead(&self) {
         self.alive.store(false, Ordering::Relaxed);
     }
 
-    #[inline]
-    fn neighbors_lock(&self) -> std::sync::MutexGuard<'_, HashSet<ID>> {
-        match self.neighbors.lock() {
-            Ok(g) => g,
-            Err(poison) => {
-                log_internal(
-                    Channel::Warning,
-                    payload! {
-                        event: "mutex_poison_recovered",
-                        mutex: "PlanetNode.neighbors",
-                        planet_id: self.id,
-                    },
-                );
-                poison.into_inner()
-            }
-        }
-    }
-
-    fn add_neighbor_id(&self, neighbor_id: ID) {
-        if neighbor_id == self.id {
-            return;
-        }
-        self.neighbors_lock().insert(neighbor_id);
-    }
-
-    fn remove_neighbor_id(&self, neighbor_id: ID) {
-        self.neighbors_lock().remove(&neighbor_id);
-    }
-
+    /// Same public API as before.
     pub fn neighbors_snapshot(&self) -> Vec<ID> {
-        self.neighbors_lock().iter().copied().collect()
+        // Look up connection store via registry using the stored key.
+        let reg = registry()
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let conns = match reg.get(&self.map_key) {
+            Some(c) => Arc::clone(c),
+            None => return Vec::new(),
+        };
+        drop(reg);
+
+        let cg = conns_read(&conns);
+        cg.neighbors_snapshot(self.id)
     }
 
+    /// Same public API as before.
     pub fn has_neighbor(&self, neighbor_id: ID) -> bool {
-        self.neighbors_lock().contains(&neighbor_id)
+        if neighbor_id == self.id {
+            return false;
+        }
+
+        let reg = registry()
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let conns = match reg.get(&self.map_key) {
+            Some(c) => Arc::clone(c),
+            None => return false,
+        };
+        drop(reg);
+
+        let cg = conns_read(&conns);
+        cg.has_neighbor(self.id, neighbor_id)
     }
 }
 
-/// Poison-tolerant map read lock with structured logging.
+/* -------------------- Poison-tolerant locks (PlanetMap + Connections) -------------------- */
+
 #[inline]
-fn map_read(map: &PlanetMap) -> std::sync::RwLockReadGuard<'_, HashMap<ID, Arc<PlanetNode>>> {
+pub(crate) fn map_read(
+    map: &PlanetMap,
+) -> std::sync::RwLockReadGuard<'_, HashMap<ID, Arc<PlanetNode>>> {
     match map.read() {
         Ok(g) => g,
         Err(poison) => {
@@ -109,9 +225,10 @@ fn map_read(map: &PlanetMap) -> std::sync::RwLockReadGuard<'_, HashMap<ID, Arc<P
     }
 }
 
-/// Poison-tolerant map write lock with structured logging.
 #[inline]
-fn map_write(map: &PlanetMap) -> std::sync::RwLockWriteGuard<'_, HashMap<ID, Arc<PlanetNode>>> {
+pub(crate) fn map_write(
+    map: &PlanetMap,
+) -> std::sync::RwLockWriteGuard<'_, HashMap<ID, Arc<PlanetNode>>> {
     match map.write() {
         Ok(g) => g,
         Err(poison) => {
@@ -128,29 +245,49 @@ fn map_write(map: &PlanetMap) -> std::sync::RwLockWriteGuard<'_, HashMap<ID, Arc
     }
 }
 
-/// Helper: lock two nodes’ neighbor sets in deterministic ID order.
 #[inline]
-fn lock_two_neighbors<'a>(
-    a_id: ID,
-    a: &'a PlanetNode,
-    b_id: ID,
-    b: &'a PlanetNode,
-) -> (
-    std::sync::MutexGuard<'a, HashSet<ID>>,
-    std::sync::MutexGuard<'a, HashSet<ID>>,
-) {
-    if a_id < b_id {
-        (a.neighbors_lock(), b.neighbors_lock())
-    } else {
-        let gb = b.neighbors_lock();
-        let ga = a.neighbors_lock();
-        (ga, gb)
+fn conns_read(conns: &ConnHandle) -> std::sync::RwLockReadGuard<'_, ConnectionStore> {
+    match conns.read() {
+        Ok(g) => g,
+        Err(poison) => {
+            log_internal(
+                Channel::Warning,
+                payload! {
+                    event: "rwlock_poison_recovered",
+                    lock: "Connections",
+                    mode: "read",
+                },
+            );
+            poison.into_inner()
+        }
     }
 }
+
+#[inline]
+fn conns_write(conns: &ConnHandle) -> std::sync::RwLockWriteGuard<'_, ConnectionStore> {
+    match conns.write() {
+        Ok(g) => g,
+        Err(poison) => {
+            log_internal(
+                Channel::Warning,
+                payload! {
+                    event: "rwlock_poison_recovered",
+                    lock: "Connections",
+                    mode: "write",
+                },
+            );
+            poison.into_inner()
+        }
+    }
+}
+
+/* -------------------- Public API (UNCHANGED) -------------------- */
 
 /// Insert node if missing, return Arc.
 /// If a node exists but is marked dead, replace it defensively.
 pub fn ensure_node(map: &PlanetMap, id: ID) -> Arc<PlanetNode> {
+    let key = map_key(map);
+
     let mut guard = map_write(map);
 
     if let Some(existing) = guard.get(&id)
@@ -159,7 +296,10 @@ pub fn ensure_node(map: &PlanetMap, id: ID) -> Arc<PlanetNode> {
         return Arc::clone(existing);
     }
 
-    let fresh = Arc::new(PlanetNode::new(id));
+    // Ensure side-car exists (no-op if already created).
+    let _ = conns_for_map(map);
+
+    let fresh = Arc::new(PlanetNode::new(id, key));
     guard.insert(id, Arc::clone(&fresh));
 
     log_internal(
@@ -174,13 +314,16 @@ pub fn ensure_node(map: &PlanetMap, id: ID) -> Arc<PlanetNode> {
 }
 
 /// Connect two nodes with an undirected edge (A <-> B).
-/// Lock order: PlanetMap(write) -> node neighbor mutexes (deterministic).
+/// Public signature unchanged.
+/// Lock order: PlanetMap(write) -> Connections(write)
 pub fn connect_undirected(map: &PlanetMap, a: ID, b: ID) -> Result<(), ConnectError> {
     if a == b {
         return Err(ConnectError::SameNode);
     }
 
-    // Enforce lock order: take map write lock for the whole mutation.
+    let conns = conns_for_map(map);
+
+    // Hold map write lock for endpoint validation (same style as before).
     let guard = map_write(map);
 
     let (na, nb) = match (guard.get(&a), guard.get(&b)) {
@@ -192,22 +335,23 @@ pub fn connect_undirected(map: &PlanetMap, a: ID, b: ID) -> Result<(), ConnectEr
         return Err(ConnectError::EndpointDead);
     }
 
-    // Still holding map lock; now lock node mutexes in a deterministic order.
-    let (mut ga, mut gb) = lock_two_neighbors(a, &na, b, &nb);
-    ga.insert(b);
-    gb.insert(a);
+    // Single source-of-truth edge insert (cannot become one-sided).
+    let mut cg = conns_write(&conns);
+    cg.insert_edge(a, b);
 
     Ok(())
 }
 
-/// Remove a node from the graph and clean up neighbors.
-/// Lock order: PlanetMap(write) -> node neighbor mutexes (deterministic).
-/// Ensures no window where neighbors contain `dead_id` while map doesn't.
+/// Remove a node from the graph and clean up connections.
+/// Public signature unchanged.
+/// Lock order: PlanetMap(write) -> Connections(write)
 pub fn remove_node_with_stop<F>(map: &PlanetMap, dead_id: ID, stop_fn: F) -> bool
 where
     F: FnOnce(ID),
 {
-    // 1) Hold map write lock for the entire structural change (atomic wrt other mutations).
+    let conns = conns_for_map(map);
+
+    // 1) Hold map write lock for structural change.
     let mut guard = map_write(map);
 
     let removed = match guard.get(&dead_id) {
@@ -218,35 +362,16 @@ where
     // 2) Mark dead while still in map.
     removed.mark_dead();
 
-    // 3) Snapshot neighbors while holding removed's neighbor lock (consistent snapshot).
-    let neighbor_ids: Vec<ID> = {
-        let g = removed.neighbors_lock();
-        g.iter().copied().collect()
-    };
+    // 3) Remove all edges involving dead_id in ONE place (no asymmetry possible).
+    let mut cg = conns_write(&conns);
+    cg.remove_all_for(dead_id);
+    drop(cg);
 
-    // 4) For each neighbor, remove the undirected edge atomically (both sides),
-    //    while still holding map_write and node locks in deterministic order.
-    for nid in neighbor_ids {
-        // Neighbor might already be missing (if earlier removed); skip if absent.
-        let neighbor = match guard.get(&nid) {
-            Some(n) => Arc::clone(n),
-            None => continue,
-        };
-
-        // Lock both sets deterministically (prevents node-node deadlock).
-        let (mut g_removed, mut g_neighbor) = lock_two_neighbors(dead_id, &removed, nid, &neighbor);
-
-        g_removed.remove(&nid);
-        g_neighbor.remove(&dead_id);
-    }
-
-    // 5) Now remove from map (neighbors no longer reference it).
+    // 4) Remove from map.
     guard.remove(&dead_id);
-
-    // Drop locks before calling external code.
     drop(guard);
 
-    // 6) Callback after the graph is consistent and unlocked.
+    // 5) Callback after consistent.
     stop_fn(dead_id);
     true
 }

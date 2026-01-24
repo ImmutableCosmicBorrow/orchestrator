@@ -17,8 +17,8 @@ use common_game::logging::Channel;
 use common_game::utils::ID;
 
 use std::sync::{
-    atomic::{AtomicBool, Ordering},
     Arc, Mutex, OnceLock,
+    atomic::{AtomicBool, Ordering},
 };
 use std::thread::{self, JoinHandle};
 use std::time::{Duration, Instant};
@@ -131,14 +131,20 @@ fn asteroid_delay(
     planet_ids: &[ID],
     _explorers_location: &ExplorersLocationRef,
 ) -> Option<(Duration, ID)> {
-    planet_ids.first().copied().map(|id| (Duration::from_secs(10), id))
+    planet_ids
+        .first()
+        .copied()
+        .map(|id| (Duration::from_secs(10), id))
 }
 
 fn sunray_delay(
     planet_ids: &[ID],
     _explorers_location: &ExplorersLocationRef,
 ) -> Option<(Duration, ID)> {
-    planet_ids.first().copied().map(|id| (Duration::from_secs(10), id))
+    planet_ids
+        .first()
+        .copied()
+        .map(|id| (Duration::from_secs(10), id))
 }
 
 //
@@ -190,8 +196,7 @@ fn send_asteroid(ctx: &AsteroidCtx<'_>, planet_id: ID) {
     let convo = conversations::orch_planet::AsteroidConversation::new(0, state);
 
     ctx.convo.convo_scheduler.add_conversation(
-        Box::new(convo)
-            as Box<dyn conversations::Conversation<ExplorerBag> + Send + Sync>,
+        Box::new(convo) as Box<dyn conversations::Conversation<ExplorerBag> + Send + Sync>
     );
 }
 
@@ -205,8 +210,7 @@ fn send_sunray(ctx: &SunrayCtx<'_>, planet_id: ID) {
     let convo = conversations::orch_planet::SunrayConversation::new(0, state);
 
     ctx.convo.convo_scheduler.add_conversation(
-        Box::new(convo)
-            as Box<dyn conversations::Conversation<ExplorerBag> + Send + Sync>,
+        Box::new(convo) as Box<dyn conversations::Conversation<ExplorerBag> + Send + Sync>
     );
 }
 
@@ -296,7 +300,9 @@ fn maybe_send_asteroid(
     planet_ids: &[ID],
     ctx: &AsteroidCtx<'_>,
 ) {
-    let Some(t) = state.next_asteroid_at else { return };
+    let Some(t) = state.next_asteroid_at else {
+        return;
+    };
     if now < t {
         return;
     }
@@ -317,13 +323,10 @@ fn maybe_send_asteroid(
     state.next_asteroid_at = None;
 }
 
-fn maybe_send_sunray(
-    state: &mut SchedState,
-    now: Instant,
-    planet_ids: &[ID],
-    ctx: &SunrayCtx<'_>,
-) {
-    let Some(t) = state.next_sunray_at else { return };
+fn maybe_send_sunray(state: &mut SchedState, now: Instant, planet_ids: &[ID], ctx: &SunrayCtx<'_>) {
+    let Some(t) = state.next_sunray_at else {
+        return;
+    };
     if now < t {
         return;
     }
@@ -345,14 +348,8 @@ fn maybe_send_sunray(
 }
 
 fn scheduler_loop(universe: &UniverseCtx, convo: &ConversationCtx) {
-    let asteroid_ctx = AsteroidCtx {
-        universe,
-        convo,
-    };
-    let sunray_ctx = SunrayCtx {
-        universe,
-        convo,
-    };
+    let asteroid_ctx = AsteroidCtx { universe, convo };
+    let sunray_ctx = SunrayCtx { universe, convo };
 
     let mut state = SchedState::new();
 
