@@ -123,24 +123,23 @@ impl Orchestrator {
         self.start_background_event_senders();
 
         // Main loop
-        // TODO: handle manual mode, since right now we are just waiting to receive messages
         loop {
             select! {
                 recv(self.planets_receiver) -> msg => {
                     match msg {
                         Ok(msg) => {
-                        self.handle_message(PossibleMessage::PlanetToOrch(msg));
-                    }
-                        Err(e) => {
-                        log_internal(
-                            Channel::Warning,
-                            payload!(
-                                action : "Error while receiving from Planets",
-                                error : e
-                            )
-                        );
-                    }
+                            self.handle_message(PossibleMessage::PlanetToOrch(msg));
                         }
+                        Err(e) => {
+                            log_internal(
+                                Channel::Warning,
+                                payload!(
+                                    action : "Error while receiving from Planets",
+                                    error : e
+                                )
+                            );
+                        }
+                    }
                 }
                 recv(self.explorers_receiver) -> msg => {
                     match msg {

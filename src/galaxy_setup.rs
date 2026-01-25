@@ -62,8 +62,6 @@ fn planet_kind(id: ID) -> PlanetKind {
     }
 }
 
-// TODO: add a parameter to customize planet creation with other groups planets
-//
 // Option: spawn planet threads at creation time.
 // Returns a JoinHandle<()> for the spawned planet thread.
 pub(crate) fn spawn_planet_with_channels(

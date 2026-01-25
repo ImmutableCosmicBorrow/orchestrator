@@ -193,6 +193,7 @@ impl Conversation<ExplorerBag> for KillPlanetConversation<WaitingPlanetKillResul
             planet_id,
         })) = msg_wrapped
         {
+            //TODO: Kill planet
             log_internal(
                 Channel::Info,
                 payload!(
@@ -202,7 +203,6 @@ impl Conversation<ExplorerBag> for KillPlanetConversation<WaitingPlanetKillResul
                 ),
             );
 
-            self.get_explorers_in_planet(planet_id);
             return None;
         }
 

@@ -18,8 +18,6 @@ struct WaitingInternalStateResponse;
 struct WaitingAsteroidAck;
 struct Error;
 
-//TODO: REWRITE THIS BETTER
-
 ///`InternalState` FSM
 struct PlanetInternalStateConversation<S> {
     _state: PhantomData<S>,

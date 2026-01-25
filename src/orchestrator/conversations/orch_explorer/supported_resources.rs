@@ -172,6 +172,7 @@ impl Conversation<ExplorerBag> for SupportedResourcesConversation<WaitingSupport
             },
         )) = msg_wrapped
         {
+            //TODO: SEND THIS TO UI
             log_internal(
                 Channel::Debug,
                 payload!(

@@ -178,7 +178,6 @@ impl<T: Debug + Eq + Hash> ConvoScheduler<T> {
     /// it updates the mapping of expected kinds to conversation IDs.
     /// If the conversation has a timeout configured, it registers the timeout.
     pub fn add_conversation(&self, conversation: Box<dyn Conversation<T> + Send + Sync>) {
-        // let id = crate::get_id_manager().get_next_conversation_id(); //TODO: refactor to keep old id?
         let id = conversation.get_id();
 
         let expected_kind = conversation.get_expected_kind();
