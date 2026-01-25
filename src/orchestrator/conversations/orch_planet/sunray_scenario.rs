@@ -399,11 +399,11 @@ mod tests {
     #[test]
     fn waiting_sunray_has_timeout_config() {
         let conv = make_sunray_conversation_wait();
-        
+
         // Verify timeout is configured
         assert!(conv.get_timeout().is_some());
         assert_eq!(conv.get_timeout(), Some(SUNRAY_ACK_TIMEOUT));
-        
+
         // Verify wait_start is set
         assert!(conv.get_wait_start().is_some());
     }
@@ -411,7 +411,7 @@ mod tests {
     #[test]
     fn waiting_sunray_timeout_logs_and_terminates() {
         let conv = make_sunray_conversation_wait();
-        
+
         // on_timeout should just log and return (not panic)
         // This test verifies it doesn't panic
         conv.on_timeout();
@@ -421,13 +421,13 @@ mod tests {
     #[test]
     fn waiting_sunray_wait_start_is_recent() {
         use std::time::Instant;
-        
+
         let before = Instant::now();
         let conv = make_sunray_conversation_wait();
         let after = Instant::now();
-        
+
         let wait_start = conv.get_wait_start().expect("wait_start should be set");
-        
+
         // Verify that wait_start is between before and after creation
         assert!(wait_start >= before && wait_start <= after);
     }

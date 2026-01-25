@@ -180,6 +180,18 @@ impl Orchestrator {
         let message_kind = message.to_kind_type();
         let entities_ids = message.get_entity_ids();
 
+        // Log every incoming message with source and intended receiver (Orchestrator)
+        log_internal(
+            Channel::Trace,
+            payload!(
+                event: "MessageReceived",
+                message_kind: format!("{:?}", message_kind),
+                from_planet: format!("{:?}", entities_ids.0),
+                from_explorer: format!("{:?}", entities_ids.1),
+                to: "Orchestrator"
+            ),
+        );
+
         let matching_conversation = self
             .convo_scheduler
             .find_matching_conversation(&message_kind, entities_ids);
@@ -187,6 +199,17 @@ impl Orchestrator {
         match matching_conversation {
             // If the message matches the expected kind, we let the message wait for the transition
             Some(conversation) => {
+                // Log match with the conversation id
+                log_internal(
+                    Channel::Trace,
+                    payload!(
+                        event: "MessageMatchedConversation",
+                        conversation_id: conversation.get_id(),
+                        message_kind: format!("{:?}", message_kind),
+                        from_planet: format!("{:?}", entities_ids.0),
+                        from_explorer: format!("{:?}", entities_ids.1)
+                    ),
+                );
                 self.convo_scheduler
                     .add_waiting_message(conversation.get_id(), message);
             }
@@ -272,9 +295,9 @@ impl Orchestrator {
 
                 if let Some(convo) = current_convo {
                     let msg = convo_scheduler.get_waiting_message(convo.get_id());
-                    let tmp = convo.get_kill_explorers_vec();
+                    let kill_expl_vec = convo.get_kill_explorers_vec();
 
-                    if let Some((vec, handle_outgoing)) = tmp {
+                    if let Some((vec, handle_outgoing)) = kill_expl_vec {
                         for el in vec {
                             let conv_id = get_id_manager().get_next_conversation_id();
                             let to_explorer_struct = ToExplorerStruct {
@@ -300,10 +323,34 @@ impl Orchestrator {
                         }
                     }
 
-                    let new_convo = convo.transition(msg);
+                    // Log transition execution with convo id, expected kind, and incoming message kind
+                    match &msg {
+                        Some(m) => log_internal(
+                            Channel::Trace,
+                            payload!(
+                                event: "ConversationTransition",
+                                conversation_id: convo.get_id(),
+                                expected_kind: format!("{:?}", convo.get_expected_kind()),
+                                message_kind: format!("{:?}", m.to_kind_type())
+                            ),
+                        ),
+                        None => log_internal(
+                            Channel::Trace,
+                            payload!(
+                                event: "ConversationTransition",
+                                conversation_id: convo.get_id(),
+                                expected_kind: format!("{:?}", convo.get_expected_kind()),
+                                message_kind: "None"
+                            ),
+                        ),
+                    }
 
-                    if let Some(new_real_convo) = new_convo {
-                        convo_scheduler.add_conversation(new_real_convo);
+                    if convo.get_expected_kind().is_some() {
+                        let new_convo = convo.transition(msg);
+
+                        if let Some(new_real_convo) = new_convo {
+                            convo_scheduler.add_conversation(new_real_convo);
+                        }
                     }
                 }
             }

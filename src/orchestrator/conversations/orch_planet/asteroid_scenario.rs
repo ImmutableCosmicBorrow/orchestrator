@@ -463,11 +463,11 @@ mod tests {
     #[test]
     fn waiting_asteroid_has_timeout_config() {
         let conv = make_wait_conv();
-        
+
         // Verify timeout is configured
         assert!(conv.get_timeout().is_some());
         assert_eq!(conv.get_timeout(), Some(ASTEROID_ACK_TIMEOUT));
-        
+
         // Verify wait_start is set
         assert!(conv.get_wait_start().is_some());
     }
@@ -475,7 +475,7 @@ mod tests {
     #[test]
     fn waiting_asteroid_timeout_logs_and_terminates() {
         let conv = make_wait_conv();
-        
+
         // on_timeout should just log and return (not panic)
         // This test verifies it doesn't panic
         conv.on_timeout();
@@ -485,13 +485,13 @@ mod tests {
     #[test]
     fn waiting_asteroid_wait_start_is_recent() {
         use std::time::Instant;
-        
+
         let before = Instant::now();
         let conv = make_wait_conv();
         let after = Instant::now();
-        
+
         let wait_start = conv.get_wait_start().expect("wait_start should be set");
-        
+
         // Verify that wait_start is between before and after creation
         assert!(wait_start >= before && wait_start <= after);
     }
@@ -500,7 +500,7 @@ mod tests {
     fn sending_asteroid_has_no_timeout() {
         let MakeSendersResult(senders, _rx) = make_senders_with(PLANET_ID);
         let conv = make_send_conv(senders);
-        
+
         // Sending states should not have timeout - they're not waiting for messages
         assert!(conv.get_timeout().is_none());
         assert!(conv.get_wait_start().is_none());

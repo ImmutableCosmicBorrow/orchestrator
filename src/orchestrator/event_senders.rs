@@ -188,6 +188,17 @@ fn send_asteroid(universe: &UniverseCtx, convo: &ConversationCtx, planet_id: ID)
         .convo_scheduler
         .add_conversation(Box::new(conversation)
             as Box<dyn conversations::Conversation<ExplorerBag> + Send + Sync>);
+
+    // Log scheduling of asteroid conversation
+    log_internal(
+        Channel::Trace,
+        payload!(
+            event: "ScheduleConversation",
+            conversation_id: convo_id,
+            kind: "Asteroid",
+            planet_id: planet_id
+        ),
+    );
 }
 
 fn send_sunray(convo: &ConversationCtx, planet_id: ID) {
@@ -202,6 +213,17 @@ fn send_sunray(convo: &ConversationCtx, planet_id: ID) {
         .convo_scheduler
         .add_conversation(Box::new(conversation)
             as Box<dyn conversations::Conversation<ExplorerBag> + Send + Sync>);
+
+    // Log scheduling of sunray conversation
+    log_internal(
+        Channel::Trace,
+        payload!(
+            event: "ScheduleConversation",
+            conversation_id: convo_id,
+            kind: "Sunray",
+            planet_id: planet_id
+        ),
+    );
 }
 
 //
