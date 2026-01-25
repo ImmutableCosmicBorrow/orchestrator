@@ -33,6 +33,7 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::thread::JoinHandle;
+use crate::orchestrator::conversations::orch_explorer::move_to_planet::WaitingTravelRequest;
 
 type ExplorersLocationRef = Arc<Mutex<HashMap<ID, ID>>>;
 
@@ -238,6 +239,15 @@ impl Orchestrator {
                                     as Box<
                                         dyn conversations::Conversation<ExplorerBag> + Send + Sync,
                                     >);
+
+                                self.handle_message(
+                                    PossibleMessage::ExplorerToOrch(
+                                        ExplorerToOrchestrator::NeighborsRequest {
+                                            explorer_id,
+                                            current_planet_id,
+                                        },
+                                    ),
+                                );
                             }
                             #[allow(unused_variables)]
                             ExplorerToOrchestrator::TravelToPlanetRequest {
@@ -278,6 +288,7 @@ impl Orchestrator {
         let convo_scheduler = self.convo_scheduler.clone();
         let explorer_senders = self.explorer_senders.clone();
         let planets_senders = self.planets_senders.clone();
+        let explorer_locations = self.explorers_location.clone();
         thread::spawn(move || {
             loop {
                 // Check for timed-out conversations and handle them
@@ -310,6 +321,7 @@ impl Orchestrator {
                                 to_explorer_struct,
                                 to_planet_struct,
                                 handle_outgoing,
+                                explorer_locations.clone(),
                             );
 
                             let convo = KillExplorerConversation::<SendingKillExplorer>::new(
