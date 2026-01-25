@@ -357,10 +357,7 @@ mod tests {
             res: Ok(()),
         });
         let next_conv = conv.transition(Some(msg));
-        assert!(
-            next_conv.is_none(),
-            "Conversation should end successfully"
-        );
+        assert!(next_conv.is_none(), "Conversation should end successfully");
     }
 
     #[test]
@@ -381,10 +378,7 @@ mod tests {
             error_details.is_some(),
             "ErrorState should have error details"
         );
-        assert_eq!(
-            error_details.unwrap(),
-            "Wrong Message Received"
-        );
+        assert_eq!(error_details.unwrap(), "Wrong Message Received");
     }
 
     #[test]

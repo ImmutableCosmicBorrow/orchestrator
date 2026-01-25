@@ -12,6 +12,11 @@ use common_game::protocols::orchestrator_planet::PlanetToOrchestratorKind::Sunra
 use common_game::protocols::orchestrator_planet::{OrchestratorToPlanet, PlanetToOrchestrator};
 use common_game::utils::ID;
 use std::sync::Arc;
+use std::time::{Duration, Instant};
+
+/// Default timeout duration for waiting for a Sunray acknowledgment.
+/// The planet should respond quickly to sunray events.
+const SUNRAY_ACK_TIMEOUT: Duration = Duration::from_secs(5);
 
 ///**Sunray Conversation**
 ///
@@ -28,12 +33,17 @@ use std::sync::Arc;
 struct WaitingSunrayAck {
     /// ID of the planet we are sending the sunray to
     planet_id: ID,
+    /// Instant when we started waiting for the acknowledgment (for timeout tracking)
+    wait_start: Instant,
 }
 
 impl WaitingSunrayAck {
     /// The constructor for [`WaitingSunrayAck`] state struct
     fn new(planet_id: ID) -> Self {
-        Self { planet_id }
+        Self {
+            planet_id,
+            wait_start: Instant::now(),
+        }
     }
 }
 
@@ -185,11 +195,37 @@ impl Conversation<ExplorerBag> for SunrayConversation<WaitingSunrayAck> {
     fn get_priority(&self) -> i32 {
         1
     }
+
+    /// Returns when this conversation started waiting for the `SunrayAck` message.
+    fn get_wait_start(&self) -> Option<Instant> {
+        Some(self.state.wait_start)
+    }
+
+    /// Returns the timeout duration for waiting for `SunrayAck`.
+    /// After this duration, `on_timeout` will be called.
+    fn get_timeout(&self) -> Option<Duration> {
+        Some(SUNRAY_ACK_TIMEOUT)
+    }
+
+    /// Called when the conversation times out waiting for `SunrayAck`.
+    /// Logs a warning - the conversation is simply terminated.
+    fn on_timeout(self: Box<Self>) {
+        log_internal(
+            Channel::Warning,
+            payload!(
+                action : "Sunray conversation timed out waiting for planet acknowledgment",
+                planet_id : self.state.planet_id,
+                conversation_id : self.id,
+                timeout_secs : SUNRAY_ACK_TIMEOUT.as_secs()
+            ),
+        );
+        // Conversation ends here - no further action needed for sunray timeout
+    }
 }
 
 impl SunrayConversation<WaitingSunrayAck> {
     /// The constructor for [`SunrayConversation`] in the [`WaitingSunrayAck`] state
-    pub(crate) fn new(id: ID, planet_id: ID) -> Self {
+    fn new(id: ID, planet_id: ID) -> Self {
         Self {
             id,
             expected_message: Some(PlanetToOrchKind(SunrayAck)),
@@ -356,5 +392,43 @@ mod tests {
         assert_eq!(conv.get_expected_kind(), Some(PlanetToOrchKind(SunrayAck)));
         // get_priority
         assert_eq!(conv.get_priority(), 1);
+    }
+
+    // --- Timeout Feature Tests ---
+
+    #[test]
+    fn waiting_sunray_has_timeout_config() {
+        let conv = make_sunray_conversation_wait();
+
+        // Verify timeout is configured
+        assert!(conv.get_timeout().is_some());
+        assert_eq!(conv.get_timeout(), Some(SUNRAY_ACK_TIMEOUT));
+
+        // Verify wait_start is set
+        assert!(conv.get_wait_start().is_some());
+    }
+
+    #[test]
+    fn waiting_sunray_timeout_logs_and_terminates() {
+        let conv = make_sunray_conversation_wait();
+
+        // on_timeout should just log and return (not panic)
+        // This test verifies it doesn't panic
+        conv.on_timeout();
+        // If we get here, the test passes - on_timeout completed without panic
+    }
+
+    #[test]
+    fn waiting_sunray_wait_start_is_recent() {
+        use std::time::Instant;
+
+        let before = Instant::now();
+        let conv = make_sunray_conversation_wait();
+        let after = Instant::now();
+
+        let wait_start = conv.get_wait_start().expect("wait_start should be set");
+
+        // Verify that wait_start is between before and after creation
+        assert!(wait_start >= before && wait_start <= after);
     }
 }

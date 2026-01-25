@@ -23,14 +23,14 @@ use common_game::utils::ID;
 ///
 /// The conversation starts in the [`SendingExplorerStart`] state, which sends an
 /// [`OrchestratorToExplorer::StartExplorerAI`] when the [`Conversation::transition`] method is called.
-struct SendingExplorerStart {
+pub(crate) struct SendingExplorerStart {
     /// A struct containing fields to send messages to the specific explorer
     to_explorer_struct: ToExplorerStruct,
 }
 
 impl SendingExplorerStart {
     /// Constructor for [`SendingExplorerStart`] state struct
-    fn new(to_explorer_struct: ToExplorerStruct) -> Self {
+    pub(crate) fn new(to_explorer_struct: ToExplorerStruct) -> Self {
         Self { to_explorer_struct }
     }
 }
@@ -55,7 +55,7 @@ impl WaitingExplorerStartResult {
 ///
 /// This is the generic FSM struct that takes the generic type `State` to ensure only methods
 /// of that specific state can be called during the conversation.
-struct StartExplorerConversation<State> {
+pub(crate) struct StartExplorerConversation<State> {
     /// Conversation ID
     id: ID,
     /// Optional expected message to trigger the transition
@@ -126,7 +126,7 @@ impl Conversation<ExplorerBag> for StartExplorerConversation<SendingExplorerStar
 
 impl StartExplorerConversation<SendingExplorerStart> {
     /// The constructor for [`StartExplorerConversation`] in the [`SendingExplorerStart`] state
-    fn new(id: ID, state: SendingExplorerStart) -> Self {
+    pub(crate) fn new(id: ID, state: SendingExplorerStart) -> Self {
         Self {
             id,
             expected_message: None,

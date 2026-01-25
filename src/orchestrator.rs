@@ -4,30 +4,35 @@ mod conversations;
 mod event_senders;
 mod queue;
 
-use crate::galaxy_setup::{PlanetMap, galaxy_loader};
+use crate::galaxy_setup::{create_and_spawn_explorers, galaxy_loader};
 use crate::orchestrator::conversations::{PossibleMessage, SendersToExplorer, SendersToPlanet};
 use crate::orchestrator::queue::ConvoScheduler;
+use crate::planet::PlanetMap;
 use crate::{get_id_manager, payload};
 
-use crate::logging_utils::{log_internal, log_msg_to};
+use crate::logging_utils::log_internal;
 use crate::orchestrator::conversations::ToExplorerStruct;
 use crate::orchestrator::conversations::ToPlanetStruct;
 use crate::orchestrator::conversations::orch_explorer::kill_explorer::KillExplorerConversation;
 use crate::orchestrator::conversations::orch_explorer::kill_explorer::SendingKillExplorer;
-use common_explorer::ExplorerBagContent;
-use common_game::components::forge::Forge;
-use common_game::logging::{ActorType, Channel, EventType};
-use common_game::protocols::orchestrator_explorer::{
-    ExplorerToOrchestrator, OrchestratorToExplorer,
+use crate::orchestrator::conversations::orch_explorer::start_explorer::{
+    SendingExplorerStart, StartExplorerConversation,
 };
-use common_game::protocols::orchestrator_planet::{OrchestratorToPlanet, PlanetToOrchestrator};
+use crate::orchestrator::conversations::orch_planet::{
+    SendingPlanetStart, StartPlanetConversation,
+};
+pub(crate) use common_explorer::ExplorerBagContent;
+use common_game::components::forge::Forge;
+use common_game::logging::Channel;
+use common_game::protocols::orchestrator_explorer::ExplorerToOrchestrator;
+use common_game::protocols::orchestrator_planet::PlanetToOrchestrator;
 use common_game::protocols::planet_explorer::{ExplorerToPlanet, PlanetToExplorer};
 use common_game::utils::ID;
-use crossbeam_channel::unbounded;
-use crossbeam_channel::{Receiver, Sender};
+use crossbeam_channel::{Receiver, Sender, select, unbounded};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::thread;
+use std::thread::JoinHandle;
 
 type ExplorersLocationRef = Arc<Mutex<HashMap<ID, ID>>>;
 
@@ -42,55 +47,37 @@ pub(crate) struct Orchestrator {
     planets_senders: SendersToPlanet,
     explorer_senders: SendersToExplorer,
     planets_receiver: Receiver<PlanetToOrchestrator>,
-    explorers_receiver: Receiver<OrchestratorToExplorer>,
+    explorers_receiver: Receiver<ExplorerToOrchestrator<ExplorerBag>>,
     forge: Arc<Forge>,
     convo_scheduler: ConvoScheduler<ExplorerBag>,
     galaxy: PlanetMap,
     planet_explorer_channels: PlanetExplorerChannels,
     explorers_location: ExplorersLocationRef,
-    planet_threads: Vec<std::thread::JoinHandle<()>>,
+    planet_threads: HashMap<ID, JoinHandle<()>>,
+    explorer_threads: HashMap<ID, JoinHandle<()>>,
 }
 
 impl Orchestrator {
     pub fn new(file_path: &std::path::Path) -> Self {
-        //TODO: fix receivers and senders initialization
-        let (galaxy, planets_receiver, orch_to_plan_senders, expl_to_plan_senders) =
+        // galaxy_loader now returns 5 values (the last one is planet thread handles)
+        let (galaxy, planets_receiver, orch_to_plan_senders, expl_to_plan_senders, planet_threads) =
             galaxy_loader(file_path);
-        let (explorers_receiver, explorer_senders) =
-            (unbounded::<OrchestratorToExplorer>().1, HashMap::new());
+
         let forge = Arc::new(Forge::new().expect("Couldn't create forge!"));
 
+        // Channel for Explorers to Orchestrator communications
+        let (tx_explorer_to_orchestrator, explorers_receiver) =
+            unbounded::<ExplorerToOrchestrator<ExplorerBagContent>>();
+
+        let (explorer_threads, explorer_senders, planet_to_explorer_senders) =
+            create_and_spawn_explorers(tx_explorer_to_orchestrator);
+
+        // Channels for Explorers - Planets communications
         let mut planet_explorer_channels = PlanetExplorerChannels::new();
         planet_explorer_channels.explorer_to_planet_senders =
             Arc::new(Mutex::new(expl_to_plan_senders));
-
-        // Spawn planet threads immediately
-        let planet_threads = {
-            let mut handles = Vec::new();
-            let map = galaxy.lock().unwrap();
-            for node in map.values() {
-                let inner = Arc::clone(&node.inner);
-                let node_id = node.id;
-                let handle = std::thread::spawn(move || {
-                    let mut inner_guard = inner.lock().unwrap();
-                    let planet = &mut inner_guard.planet;
-                    let res = planet.run();
-
-                    if let Err(e) = res {
-                        log_internal(
-                            Channel::Error,
-                            payload!(
-                                action : "Planet encountered an error during its main loop",
-                                planet_id : node_id,
-                                error : e,
-                            ),
-                        );
-                    }
-                });
-                handles.push(handle);
-            }
-            handles
-        };
+        planet_explorer_channels.planet_to_explorer_senders =
+            Arc::new(Mutex::new(planet_to_explorer_senders));
 
         Self {
             planets_senders: Arc::new(Mutex::new(orch_to_plan_senders)),
@@ -102,53 +89,107 @@ impl Orchestrator {
             convo_scheduler: ConvoScheduler::new(),
             planet_explorer_channels,
             explorers_location: Arc::new(Mutex::new(HashMap::new())),
-            planet_threads,
+            planet_threads, // threads were spawned in galaxy_loader/create_planet_with_channels
+            explorer_threads,
         }
     }
 
-    /// Sends an `OrchestratorToPlanet` to the correspondent `planet_id`. Returns nothing if successful, a String error otherwise
-    fn to_planet(&self, planet_id: ID, msg: OrchestratorToPlanet) -> Result<(), String> {
-        log_msg_to(
-            Channel::Trace,
-            EventType::MessageOrchestratorToPlanet,
-            (ActorType::Planet, planet_id),
-            payload!(
-                message : format!("{:?}", msg)
-            ),
-        );
+    pub fn run(&mut self) {
+        // Send PlanetStart to all Planets
+        for (id, _) in self.planets_senders.lock().unwrap().iter() {
+            let to_planet = ToPlanetStruct::new(self.planets_senders.clone(), *id);
+            let state = SendingPlanetStart::new(to_planet);
+            let convo =
+                StartPlanetConversation::new(get_id_manager().get_next_conversation_id(), state);
+            self.convo_scheduler.add_conversation(Box::new(convo));
+        }
 
-        self.planets_senders
-            .lock()
-            .unwrap()
-            .get(&planet_id)
-            .ok_or(format!("Planet {planet_id} not found"))?
-            .send(msg)
-            .map_err(|err| format!("Failed to send to Planet {planet_id}: {err}"))
+        // Send ExplorerStart to all Explorers
+        for (id, _) in self.explorer_senders.lock().unwrap().iter() {
+            let to_explorer = ToExplorerStruct {
+                explorer_id: *id,
+                explorers_senders: self.explorer_senders.clone(),
+            };
+            let state = SendingExplorerStart::new(to_explorer);
+            let convo =
+                StartExplorerConversation::new(get_id_manager().get_next_conversation_id(), state);
+            self.convo_scheduler.add_conversation(Box::new(convo));
+        }
+
+        // Start message processing thread
+        self.process_messages();
+
+        // Start background event senders
+        self.start_background_event_senders();
+
+        // Main loop
+        loop {
+            select! {
+                recv(self.planets_receiver) -> msg => {
+                    match msg {
+                        Ok(msg) => {
+                            self.handle_message(PossibleMessage::PlanetToOrch(msg));
+                        }
+                        Err(e) => {
+                            log_internal(
+                                Channel::Warning,
+                                payload!(
+                                    action : "Error while receiving from Planets",
+                                    error : e
+                                )
+                            );
+                        }
+                    }
+                }
+                recv(self.explorers_receiver) -> msg => {
+                    match msg {
+                        Ok(msg) => {
+                            self.handle_message(PossibleMessage::ExplorerToOrch(msg));
+                        }
+                        Err(e) => {
+                            log_internal(
+                                Channel::Warning,
+                                payload!(
+                                    action : "Error while receiving from Explorers",
+                                    error : e
+                                )
+                            );
+                        }
+                    }
+                }
+            }
+        }
     }
 
-    /// Sends an `OrchestratorToExplorer` to the correspondent `explorer_id`. Returns nothing if successful, a String error otherwise
-    fn to_explorer(&self, explorer_id: ID, msg: OrchestratorToExplorer) -> Result<(), String> {
-        log_msg_to(
-            Channel::Trace,
-            EventType::MessageOrchestratorToExplorer,
-            (ActorType::Explorer, explorer_id),
-            payload!(
-                message : format!("{:?}", msg)
-            ),
+    fn start_background_event_senders(&self) {
+        crate::orchestrator::event_senders::init_background_event_scheduler(
+            self.planets_senders.clone(),
+            self.forge.clone(),
+            self.explorers_location.clone(),
+            self.explorer_senders.clone(),
+            self.convo_scheduler.clone(),
+            self.galaxy.clone(),
         );
 
-        self.explorer_senders
-            .lock()
-            .unwrap()
-            .get(&explorer_id)
-            .ok_or(format!("Explorer {explorer_id} not found"))?
-            .send(msg)
-            .map_err(|err| format!("Failed to send to Explorer {explorer_id}: {err}"))
+        crate::orchestrator::event_senders::enable_sunrays();
+        crate::orchestrator::event_senders::enable_asteroids();
     }
 
     fn handle_message(&mut self, message: PossibleMessage<ExplorerBag>) {
         let message_kind = message.to_kind_type();
         let entities_ids = message.get_entity_ids();
+
+        // Log every incoming message with source and intended receiver (Orchestrator)
+        log_internal(
+            Channel::Trace,
+            payload!(
+                event: "MessageReceived",
+                message_kind: format!("{:?}", message_kind),
+                from_planet: format!("{:?}", entities_ids.0),
+                from_explorer: format!("{:?}", entities_ids.1),
+                to: "Orchestrator"
+            ),
+        );
 
         let matching_conversation = self
             .convo_scheduler
@@ -157,6 +198,17 @@ impl Orchestrator {
         match matching_conversation {
             // If the message matches the expected kind, we let the message wait for the transition
             Some(conversation) => {
+                // Log match with the conversation id
+                log_internal(
+                    Channel::Trace,
+                    payload!(
+                        event: "MessageMatchedConversation",
+                        conversation_id: conversation.get_id(),
+                        message_kind: format!("{:?}", message_kind),
+                        from_planet: format!("{:?}", entities_ids.0),
+                        from_explorer: format!("{:?}", entities_ids.1)
+                    ),
+                );
                 self.convo_scheduler
                     .add_waiting_message(conversation.get_id(), message);
             }
@@ -222,35 +274,16 @@ impl Orchestrator {
         }
     }
 
-    /// Starts a background thread that periodically sends asteroids to random planets.
-    pub fn start_asteroid_sender(&self) {
-        event_senders::start_asteroid_sender(
-            self.planets_senders.clone(),
-            self.forge.clone(),
-            self.explorers_location.clone(),
-            self.explorer_senders.clone(),
-            self.convo_scheduler.clone(),
-            self.galaxy.clone(),
-        );
-    }
-
-    /// Starts a background thread that periodically sends sunrays to random planets.
-    pub fn start_sunray_sender(&self) {
-        event_senders::start_sunray_sender(
-            self.planets_senders.clone(),
-            self.forge.clone(),
-            self.explorers_location.clone(),
-            self.convo_scheduler.clone(),
-            self.galaxy.clone(),
-        );
-    }
-
     fn process_messages(&mut self) {
         let convo_scheduler = self.convo_scheduler.clone();
         let explorer_senders = self.explorer_senders.clone();
         let planets_senders = self.planets_senders.clone();
         thread::spawn(move || {
             loop {
+                // Check for timed-out conversations and handle them
+                // (will panic for conversations that don't override on_timeout)
+                convo_scheduler.handle_timeouts();
+
                 if convo_scheduler.is_empty() {
                     // Wait for new messages to arrive
                     thread::sleep(std::time::Duration::from_millis(10));
@@ -261,9 +294,9 @@ impl Orchestrator {
 
                 if let Some(convo) = current_convo {
                     let msg = convo_scheduler.get_waiting_message(convo.get_id());
-                    let tmp = convo.get_kill_explorers_vec();
+                    let kill_expl_vec = convo.get_kill_explorers_vec();
 
-                    if let Some((vec, handle_outgoing)) = tmp {
+                    if let Some((vec, handle_outgoing)) = kill_expl_vec {
                         for el in vec {
                             let conv_id = get_id_manager().get_next_conversation_id();
                             let to_explorer_struct = ToExplorerStruct {
@@ -289,51 +322,38 @@ impl Orchestrator {
                         }
                     }
 
-                    let new_convo = convo.transition(msg);
+                    // Log transition execution with convo id, expected kind, and incoming message kind
+                    match &msg {
+                        Some(m) => log_internal(
+                            Channel::Trace,
+                            payload!(
+                                event: "ConversationTransition",
+                                conversation_id: convo.get_id(),
+                                expected_kind: format!("{:?}", convo.get_expected_kind()),
+                                message_kind: format!("{:?}", m.to_kind_type())
+                            ),
+                        ),
+                        None => log_internal(
+                            Channel::Trace,
+                            payload!(
+                                event: "ConversationTransition",
+                                conversation_id: convo.get_id(),
+                                expected_kind: format!("{:?}", convo.get_expected_kind()),
+                                message_kind: "None"
+                            ),
+                        ),
+                    }
 
-                    if let Some(new_real_convo) = new_convo {
-                        convo_scheduler.add_conversation(new_real_convo);
+                    if convo.get_expected_kind().is_some() {
+                        let new_convo = convo.transition(msg);
+
+                        if let Some(new_real_convo) = new_convo {
+                            convo_scheduler.add_conversation(new_real_convo);
+                        }
                     }
                 }
             }
         });
-    }
-    fn add_explorer(&mut self, _explorer_id: ID, planet_id: ID) {
-        //to add a new explorer for the first time inside the game
-        let (tx_expl_out, _rx_expl_out) = unbounded::<PlanetToExplorer>();
-        self.planet_explorer_channels
-            .add_plan_to_expl_sender(planet_id, tx_expl_out.clone());
-
-        // TODO: broken because i changed dummy_explorer, we need to adapt this to actual explorers
-        /*
-        let mut explorer: dummy_explorer::Explorer<ExplorerBag> = dummy_explorer::Explorer::new();
-        //TODO: set explorer - orchestrator channels
-        explorer.set_planet_channels(
-            rx_expl_out,
-            self.planet_explorer_channels
-                .get_expl_to_plan_sender(planet_id)
-                .expect("Failed to get explorer to planet sender")
-                .clone(),
-        );
-
-        let msg = OrchestratorToPlanet::IncomingExplorerRequest {
-            explorer_id,
-            new_sender: tx_expl_out.clone(),
-        };
-        self.to_planet(planet_id, msg).unwrap_or_else(|_| {
-            panic!("Failed to send IncomingExplorerRequest to planet {planet_id}")
-        });
-
-        // Emit log event
-        log_internal(
-            Channel::Info,
-            payload!(
-                action : "Created Explorer",
-                explorer_id: explorer_id,
-                into_planet_id : planet_id,
-            ),
-        );
-         */
     }
 }
 

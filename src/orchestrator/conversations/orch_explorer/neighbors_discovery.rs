@@ -1,4 +1,3 @@
-use crate::galaxy_setup::PlanetMap;
 use crate::logging_utils::log_internal;
 use crate::orchestrator::ExplorerBag;
 use crate::orchestrator::conversations::PossibleExpectedKinds::ExplorerToOrchKind;
@@ -7,6 +6,7 @@ use crate::orchestrator::conversations::{
     ToExplorerError, ToExplorerStruct,
 };
 use crate::payload;
+use crate::planet::PlanetMap;
 use common_game::logging::Channel;
 use common_game::protocols::orchestrator_explorer::{
     ExplorerToOrchestrator, ExplorerToOrchestratorKind, OrchestratorToExplorer,
@@ -233,8 +233,8 @@ impl NeighborsDiscoveryConversation<WaitingExplorerNeighborsRequest> {
         &self,
         curr_planet_id: ID,
     ) -> Result<Vec<ID>, Box<dyn ErrorType + Send + Sync>> {
-        if let Some(curr_planet_ref) = self.state.galaxy.lock().unwrap().get(&curr_planet_id) {
-            let neighbors = curr_planet_ref.get_neighbors();
+        if let Some(curr_planet_ref) = self.state.galaxy.read().unwrap().get(&curr_planet_id) {
+            let neighbors = curr_planet_ref.neighbors_snapshot();
             Ok(neighbors)
         } else {
             Err(Box::new(PlanetNotFound(curr_planet_id)))
@@ -286,8 +286,13 @@ mod tests {
         file_path: &str,
     ) -> Box<NeighborsDiscoveryConversation<WaitingExplorerNeighborsRequest>> {
         let to_explorer_struct = make_to_explorer_struct(EXPLORER_ID, senders);
-        let (galaxy, _planets_receiver, _orch_to_plan_senders, _expl_to_plan_senders) =
-            galaxy_loader(std::path::Path::new(file_path));
+        let (
+            galaxy,
+            _planets_receiver,
+            _orch_to_plan_senders,
+            _expl_to_plan_senders,
+            _join_handles,
+        ) = galaxy_loader(std::path::Path::new(file_path));
         let state = WaitingExplorerNeighborsRequest::new(to_explorer_struct, galaxy);
         Box::new(NeighborsDiscoveryConversation::<
             WaitingExplorerNeighborsRequest,

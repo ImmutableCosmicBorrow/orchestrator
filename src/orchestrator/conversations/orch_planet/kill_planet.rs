@@ -17,7 +17,7 @@ use common_game::utils::ID;
 /// It uses an FSM to send the kill command, wait for confirmation, and then
 /// sends via its method [`Conversation::get_kill_explorers_vec`] the IDs of the explorers on the planet
 /// so that the Orchestrator can kill them
-/// 
+///
 /// Marker struct for FSM state
 ///
 /// The conversation starts in the [`SendPlanetKill`] state, which sends an
@@ -193,6 +193,7 @@ impl Conversation<ExplorerBag> for KillPlanetConversation<WaitingPlanetKillResul
             planet_id,
         })) = msg_wrapped
         {
+            //TODO: Kill planet
             log_internal(
                 Channel::Info,
                 payload!(
@@ -202,7 +203,6 @@ impl Conversation<ExplorerBag> for KillPlanetConversation<WaitingPlanetKillResul
                 ),
             );
 
-            //TODO: DELETE PLANET FROM ACTUAL PLANET MAP
             return None;
         }
 

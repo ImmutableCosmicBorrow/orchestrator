@@ -9,6 +9,7 @@ strum = "0.27.2"
 priority-queue = "2.7.0"
 rayon = "1.10"
 env_logger = "0.11.8"
+rand = "0.9.2"
 
 luna4 = {git = "https://github.com/luna4-ap2025/Planet_Luna4"}
 rustrelli = {git = "https://github.com/Rustrelli/rustrelli"}
@@ -19,6 +20,7 @@ trip = { git = "https://github.com/Totally-Reliable-Imaginary-Planets/TRIP.git",
 rusty-crab-ap2025 = "=2.0.0-beta.3"
 
 common-explorer = {git = "https://github.com/ImmutableCosmicBorrow/common-explorer/"}
+explorer_nico = {git = "https://github.com/ImmutableCosmicBorrow/explorer_nico"}
 
 [patch.'https://github.com/unitn-ap-2025/common']
 common-game = "=3.0.0"

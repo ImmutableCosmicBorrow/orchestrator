@@ -5,9 +5,9 @@ mod move_explorer;
 mod outgoing_explorer;
 mod wait_travel_request;
 
-use crate::galaxy_setup::PlanetMap;
 use crate::orchestrator::conversations::{PossibleExpectedKinds, ToExplorerStruct, ToPlanetStruct};
 use crate::orchestrator::{ExplorersLocationRef, PlanetExplorerChannels};
+use crate::planet::PlanetMap;
 use common_game::utils::ID;
 
 ///**Move To Planet Conversation - State Container**
