@@ -3,7 +3,6 @@
 //! - Singleton background scheduler thread
 //! - External control only via thread-safe flags
 //! - Graceful shutdown support
-//! - Clippy-friendly (no mega-functions, reduced argument lists)
 
 use crate::logging_utils::log_internal;
 use crate::orchestrator::conversations::{self, SendersToExplorer, SendersToPlanet};
@@ -16,6 +15,9 @@ use common_game::components::forge::Forge;
 use common_game::logging::Channel;
 use common_game::utils::ID;
 
+use rand::Rng;
+use std::cell::RefCell;
+use std::collections::HashMap;
 use std::sync::{
     Arc, Mutex, OnceLock,
     atomic::{AtomicBool, Ordering},
@@ -123,28 +125,291 @@ fn sleep_with_stop_check(total: Duration) -> bool {
 
 //
 // ──────────────────────────────────────────────────────────────────────────
-// Delay logic (placeholders)
+// Delay logic structures
 // ──────────────────────────────────────────────────────────────────────────
 //
 
+mod regimes {
+    use std::time::Duration;
+
+    struct RegimeValues {
+        min_delay: Duration,
+        max_delay: Duration,
+    }
+
+    //TODO: These values are placeholders and should be adjusted based on game design.
+    static ASTEROID_REGIMES: [RegimeValues; 3] = [
+        // Calm
+        RegimeValues {
+            min_delay: Duration::from_secs(5),
+            max_delay: Duration::from_secs(15),
+        },
+        // Active
+        RegimeValues {
+            min_delay: Duration::from_secs(2),
+            max_delay: Duration::from_secs(10),
+        },
+        // Frenzy
+        RegimeValues {
+            min_delay: Duration::from_secs(1),
+            max_delay: Duration::from_secs(5),
+        },
+    ];
+
+    //TODO: These values are placeholders and should be adjusted based on game design.
+    static SUNRAY_REGIMES: [RegimeValues; 3] = [
+        // Calm
+        RegimeValues {
+            min_delay: Duration::from_secs(1),
+            max_delay: Duration::from_secs(5),
+        },
+        // Active
+        RegimeValues {
+            min_delay: Duration::from_millis(500),
+            max_delay: Duration::from_secs(2),
+        },
+        // Frenzy
+        RegimeValues {
+            min_delay: Duration::from_millis(100),
+            max_delay: Duration::from_secs(1),
+        },
+    ];
+
+    pub struct CurrentRegime {
+        asteroid_level: usize,
+        sunray_level: usize,
+    }
+
+    impl CurrentRegime {
+        pub fn new() -> Self {
+            Self {
+                asteroid_level: 0,
+                sunray_level: 0,
+            }
+        }
+
+        pub fn asteroid_delay(&self) -> (Duration, Duration) {
+            let regime = &ASTEROID_REGIMES[self.asteroid_level];
+            (regime.min_delay, regime.max_delay)
+        }
+
+        pub fn sunray_delay(&self) -> (Duration, Duration) {
+            let regime = &SUNRAY_REGIMES[self.sunray_level];
+            (regime.min_delay, regime.max_delay)
+        }
+
+        pub fn increment_asteroid_level(&mut self) {
+            if self.asteroid_level + 1 < ASTEROID_REGIMES.len() {
+                self.asteroid_level += 1;
+            }
+        }
+
+        pub fn increment_sunray_level(&mut self) {
+            if self.sunray_level + 1 < SUNRAY_REGIMES.len() {
+                self.sunray_level += 1;
+            }
+        }
+
+        pub fn decrement_asteroid_level(&mut self) {
+            if self.asteroid_level > 0 {
+                self.asteroid_level -= 1;
+            }
+        }
+
+        pub fn decrement_sunray_level(&mut self) {
+            if self.sunray_level > 0 {
+                self.sunray_level -= 1;
+            }
+        }
+    }
+}
+
+struct AsteroidState {
+    planning: bool,
+    next_planet: ID,
+    regime: regimes::CurrentRegime,
+}
+
+struct SunrayState {
+    planning: bool,
+    next_planet: ID,
+    regime: regimes::CurrentRegime,
+}
+
+impl AsteroidState {
+    fn new() -> Self {
+        Self {
+            planning: true,
+            next_planet: 0,
+            regime: regimes::CurrentRegime::new(),
+        }
+    }
+}
+
+impl SunrayState {
+    fn new() -> Self {
+        Self {
+            planning: true,
+            next_planet: 0,
+            regime: regimes::CurrentRegime::new(),
+        }
+    }
+}
+
+thread_local! {
+    static ASTEROID_STATE: RefCell<AsteroidState> = RefCell::new(AsteroidState::new());
+    static SUNRAY_STATE: RefCell<SunrayState> = RefCell::new(SunrayState::new());
+}
+
+// Flipable tuning constants for weighting (baseline + per-explorer weight).
+const DEFAULT_PLANET_WEIGHT: u64 = 1;
+const EXPLORER_WEIGHT: u64 = 5;
+
+//
+// ──────────────────────────────────────────────────────────────────────────
+// Delay logic
+// ──────────────────────────────────────────────────────────────────────────
+//
+
+//TODO: change regime over time
+
 fn asteroid_delay(
     planet_ids: &[ID],
-    _explorers_location: &ExplorersLocationRef,
+    explorers_location: &ExplorersLocationRef,
 ) -> Option<(Duration, ID)> {
-    planet_ids
-        .first()
-        .copied()
-        .map(|id| (Duration::from_secs(10), id))
+    // If there are no planets, return None immediately.
+    if planet_ids.is_empty() {
+        return None;
+    }
+
+    // Consult the thread-local ASTEROID_STATE.
+    let mut handled: Option<Option<(Duration, ID)>> = None;
+    ASTEROID_STATE.with(|state_cell| {
+        let mut state = state_cell.borrow_mut();
+
+        if state.planning {
+            // Flip the planning flag off for next time.
+            state.planning = false;
+
+            // Initialize counts only for known planet_ids and count explorers located on them (DEFAULT_PLANET_WEIGHT for default baseline chance).
+            let mut counts: HashMap<ID, u64> = planet_ids
+                .iter()
+                .map(|&id| (id, DEFAULT_PLANET_WEIGHT))
+                .collect();
+            {
+                let explorers_loc = explorers_location.lock().unwrap();
+                for &pid in explorers_loc.values() {
+                    if let Some(c) = counts.get_mut(&pid) {
+                        // Each explorer increases the chance of that planet being selected (by EXPLORER_WEIGHT).
+                        *c = c.saturating_add(EXPLORER_WEIGHT);
+                    }
+                }
+            }
+
+            let mut rng = rand::rng();
+            let total: u64 = counts.values().copied().sum();
+
+            let mut pick = rng.random_range(0..total);
+            for &pid in planet_ids {
+                let cnt = *counts.get(&pid).unwrap_or(&0);
+                if pick < cnt {
+                    state.next_planet = pid;
+                    let delay = state.regime.asteroid_delay();
+                    // counts encoding: baseline DEFAULT_PLANET_WEIGHT, +EXPLORER_WEIGHT per explorer. Derive explorers count.
+                    let explorers_on_pid = if cnt <= DEFAULT_PLANET_WEIGHT {
+                        0
+                    } else {
+                        (cnt - DEFAULT_PLANET_WEIGHT) / EXPLORER_WEIGHT
+                    };
+                    // cap reduction so we don't eliminate delay entirely
+                    let reduction_secs = explorers_on_pid.min(5);
+                    let base_secs = rng.random_range(delay.0.as_secs()..=delay.1.as_secs());
+                    let delay_secs = base_secs.saturating_sub(reduction_secs);
+                    handled = Some(Some((Duration::from_secs(delay_secs), pid)));
+                    return;
+                }
+                pick = pick.saturating_sub(cnt);
+            }
+            // No planet selected in loop -> handled stays None
+        } else {
+            // Flip the planning flag on for next time.
+            state.planning = true;
+            // Not planning: return the preplanned planet with zero delay.
+            handled = Some(Some((Duration::from_secs(0), state.next_planet)));
+        }
+    });
+
+    // Return whatever the thread-local handler decided (or None).
+    handled.flatten()
 }
 
 fn sunray_delay(
     planet_ids: &[ID],
-    _explorers_location: &ExplorersLocationRef,
+    explorers_location: &ExplorersLocationRef,
 ) -> Option<(Duration, ID)> {
-    planet_ids
-        .first()
-        .copied()
-        .map(|id| (Duration::from_secs(10), id))
+    // If there are no planets, return None immediately.
+    if planet_ids.is_empty() {
+        return None;
+    }
+
+    // Consult the thread-local SUNRAY_STATE.
+    let mut handled: Option<Option<(Duration, ID)>> = None;
+    SUNRAY_STATE.with(|state_cell| {
+        let mut state = state_cell.borrow_mut();
+
+        if state.planning {
+            // Flip the planning flag off for next time.
+            state.planning = false;
+
+            // Initialize counts only for known planet_ids and count explorers located on them (DEFAULT_PLANET_WEIGHT for default baseline chance).
+            let mut counts: HashMap<ID, u64> = planet_ids
+                .iter()
+                .map(|&id| (id, DEFAULT_PLANET_WEIGHT))
+                .collect();
+            {
+                let explorers_loc = explorers_location.lock().unwrap();
+                for &pid in explorers_loc.values() {
+                    if let Some(c) = counts.get_mut(&pid) {
+                        // Each explorer increases the chance of that planet being selected (by EXPLORER_WEIGHT).
+                        *c = c.saturating_add(EXPLORER_WEIGHT);
+                    }
+                }
+            }
+
+            let mut rng = rand::rng();
+            let total: u64 = counts.values().copied().sum();
+
+            let mut pick = rng.random_range(0..total);
+            for &pid in planet_ids {
+                let cnt = *counts.get(&pid).unwrap_or(&0);
+                if pick < cnt {
+                    state.next_planet = pid;
+                    let delay = state.regime.sunray_delay();
+                    // counts encoding: baseline DEFAULT_PLANET_WEIGHT, +EXPLORER_WEIGHT per explorer. Derive explorers count.
+                    let explorers_on_pid = if cnt <= DEFAULT_PLANET_WEIGHT {
+                        0
+                    } else {
+                        (cnt - DEFAULT_PLANET_WEIGHT) / EXPLORER_WEIGHT
+                    };
+                    // cap reduction so we don't eliminate delay entirely
+                    let reduction_secs = explorers_on_pid.min(5);
+                    let base_secs = rng.random_range(delay.0.as_secs()..=delay.1.as_secs());
+                    let delay_secs = base_secs.saturating_sub(reduction_secs);
+                    handled = Some(Some((Duration::from_secs(delay_secs), pid)));
+                    return;
+                }
+                pick = pick.saturating_sub(cnt);
+            }
+            // No planet selected in loop -> handled stays None
+        } else {
+            // Flip the planning flag on for next time.
+            state.planning = true;
+            // Not planning: return the preplanned planet with zero delay.
+            handled = Some(Some((Duration::from_secs(0), state.next_planet)));
+        }
+    });
+
+    handled.flatten()
 }
 
 //
