@@ -202,7 +202,7 @@ impl Conversation<ExplorerBag> for KillPlanetConversation<WaitingPlanetKillResul
                 ),
             );
 
-            self.get_explorers_in_planet(planet_id);
+            //TODO: DELETE PLANET FROM ACTUAL PLANET MAP
             return None;
         }
 
