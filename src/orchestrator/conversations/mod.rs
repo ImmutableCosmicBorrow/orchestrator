@@ -70,14 +70,17 @@ pub trait Conversation<T: Debug + Eq + Hash>: Send + Sync {
     /// Default behavior is to panic - override this to implement custom timeout handling
     /// (e.g., logging, cleanup, graceful degradation).
     fn on_timeout(self: Box<Self>) {
-        log_internal(Channel::Error, payload!(
-            error : format!(
-                "Conversation {} timed out waiting for {:?}",
-                self.get_id(),
-                self.get_expected_kind()
+        log_internal(
+            Channel::Error,
+            payload!(
+                error : format!(
+                    "Conversation {} timed out waiting for {:?}",
+                    self.get_id(),
+                    self.get_expected_kind()
+                ),
+                conversation_id : self.get_id(),
             ),
-            conversation_id : self.get_id(),
-        ));
+        );
         panic!(
             "Conversation {} timed out waiting for {:?}",
             self.get_id(),

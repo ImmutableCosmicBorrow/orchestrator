@@ -473,13 +473,15 @@ mod tests {
     }
 
     #[test]
+    #[should_panic(
+        expected = "Conversation 1 timed out waiting for Some(PlanetToOrchKind(AsteroidAck))"
+    )]
     fn waiting_asteroid_timeout_logs_and_terminates() {
         let conv = make_wait_conv();
 
-        // on_timeout should just log and return (not panic)
-        // This test verifies it doesn't panic
+        // on_timeout should panic
+        // This test verifies it does
         conv.on_timeout();
-        // If we get here, the test passes - on_timeout completed without panic
     }
 
     #[test]
