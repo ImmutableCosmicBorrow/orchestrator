@@ -21,6 +21,8 @@ pub(crate) mod orch_explorer;
 pub(crate) mod orch_planet;
 mod util;
 
+//TODO: implement timeouts in conversations
+
 ///**The Conversation Trait**
 ///
 /// This is the foundation of the FSM system. Every state in a conversation must implement this trait.
@@ -68,6 +70,14 @@ pub trait Conversation<T: Debug + Eq + Hash>: Send + Sync {
     /// Default behavior is to panic - override this to implement custom timeout handling
     /// (e.g., logging, cleanup, graceful degradation).
     fn on_timeout(self: Box<Self>) {
+        log_internal(Channel::Error, payload!(
+            error : format!(
+                "Conversation {} timed out waiting for {:?}",
+                self.get_id(),
+                self.get_expected_kind()
+            ),
+            conversation_id : self.get_id(),
+        ));
         panic!(
             "Conversation {} timed out waiting for {:?}",
             self.get_id(),
