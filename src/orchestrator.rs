@@ -33,8 +33,6 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::thread::JoinHandle;
-use crate::orchestrator::conversations::orch_explorer::move_to_planet::WaitingTravelRequest;
-
 type ExplorersLocationRef = Arc<Mutex<HashMap<ID, ID>>>;
 
 type ExplorerBag = ExplorerBagContent;

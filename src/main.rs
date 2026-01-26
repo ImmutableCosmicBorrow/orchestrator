@@ -9,11 +9,15 @@ mod planet_factory;
 pub use globals::get_id_manager;
 use std::path::Path;
 
-fn main() {
+pub fn run(){
     // Initialize and start logger
     logging_utils::start_logger();
-
+    
     let mut orchestrator = orchestrator::Orchestrator::new(Path::new("galaxy/test_galaxy.txt"));
-
+    
     orchestrator.run();
+}
+
+fn main() {
+    run();
 }
