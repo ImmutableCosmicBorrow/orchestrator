@@ -2,6 +2,15 @@
 name = "orchestrator"
 version = "0.2.0"
 edition = "2024"
+
+[lib]
+name = "orchestrator"
+path = "src/lib.rs"
+
+[[bin]]
+name = "orchestrator"
+path = "src/main.rs"
+
 [dependencies]
 common-game = "=3.0.0"
 crossbeam-channel = "0.5.15"

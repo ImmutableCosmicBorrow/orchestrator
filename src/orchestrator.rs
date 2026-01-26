@@ -42,7 +42,7 @@ pub(crate) struct PlanetExplorerChannels {
     explorer_to_planet_senders: Arc<Mutex<HashMap<ID, Sender<ExplorerToPlanet>>>>,
 }
 
-pub(crate) struct Orchestrator {
+pub struct Orchestrator {
     planets_senders: SendersToPlanet,
     explorer_senders: SendersToExplorer,
     planets_receiver: Receiver<PlanetToOrchestrator>,
@@ -57,6 +57,12 @@ pub(crate) struct Orchestrator {
 }
 
 impl Orchestrator {
+    /// Creates a new Orchestrator instance from a galaxy configuration file.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the forge cannot be created.
+    #[must_use]
     pub fn new(file_path: &std::path::Path) -> Self {
         // galaxy_loader now returns 5 values (the last one is planet thread handles)
         let (galaxy, planets_receiver, orch_to_plan_senders, expl_to_plan_senders, planet_threads) =
@@ -93,6 +99,11 @@ impl Orchestrator {
         }
     }
 
+    /// Runs the orchestrator, managing all planet and explorer conversations.
+    ///
+    /// # Panics
+    ///
+    /// Panics if a mutex lock is poisoned.
     pub fn run(&mut self) {
         // Send PlanetStart to all Planets
         for (id, _) in self.planets_senders.lock().unwrap().iter() {
@@ -238,14 +249,12 @@ impl Orchestrator {
                                         dyn conversations::Conversation<ExplorerBag> + Send + Sync,
                                     >);
 
-                                self.handle_message(
-                                    PossibleMessage::ExplorerToOrch(
-                                        ExplorerToOrchestrator::NeighborsRequest {
-                                            explorer_id,
-                                            current_planet_id,
-                                        },
-                                    ),
-                                );
+                                self.handle_message(PossibleMessage::ExplorerToOrch(
+                                    ExplorerToOrchestrator::NeighborsRequest {
+                                        explorer_id,
+                                        current_planet_id,
+                                    },
+                                ));
                             }
                             #[allow(unused_variables)]
                             ExplorerToOrchestrator::TravelToPlanetRequest {

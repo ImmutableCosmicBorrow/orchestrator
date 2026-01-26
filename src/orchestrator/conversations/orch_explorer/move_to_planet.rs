@@ -15,7 +15,7 @@ use common_game::utils::ID;
 /// This generic struct acts as the primary container for the Movement Finite State Machine (FSM).
 /// The `State` type parameter determines the current lifecycle phase of the movement,
 /// controlling valid transitions and defining which messages the conversation in this specific state expects to receive.
-pub (crate) struct MoveToPlanetConversation<State> {
+pub(crate) struct MoveToPlanetConversation<State> {
     /// Unique identifier for this specific conversation instance.
     id: ID,
     /// The data and context specific to the current lifecycle state.
