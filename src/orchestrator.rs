@@ -171,6 +171,10 @@ impl Orchestrator {
         }
     }
 
+    pub fn get_galaxy(&self) -> &PlanetMap {
+        &self.galaxy
+    }
+
     fn start_background_event_senders(&self) {
         crate::orchestrator::event_senders::init_background_event_scheduler(
             self.planets_senders.clone(),
