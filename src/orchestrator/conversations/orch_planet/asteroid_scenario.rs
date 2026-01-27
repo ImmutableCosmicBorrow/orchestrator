@@ -269,6 +269,7 @@ impl AsteroidConversation<WaitingAsteroidAck> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::globals::TIMEOUT;
     use crate::orchestrator::conversations::util::get_test_forge;
     use common_game::protocols::orchestrator_planet::PlanetToOrchestratorKind;
     use crossbeam_channel::unbounded;
@@ -499,12 +500,12 @@ mod tests {
     }
 
     #[test]
-    fn sending_asteroid_has_no_timeout() {
+    fn sending_asteroid_has_default_timeout() {
         let MakeSendersResult(senders, _rx) = make_senders_with(PLANET_ID);
         let conv = make_send_conv(senders);
 
         // Sending states should not have timeout - they're not waiting for messages
-        assert!(conv.get_timeout().is_none());
+        assert_eq!(conv.get_timeout(), Some(Duration::from_millis(TIMEOUT)));
         assert!(conv.get_wait_start().is_none());
     }
 }

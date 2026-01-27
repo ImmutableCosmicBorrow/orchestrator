@@ -831,9 +831,9 @@ mod tests {
         let convo = MockConversation::new(1, 10, 1, None);
         scheduler.add_conversation(Box::new(convo));
 
-        // No timeout should be registered
+        // Default timeout is applied by the trait, so a timeout should be registered
         let timeouts = scheduler.timeouts.lock().unwrap();
-        assert!(!timeouts.contains_key(&1));
+        assert!(timeouts.contains_key(&1));
     }
 
     #[test]
