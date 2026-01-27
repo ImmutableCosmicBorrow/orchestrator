@@ -196,11 +196,6 @@ impl Conversation<ExplorerBag> for SunrayConversation<WaitingSunrayAck> {
         1
     }
 
-    /// Returns when this conversation started waiting for the `SunrayAck` message.
-    fn get_wait_start(&self) -> Option<Instant> {
-        Some(self.state.wait_start)
-    }
-
     /// Returns the timeout duration for waiting for `SunrayAck`.
     /// After this duration, `on_timeout` will be called.
     fn get_timeout(&self) -> Option<Duration> {
@@ -403,9 +398,6 @@ mod tests {
         // Verify timeout is configured
         assert!(conv.get_timeout().is_some());
         assert_eq!(conv.get_timeout(), Some(SUNRAY_ACK_TIMEOUT));
-
-        // Verify wait_start is set
-        assert!(conv.get_wait_start().is_some());
     }
 
     #[test]
@@ -416,19 +408,5 @@ mod tests {
         // This test verifies it doesn't panic
         conv.on_timeout();
         // If we get here, the test passes - on_timeout completed without panic
-    }
-
-    #[test]
-    fn waiting_sunray_wait_start_is_recent() {
-        use std::time::Instant;
-
-        let before = Instant::now();
-        let conv = make_sunray_conversation_wait();
-        let after = Instant::now();
-
-        let wait_start = conv.get_wait_start().expect("wait_start should be set");
-
-        // Verify that wait_start is between before and after creation
-        assert!(wait_start >= before && wait_start <= after);
     }
 }

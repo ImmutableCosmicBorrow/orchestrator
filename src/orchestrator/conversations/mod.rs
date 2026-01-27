@@ -16,7 +16,7 @@ use std::collections::HashMap;
 use std::fmt::Debug;
 use std::hash::Hash;
 use std::sync::{Arc, Mutex};
-use std::time::{Duration, Instant};
+use std::time::{Duration};
 
 pub(crate) mod orch_explorer;
 pub(crate) mod orch_planet;
@@ -52,12 +52,6 @@ pub trait Conversation<T: Debug + Eq + Hash>: Send + Sync {
 
     ///Used to get the explorers to kill in case a planet is killed (None in any case but in killing planet scenario)
     fn get_kill_explorers_vec(&self) -> Option<(KillExplorersList, bool)> {
-        None
-    }
-
-    /// Returns when this conversation started waiting for a message.
-    /// Override this in states that wait for external messages.
-    fn get_wait_start(&self) -> Option<Instant> {
         None
     }
 
