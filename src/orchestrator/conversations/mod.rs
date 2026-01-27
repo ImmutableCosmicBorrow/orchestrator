@@ -188,8 +188,8 @@ pub(crate) enum ToPlanetError {
 /// Utility struct used within states to facilitate sending messages to a specific explorer.
 #[derive(Clone)]
 pub(crate) struct ToExplorerStruct {
-    pub(crate) explorers_senders: SendersToExplorer,
-    pub(crate) explorer_id: ID,
+     explorers_senders: SendersToExplorer,
+     explorer_id: ID,
 }
 
 impl ToExplorerStruct {
@@ -213,6 +213,13 @@ impl ToExplorerStruct {
                 .map_err(|_| ToExplorerError::SendingMessageFailure(self.explorer_id))
         } else {
             Err(ToExplorerError::SenderNotFound(self.explorer_id))
+        }
+    }
+
+    pub(crate) fn new(explorers_senders: SendersToExplorer,explorer_id: ID) -> Self {
+        Self{
+            explorers_senders,
+            explorer_id,
         }
     }
 }

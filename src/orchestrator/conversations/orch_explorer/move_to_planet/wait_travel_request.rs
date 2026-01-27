@@ -140,7 +140,7 @@ impl MoveToPlanetConversation<WaitingTravelRequest> {
     }
 
     /// Internal constructor to initialize the conversation in its starting state.
-    fn new(id: ID, state: WaitingTravelRequest) -> Self {
+    pub(crate) fn new(id: ID, state: WaitingTravelRequest) -> Self {
         Self {
             id,
             state,

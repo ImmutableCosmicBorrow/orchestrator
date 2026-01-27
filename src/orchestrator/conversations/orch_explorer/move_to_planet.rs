@@ -26,7 +26,7 @@ pub(crate) struct MoveToPlanetConversation<State> {
 
 // --- States Definitions ---
 
-/// **State 1: `WaitingTravelRequest`**
+/// **`WaitingTravelRequest`**
 ///
 /// The entry point for explorer-initiated movement. The conversation remains in this state
 /// while waiting for an Explorer to send a travel request.
@@ -43,6 +43,14 @@ pub(crate) struct WaitingTravelRequest {
     explorer_struct: ToExplorerStruct,
     /// Thread-safe reference to the global registry of explorer locations.
     explorers_location_ref: ExplorersLocationRef,
+}
+
+impl WaitingTravelRequest {
+    pub (crate) fn new(galaxy: PlanetMap, planet_explorer_channels: PlanetExplorerChannels,curr_planet_struct: ToPlanetStruct,dst_planet_struct: ToPlanetStruct,explorer_struct: ToExplorerStruct, explorers_location_ref: ExplorersLocationRef) -> Self {
+        Self {
+            galaxy, planet_explorer_channels, curr_planet_struct, dst_planet_struct, explorer_struct, explorers_location_ref
+        }
+    }
 }
 
 /// **Alternative Start State: `SendManualMoveRequest`**
@@ -80,7 +88,7 @@ impl SendManualMoveRequest {
         }
     }
 }
-/// **State 2: `SendIncomingRequest`**
+/// **`SendIncomingRequest`**
 ///
 /// An action state where the Orchestrator prepares to notify the destination planet
 /// of an incoming explorer.
@@ -119,7 +127,7 @@ impl SendIncomingRequest {
     }
 }
 
-/// **State 3: `WaitingIncomingResponse`**
+/// **`WaitingIncomingResponse`**
 ///
 /// A waiting state where the Orchestrator expects a response from the destination
 /// planet regarding the acquisition of the explorer.
@@ -158,7 +166,7 @@ impl WaitingIncomingResponse {
     }
 }
 
-/// **State 4: `SendOutgoingRequest`**
+/// **`SendOutgoingRequest`**
 ///
 /// An action state reached after the destination planet has accepted the explorer.
 /// The Orchestrator now commands the source planet to "let go" of the explorer entity.
@@ -193,7 +201,7 @@ impl SendOutgoingRequest {
     }
 }
 
-/// **State 5: `WaitingOutgoingResponse`**
+/// **`WaitingOutgoingResponse`**
 ///
 /// A waiting state where the Orchestrator expects the source planet to confirm
 /// that the explorer has been successfully released.
@@ -224,7 +232,7 @@ impl WaitingOutgoingResponse {
     }
 }
 
-/// **State 6: `SendMoveRequest`**
+/// ** `SendMoveRequest`**
 ///
 /// Reached after both planets have acknowledged the move. The Orchestrator
 /// now sends the final `MoveToPlanet` command to the explorer, including
@@ -260,7 +268,7 @@ impl SendMoveRequest {
     }
 }
 
-/// **State 7: `WaitMoveToPlanetResponse`**
+/// **`WaitMoveToPlanetResponse`**
 ///
 /// The final terminal state. The Orchestrator waits for the explorer to confirm
 /// that it has successfully transitioned to the new planet's channel.
