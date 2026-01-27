@@ -415,22 +415,26 @@ impl Orchestrator {
                             let planet_threads_clone = planet_threads.clone();
                             // remove_node_with_stop will remove the node from the PlanetMap and then
                             // call the provided closure to kill the planet (send KillPlanet and remove sender).
-                            crate::planet::remove_node_with_stop(&galaxy_clone, planet_id, |dead_id| {
-                                // remove and notify sender
-                                let mut lock = planets_senders_clone.lock().unwrap();
-                                if let Some(sender) = lock.remove(&dead_id) {
-                                    let _ = sender.send(
+                            crate::planet::remove_node_with_stop(
+                                &galaxy_clone,
+                                planet_id,
+                                |dead_id| {
+                                    // remove and notify sender
+                                    let mut lock = planets_senders_clone.lock().unwrap();
+                                    if let Some(sender) = lock.remove(&dead_id) {
+                                        let _ = sender.send(
                                         common_game::protocols::orchestrator_planet::OrchestratorToPlanet::KillPlanet,
                                     );
-                                }
+                                    }
 
-                                // remove and join the planet thread handle if present
-                                if let Ok(mut th_lock) = planet_threads_clone.lock()
-                                    && let Some(handle) = th_lock.remove(&dead_id)
-                                {
-                                    let _ = handle.join();
-                                }
-                            });
+                                    // remove and join the planet thread handle if present
+                                    if let Ok(mut th_lock) = planet_threads_clone.lock()
+                                        && let Some(handle) = th_lock.remove(&dead_id)
+                                    {
+                                        let _ = handle.join();
+                                    }
+                                },
+                            );
                         }
                     }
 
