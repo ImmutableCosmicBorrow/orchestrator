@@ -18,7 +18,7 @@ use crate::orchestrator::conversations::orch_explorer::kill_explorer::{
     KillExplorerConversation, SendingKillExplorer,
 };
 use crate::orchestrator::conversations::orch_explorer::move_to_planet::{
-    MoveToPlanetConversation, WaitingTravelRequest,
+    MoveToPlanetConversation, SendManualMoveRequest, WaitingTravelRequest,
 };
 use crate::orchestrator::conversations::orch_explorer::start_explorer::{
     SendingExplorerStart, StartExplorerConversation,
@@ -79,12 +79,23 @@ pub struct Orchestrator {
 
 impl Orchestrator {
     /// Creates a new Orchestrator instance from a galaxy configuration file.
+    /// - `file_path`: The path of the galaxy configuration file.
+    /// - `explorer1`: The `ExplorerType` of the first Explorer.
+    /// - `explorer2`: An optional `ExplorerType` for the optional second Explorer
+    /// - `spawn_planet`: An `Option<ID>`. If provided, the Explorer will be spawned in this Planet, otherwise a random one will be chosen.
+    /// - `game_step`: A parameter that regulates the speed of the Explorer's actions.
     ///
     /// # Panics
     ///
-    /// Panics if the forge cannot be created.
+    /// Panics if the forge cannot be created, or if there are no Planets.
     #[must_use]
-    pub fn new(file_path: &std::path::Path, game_step: u64) -> Self {
+    pub fn new(
+        file_path: &std::path::Path,
+        explorer1: &ExplorerType,
+        explorer2: Option<ExplorerType>,
+        spawn_planet: Option<ID>,
+        game_step: u64,
+    ) -> Self {
         // Set static variable GAME_STEP
         set_game_step(game_step);
 
@@ -103,7 +114,7 @@ impl Orchestrator {
         planet_explorer_channels.explorer_to_planet_senders =
             Arc::new(Mutex::new(expl_to_plan_senders));
 
-        Self {
+        let mut orchestrator = Self {
             planets_senders: Arc::new(Mutex::new(orch_to_plan_senders)),
             explorer_senders: Arc::new(Mutex::new(HashMap::new())),
             planets_receiver,
@@ -117,7 +128,46 @@ impl Orchestrator {
             planet_threads: Arc::new(Mutex::new(planet_threads)), // threads were spawned in galaxy_loader/create_planet_with_channels
             explorer_threads: HashMap::new(),
             manual_mode: false,
+        };
+
+        // Check where to spawn Explorers
+        let senders = orchestrator.planets_senders.lock().unwrap();
+        let planet_id = if let Some(id) = spawn_planet {
+            if senders.contains_key(&id) {
+                id
+            } else {
+                let new_id = *senders
+                    .keys()
+                    .next()
+                    .expect("Planet senders hashmap is empty");
+                log_internal(
+                    Channel::Warning,
+                    payload!(
+                        action : "Parameter spawn_planet was Some, but Planet was not found. Spawning Explorer(s) in a random Planet instead",
+                        missing_planet_id : id,
+                        random_planet_id_chosen : new_id
+                    ),
+                );
+                new_id
+            }
+        } else {
+            *senders
+                .keys()
+                .next()
+                .expect("Planet senders hashmap is empty")
+        };
+        drop(senders);
+
+        // Add first Explorer
+        orchestrator.add_explorer(explorer1, planet_id);
+
+        // If the second Explorer is some, add it too
+        if let Some(explorer) = explorer2 {
+            orchestrator.add_explorer(&explorer, planet_id);
         }
+
+        // Return the Orchestrator
+        orchestrator
     }
 
     /// Runs the orchestrator, managing all planet and explorer conversations.
@@ -542,69 +592,75 @@ impl Orchestrator {
             .unwrap()
             .insert(id, tx_orchestrator_to_explorer);
 
-        if let Some(planet_sender) = self
-            .planet_explorer_channels
-            .explorer_to_planet_senders
-            .lock()
-            .unwrap()
-            .get(&into_planet)
-        {
-            // If the planet sender exists, create the Explorer
-            let mut explorer: Box<dyn ExplorerAI + Send> = match explorer_type {
-                ExplorerType::Nico => Box::new(explorer_nico::Explorer::new(
-                    id,
-                    into_planet,
-                    planet_sender.clone(),
-                    self.explorer_to_orchestrator_sender.clone(),
-                    rx_orchestrator_to_explorer,
-                    rx_planet_to_explorer,
-                    Duration::from_millis(get_game_step()),
-                )),
-                ExplorerType::Rob => {
-                    todo!()
-                }
-                ExplorerType::Jaco => {
-                    todo!()
-                }
-            };
+        let mut explorer: Box<dyn ExplorerAI + Send> = match explorer_type {
+            ExplorerType::Nico => Box::new(explorer_nico::Explorer::new(
+                id,
+                self.explorer_to_orchestrator_sender.clone(),
+                rx_orchestrator_to_explorer,
+                rx_planet_to_explorer,
+                Duration::from_millis(get_game_step()),
+            )),
+            ExplorerType::Rob => {
+                todo!()
+            }
+            ExplorerType::Jaco => {
+                todo!()
+            }
+        };
 
-            // Spawn the Explorer
-            let handle = thread::spawn(move || {
-                let result = explorer.run();
+        // Spawn the Explorer
+        let handle = thread::spawn(move || {
+            let result = explorer.run();
 
-                if let Err(e) = result {
-                    log_internal(
-                        Channel::Warning,
-                        payload!(
-                            action: "Explorer thread ended with an error",
-                            explorer_id : id,
-                            error : e
-                        ),
-                    );
-                } else {
-                    log_internal(
-                        Channel::Debug,
-                        payload!(
-                            action : "Explorer thread ended correctly",
-                            explorer_id : id,
-                        ),
-                    );
-                }
-            });
-            // Add handle to the hashmap
-            self.explorer_threads.insert(id, handle);
+            if let Err(e) = result {
+                log_internal(
+                    Channel::Warning,
+                    payload!(
+                        action: "Explorer thread ended with an error",
+                        explorer_id : id,
+                        error : e
+                    ),
+                );
+            } else {
+                log_internal(
+                    Channel::Debug,
+                    payload!(
+                        action : "Explorer thread ended correctly",
+                        explorer_id : id,
+                    ),
+                );
+            }
+        });
 
-            // TODO: Tell the Planet that an Explorer is coming
-        } else {
-            // If the sender for that Planet does not exist, log the warning and return
-            log_internal(
-                Channel::Warning,
-                payload!(
-                    action: "The specified Planet sender does not exist, the Explorer has not been created",
-                    planet_id : into_planet,
-                ),
-            );
-        }
+        // Add handle to the hashmap
+        self.explorer_threads.insert(id, handle);
+
+        // Tell the Planet that an Explorer is coming
+
+        // dummy_to_planet will not be used by the conversation since the Explorer is not in a Planet
+        let dummy_to_planet = ToPlanetStruct::new(self.planets_senders.clone(), 0);
+        let to_planet = ToPlanetStruct::new(self.planets_senders.clone(), into_planet);
+        let to_explorer = ToExplorerStruct::new(self.explorer_senders.clone(), id);
+        let state = SendManualMoveRequest::new(
+            self.explorers_location.clone(),
+            dummy_to_planet,
+            to_planet,
+            to_explorer,
+            self.planet_explorer_channels.clone(),
+        );
+        let convo = MoveToPlanetConversation::<SendManualMoveRequest>::new(
+            get_id_manager().get_next_conversation_id(),
+            state,
+        );
+        self.convo_scheduler.add_conversation(Box::new(convo));
+
+        log_internal(
+            Channel::Info,
+            payload!(
+                action: "Created Explorer",
+                explorer_id : id,
+            ),
+        );
     }
 }
 
