@@ -39,8 +39,6 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 use std::thread::JoinHandle;
 use std::time::Duration;
-
-use std::time::Duration;
 use common_explorer::ExplorerAI;
 
 type ExplorersLocationRef = Arc<Mutex<HashMap<ID, ID>>>;
