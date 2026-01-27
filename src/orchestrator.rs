@@ -14,13 +14,17 @@ use crate::globals::{get_game_step, set_game_step};
 use crate::logging_utils::log_internal;
 use crate::orchestrator::conversations::ToExplorerStruct;
 use crate::orchestrator::conversations::ToPlanetStruct;
-use crate::orchestrator::conversations::orch_explorer::kill_explorer::{KillExplorerConversation, SendingKillExplorer};
-use crate::orchestrator::conversations::orch_explorer::stop_explorer::{SendingExplorerStop, StopExplorerConversation};
+use crate::orchestrator::conversations::orch_explorer::kill_explorer::{
+    KillExplorerConversation, SendingKillExplorer,
+};
 use crate::orchestrator::conversations::orch_explorer::move_to_planet::{
     MoveToPlanetConversation, WaitingTravelRequest,
 };
 use crate::orchestrator::conversations::orch_explorer::start_explorer::{
     SendingExplorerStart, StartExplorerConversation,
+};
+use crate::orchestrator::conversations::orch_explorer::stop_explorer::{
+    SendingExplorerStop, StopExplorerConversation,
 };
 use crate::orchestrator::conversations::orch_planet::{
     SendingPlanetStart, StartPlanetConversation,
@@ -219,28 +223,36 @@ impl Orchestrator {
                 Channel::Info,
                 payload!(
                     action : "Orchestrator switched to MANUAL mode",
-                )
+                ),
             );
             for explorer_id in self.explorer_senders.lock().unwrap().keys() {
-                let to_explorer = ToExplorerStruct::new(self.explorer_senders.clone(), *explorer_id);
+                let to_explorer =
+                    ToExplorerStruct::new(self.explorer_senders.clone(), *explorer_id);
                 let state = SendingExplorerStop::new(to_explorer);
-                let stop_ai_convo =
-                    StopExplorerConversation::new(get_id_manager().get_next_conversation_id(), state);
-                self.convo_scheduler.add_conversation(Box::new(stop_ai_convo));
+                let stop_ai_convo = StopExplorerConversation::new(
+                    get_id_manager().get_next_conversation_id(),
+                    state,
+                );
+                self.convo_scheduler
+                    .add_conversation(Box::new(stop_ai_convo));
             }
         } else {
             log_internal(
                 Channel::Info,
                 payload!(
                     action : "Orchestrator switched to AUTOMATIC mode",
-                )
+                ),
             );
             for explorer_id in self.explorer_senders.lock().unwrap().keys() {
-                let to_explorer = ToExplorerStruct::new(self.explorer_senders.clone(), *explorer_id);
+                let to_explorer =
+                    ToExplorerStruct::new(self.explorer_senders.clone(), *explorer_id);
                 let state = SendingExplorerStart::new(to_explorer);
-                let start_ai_convo =
-                    StartExplorerConversation::new(get_id_manager().get_next_conversation_id(), state);
-                self.convo_scheduler.add_conversation(Box::new(start_ai_convo));
+                let start_ai_convo = StartExplorerConversation::new(
+                    get_id_manager().get_next_conversation_id(),
+                    state,
+                );
+                self.convo_scheduler
+                    .add_conversation(Box::new(start_ai_convo));
             }
         }
     }

@@ -128,7 +128,7 @@ impl Conversation<ExplorerBag> for StopExplorerConversation<SendingExplorerStop>
 
 impl StopExplorerConversation<SendingExplorerStop> {
     /// The constructor for [`StopExplorerConversation`] in the [`SendingExplorerStop`] state
-    pub (crate) fn new(id: ID, state: SendingExplorerStop) -> Self {
+    pub(crate) fn new(id: ID, state: SendingExplorerStop) -> Self {
         Self {
             id,
             expected_message: None,

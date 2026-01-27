@@ -141,7 +141,7 @@ impl<T: Debug + Eq + Hash> ConvoScheduler<T> {
                 if entity_matches {
                     // Drop all locks before calling deactivate_conversation
                     drop(by_expected_msg);
-                    return Some(self.deactivate_conversation(convo_id));
+                    return self.deactivate_conversation(convo_id);
                 }
             }
         }
@@ -151,15 +151,10 @@ impl<T: Debug + Eq + Hash> ConvoScheduler<T> {
     /// This method removes a conversation from the scheduler's active conversations
     /// based on its ID. It also updates the expected message kind mapping if applicable.
     /// Panics if no conversation with the given ID is found.
-    fn deactivate_conversation(&self, id: ID) -> Box<dyn Conversation<T> + Send + Sync> {
-        let conversation = self.active_convos.lock().unwrap().remove(&id);
+    fn deactivate_conversation(&self, id: ID) -> Option<Box<dyn Conversation<T> + Send + Sync>> {
+        let conversation = self.active_convos.lock().unwrap().remove(&id)?;
 
-        assert!(
-            conversation.is_some(),
-            "No conversation found with the given ID"
-        );
-
-        let expected_kind = conversation.as_ref().unwrap().get_expected_kind();
+        let expected_kind = conversation.get_expected_kind();
         if let Some(kind) = expected_kind {
             self.by_expected_msg
                 .lock()
@@ -169,7 +164,7 @@ impl<T: Debug + Eq + Hash> ConvoScheduler<T> {
                 .remove(&id);
         }
 
-        conversation.unwrap()
+        Some(conversation)
     }
 
     /// This method adds a new conversation to the scheduler.
@@ -291,24 +286,8 @@ impl<T: Debug + Eq + Hash> ConvoScheduler<T> {
         let timed_out_ids = self.get_timed_out_conversations();
 
         for convo_id in timed_out_ids {
-            //TODO: fix method to avoid redundant code with deactivate_conversation
-            // Remove the conversation from active conversations
-            let conversation = {
-                let mut active = self.active_convos.lock().unwrap();
-                active.remove(&convo_id)
-            };
-
-            if let Some(convo) = conversation {
-                // Remove from expected message mapping
-                if let Some(kind) = convo.get_expected_kind() {
-                    self.by_expected_msg
-                        .lock()
-                        .unwrap()
-                        .entry(kind)
-                        .or_default()
-                        .remove(&convo_id);
-                }
-
+            let tmp = self.deactivate_conversation(convo_id);
+            if let Some(convo) = tmp {
                 // Clear the timeout tracking
                 self.clear_timeout(convo_id);
 
