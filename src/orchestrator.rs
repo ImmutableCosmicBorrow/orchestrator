@@ -38,6 +38,7 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::thread::JoinHandle;
+use std::time::Duration;
 
 use std::time::Duration;
 use common_explorer::ExplorerAI;
@@ -146,6 +147,7 @@ impl Orchestrator {
 
         // Main loop
         loop {
+            let timeout = crossbeam_channel::after(Duration::from_millis(100));
             select! {
                 recv(self.planets_receiver) -> msg => {
                     match msg {
@@ -177,6 +179,19 @@ impl Orchestrator {
                                 )
                             );
                         }
+                    }
+                }
+                // Periodic check to determine if there are any explorers left.
+                // If none remain, shut the game down.
+                recv(timeout) -> _ => {
+                    if self.explorers_location.lock().unwrap().is_empty() {
+                        log_internal(
+                            Channel::Info,
+                            payload!(
+                                action : "No explorers left. Shutting down orchestrator",
+                            )
+                        );
+                        std::process::exit(0);
                     }
                 }
             }
