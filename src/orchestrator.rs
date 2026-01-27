@@ -46,7 +46,9 @@ use std::thread;
 use std::thread::JoinHandle;
 use std::time::Duration;
 
-type ExplorersLocationRef = Arc<Mutex<HashMap<ID, ID>>>;
+use crate::ui::{OrchestratorToUiUpdate, UiToOrchestratorCommand};
+
+pub type ExplorersLocationRef = Arc<Mutex<HashMap<ID, ID>>>;
 
 pub enum ExplorerType {
     Rob,
@@ -62,16 +64,18 @@ pub(crate) struct PlanetExplorerChannels {
 }
 
 pub struct Orchestrator {
-    planets_senders: SendersToPlanet,
-    explorer_senders: SendersToExplorer,
+    pub(crate) ui_sender: Option<Sender<OrchestratorToUiUpdate>>,
+    pub(crate) ui_receiver: Option<Receiver<UiToOrchestratorCommand>>,
+    pub(crate) planets_senders: SendersToPlanet,
+    pub(crate) explorer_senders: SendersToExplorer,
     planets_receiver: Receiver<PlanetToOrchestrator>,
     explorers_receiver: Receiver<ExplorerToOrchestrator<ExplorerBag>>,
     explorer_to_orchestrator_sender: Sender<ExplorerToOrchestrator<ExplorerBagContent>>,
     forge: Arc<Forge>,
-    convo_scheduler: ConvoScheduler<ExplorerBag>,
-    galaxy: PlanetMap,
+    pub(crate) convo_scheduler: ConvoScheduler<ExplorerBag>,
+    pub(crate) galaxy: PlanetMap,
     planet_explorer_channels: PlanetExplorerChannels,
-    explorers_location: ExplorersLocationRef,
+    pub(crate) explorers_location: ExplorersLocationRef,
     planet_threads: std::sync::Arc<std::sync::Mutex<HashMap<ID, JoinHandle<()>>>>,
     explorer_threads: HashMap<ID, JoinHandle<()>>,
     manual_mode: bool,
@@ -84,7 +88,12 @@ impl Orchestrator {
     ///
     /// Panics if the forge cannot be created.
     #[must_use]
-    pub fn new(file_path: &std::path::Path, game_step: u64) -> Self {
+    pub fn new(
+        file_path: &std::path::Path,
+        game_step: u64,
+        ui_sender: Option<Sender<OrchestratorToUiUpdate>>,
+        ui_receiver: Option<Receiver<UiToOrchestratorCommand>>,
+    ) -> Self {
         // Set static variable GAME_STEP
         set_game_step(game_step);
 
@@ -104,6 +113,8 @@ impl Orchestrator {
             Arc::new(Mutex::new(expl_to_plan_senders));
 
         Self {
+            ui_sender,
+            ui_receiver,
             planets_senders: Arc::new(Mutex::new(orch_to_plan_senders)),
             explorer_senders: Arc::new(Mutex::new(HashMap::new())),
             planets_receiver,
@@ -188,6 +199,23 @@ impl Orchestrator {
                 }
 
                 //TODO!
+
+                /*recv(self.ui_receiver) -> msg => {
+                    match msg {
+                        Ok(msg) => {
+                            self.handle_ui_message(msg);
+                        }
+                        Err(e) => {
+                            log_internal(
+                                Channel::Warning,
+                                payload!(
+                                    action : "Error while receiving from UI",
+                                    error : e
+                                )
+                            );
+                        }
+                    }
+                }*/
 
                 // Periodic check to determine if there are any explorers left.
                 // If none remain, shut the game down.
@@ -299,7 +327,7 @@ impl Orchestrator {
         id
     }
 
-    fn create_travel_to_planet_request_conversation(
+    pub(crate) fn create_travel_to_planet_request_conversation(
         &mut self,
         explorer_id: ID,
         current_planet_id: ID,
@@ -406,6 +434,314 @@ impl Orchestrator {
                     ),
                 );
                 None
+            }
+        }
+    }
+
+    /// Handles UI commands from the UI layer and creates appropriate conversations or performs direct actions.
+    ///
+    /// # Panics
+    ///
+    /// Panics if a mutex lock is poisoned.
+    #[allow(clippy::too_many_lines)]
+    pub fn handle_ui_message(&mut self, command: &UiToOrchestratorCommand) {
+        #[allow(clippy::enum_glob_use)]
+        use UiToOrchestratorCommand::*;
+
+        match command {
+            // Rendering/Query Commands - Direct responses without conversations
+            GetGalaxy => {
+                if let Some(ref sender) = self.ui_sender {
+                    let _ = sender.send(OrchestratorToUiUpdate::Galaxy(self.galaxy.clone()));
+                }
+            }
+            GetExplorersPosition => {
+                if let Some(ref sender) = self.ui_sender {
+                    let _ = sender.send(OrchestratorToUiUpdate::ExplorersPosition(
+                        self.explorers_location.clone(),
+                    ));
+                }
+            }
+            GetPlanetSnapshot(planet_id) => {
+                // TODO: Implement conversation to request planet snapshot
+                log_internal(
+                    Channel::Debug,
+                    payload!(
+                        action: "GetPlanetSnapshot UI command received",
+                        planet_id: planet_id
+                    ),
+                );
+            }
+            GetExplorerSnapshot(explorer_id) => {
+                // TODO: Implement conversation to request explorer snapshot
+                log_internal(
+                    Channel::Debug,
+                    payload!(
+                        action: "GetExplorerSnapshot UI command received",
+                        explorer_id: explorer_id
+                    ),
+                );
+            }
+
+            // Explorer Movement Commands
+            ManualMoveExplorer(explorer_id, current_planet, dst_planet) => {
+                let conv_id = self.create_travel_to_planet_request_conversation(
+                    *explorer_id,
+                    *current_planet,
+                    *dst_planet,
+                );
+                log_internal(
+                    Channel::Info,
+                    payload!(
+                        action: "Manual explorer move requested",
+                        explorer_id: explorer_id,
+                        current_planet: current_planet,
+                        dst_planet: dst_planet,
+                        conversation_id: conv_id
+                    ),
+                );
+            }
+            AutoMoveExplorerAck(explorer_id, current_planet, dst_planet) => {
+                log_internal(
+                    Channel::Debug,
+                    payload!(
+                        action: "UI received move request from the explorer",
+                        explorer_id: explorer_id,
+                        current_planet: current_planet,
+                        dst_planet: dst_planet,
+                    ),
+                );
+            }
+
+            // Explorer Resource Commands
+            ManualExplorerCraftsRes(explorer_id, resource) => {
+                // TODO: Implement conversation for manual resource crafting
+                log_internal(
+                    Channel::Debug,
+                    payload!(
+                        action: "Manual explorer craft resource",
+                        explorer_id: explorer_id,
+                        resource: format!("{:?}", resource)
+                    ),
+                );
+            }
+            ManualExplorerCombineRes(explorer_id, resource) => {
+                // TODO: Implement conversation for manual resource combining
+                log_internal(
+                    Channel::Debug,
+                    payload!(
+                        action: "Manual explorer combine resource",
+                        explorer_id: explorer_id,
+                        resource: format!("{:?}", resource)
+                    ),
+                );
+            }
+            AutoExplorerCraftsResAck(explorer_id, resource) => {
+                if let Some(ref sender) = self.ui_sender {
+                    let _ = sender.send(OrchestratorToUiUpdate::ManualExplorerCraftsResAck(
+                        *explorer_id,
+                        *resource,
+                    ));
+                }
+            }
+            AutoExplorerCombineResAck(explorer_id, resource) => {
+                if let Some(ref sender) = self.ui_sender {
+                    let _ = sender.send(OrchestratorToUiUpdate::ManualExplorerCombineResAck(
+                        *explorer_id,
+                        *resource,
+                    ));
+                }
+            }
+            SupportedCombinations(explorer_id) => {
+                // TODO: Query explorer for supported combinations
+                log_internal(
+                    Channel::Debug,
+                    payload!(
+                        action: "Query supported combinations",
+                        explorer_id: explorer_id
+                    ),
+                );
+            }
+            SupportedResources(explorer_id) => {
+                // TODO: Query explorer for supported resources
+                log_internal(
+                    Channel::Debug,
+                    payload!(
+                        action: "Query supported resources",
+                        explorer_id: explorer_id
+                    ),
+                );
+            }
+
+            // Asteroid/Sunray Commands
+            SendManualAsteroid(planet_id) => {
+                // TODO: Implement conversation to send manual asteroid
+                log_internal(
+                    Channel::Debug,
+                    payload!(
+                        action: "Send manual asteroid",
+                        planet_id: planet_id
+                    ),
+                );
+            }
+            SendManualAsteroidAck(planet_id) => {
+                if let Some(ref sender) = self.ui_sender {
+                    let _ = sender.send(OrchestratorToUiUpdate::SendManualAsteroidAck(*planet_id));
+                }
+            }
+            SendAutoSunray(planet_id) => {
+                // TODO: Implement conversation to send auto sunray
+                log_internal(
+                    Channel::Debug,
+                    payload!(
+                        action: "Send auto sunray",
+                        planet_id: planet_id
+                    ),
+                );
+            }
+            SendAutoSunrayAck(planet_id) => {
+                if let Some(ref sender) = self.ui_sender {
+                    let _ = sender.send(OrchestratorToUiUpdate::SendManualSunrayAck(*planet_id));
+                }
+            }
+
+            // Planet AI Control Commands
+            StartPlanetAI(planet_id) => {
+                // TODO: Implement conversation to start planet AI
+                log_internal(
+                    Channel::Info,
+                    payload!(
+                        action: "Start planet AI requested",
+                        planet_id: planet_id
+                    ),
+                );
+            }
+            StopPlanetAI(planet_id) => {
+                // TODO: Implement conversation to stop planet AI
+                log_internal(
+                    Channel::Info,
+                    payload!(
+                        action: "Stop planet AI requested",
+                        planet_id: planet_id
+                    ),
+                );
+            }
+            ResetPlanetAI(planet_id) => {
+                // TODO: Implement conversation to reset planet AI
+                log_internal(
+                    Channel::Info,
+                    payload!(
+                        action: "Reset planet AI requested",
+                        planet_id: planet_id
+                    ),
+                );
+            }
+            KillPlanetAI(planet_id) => {
+                // TODO: Implement conversation to kill planet
+                log_internal(
+                    Channel::Info,
+                    payload!(
+                        action: "Kill planet AI requested",
+                        planet_id: planet_id
+                    ),
+                );
+            }
+
+            // Explorer AI Control Commands
+            StartExplorerAI(explorer_id) => {
+                // TODO: Implement conversation to start explorer AI
+                log_internal(
+                    Channel::Info,
+                    payload!(
+                        action: "Start explorer AI requested",
+                        explorer_id: explorer_id
+                    ),
+                );
+            }
+            StopExplorerAI(explorer_id) => {
+                let to_explorer =
+                    ToExplorerStruct::new(self.explorer_senders.clone(), *explorer_id);
+                let state = SendingExplorerStop::new(to_explorer);
+                let stop_ai_convo = StopExplorerConversation::new(
+                    get_id_manager().get_next_conversation_id(),
+                    state,
+                );
+                self.convo_scheduler
+                    .add_conversation(Box::new(stop_ai_convo));
+            }
+            ResetExplorerAI(explorer_id) => {
+                // TODO: Implement conversation to reset explorer AI
+                log_internal(
+                    Channel::Info,
+                    payload!(
+                        action: "Reset explorer AI requested",
+                        explorer_id: explorer_id
+                    ),
+                );
+            }
+            KillExplorerAI(explorer_id) => {
+                // TODO: Implement kill explorer conversation
+                log_internal(
+                    Channel::Info,
+                    payload!(
+                        action: "Kill explorer AI requested",
+                        explorer_id: explorer_id
+                    ),
+                );
+            }
+
+            // Acknowledgment Commands (responses from UI to orchestrator)
+            StartPlanetAIAck(planet_id) => {
+                if let Some(ref sender) = self.ui_sender {
+                    let _ = sender.send(OrchestratorToUiUpdate::StartPlanetAI(*planet_id));
+                }
+            }
+            StopPlanetAIAck(planet_id) => {
+                if let Some(ref sender) = self.ui_sender {
+                    let _ = sender.send(OrchestratorToUiUpdate::StopPlanetAI(*planet_id));
+                }
+            }
+            ResetPlanetAIAck(planet_id) => {
+                if let Some(ref sender) = self.ui_sender {
+                    let _ = sender.send(OrchestratorToUiUpdate::ResetPlanetAI(*planet_id));
+                }
+            }
+            KillPlanetAIAck(planet_id) => {
+                if let Some(ref sender) = self.ui_sender {
+                    let _ = sender.send(OrchestratorToUiUpdate::KillPlanetAI(*planet_id));
+                }
+            }
+            StartExplorerAIAck(explorer_id) => {
+                if let Some(ref sender) = self.ui_sender {
+                    let _ = sender.send(OrchestratorToUiUpdate::StartExplorerAI(*explorer_id));
+                }
+            }
+            StopExplorerAIAck(explorer_id) => {
+                if let Some(ref sender) = self.ui_sender {
+                    let _ = sender.send(OrchestratorToUiUpdate::StopExplorerAI(*explorer_id));
+                }
+            }
+            ResetExplorerAIAck(explorer_id) => {
+                if let Some(ref sender) = self.ui_sender {
+                    let _ = sender.send(OrchestratorToUiUpdate::ResetExplorerAI(*explorer_id));
+                }
+            }
+            KillExplorerAIAck(explorer_id) => {
+                if let Some(ref sender) = self.ui_sender {
+                    let _ = sender.send(OrchestratorToUiUpdate::KillExplorerAI(*explorer_id));
+                }
+            }
+
+            // Planet lifecycle acknowledgments
+            DeadPlanetAck(planet_id) => {
+                if let Some(ref sender) = self.ui_sender {
+                    let _ = sender.send(OrchestratorToUiUpdate::DeadPlanet(*planet_id));
+                }
+            }
+            AddedPlanet(planet_id) => {
+                if let Some(ref sender) = self.ui_sender {
+                    let _ = sender.send(OrchestratorToUiUpdate::AddedPlanetAck(*planet_id));
+                }
             }
         }
     }

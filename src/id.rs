@@ -200,7 +200,7 @@ impl IdManager {
     //----- Conversation ID checks -----//
 
     pub fn is_conversation_id(id: ID) -> bool {
-        ((id & (1 << Self::CONVERSATION_SHIFT)) != 0)
+        (id & (1 << Self::CONVERSATION_SHIFT)) != 0
     }
 }
 
