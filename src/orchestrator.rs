@@ -10,6 +10,7 @@ use crate::orchestrator::queue::ConvoScheduler;
 use crate::planet::PlanetMap;
 use crate::{get_id_manager, payload};
 
+use crate::globals::set_game_step;
 use crate::logging_utils::log_internal;
 use crate::orchestrator::conversations::ToExplorerStruct;
 use crate::orchestrator::conversations::ToPlanetStruct;
@@ -63,7 +64,10 @@ impl Orchestrator {
     ///
     /// Panics if the forge cannot be created.
     #[must_use]
-    pub fn new(file_path: &std::path::Path) -> Self {
+    pub fn new(file_path: &std::path::Path, game_step: u64) -> Self {
+        // Set static variable GAME_STEP
+        set_game_step(game_step);
+
         // galaxy_loader now returns 5 values (the last one is planet thread handles)
         let (galaxy, planets_receiver, orch_to_plan_senders, expl_to_plan_senders, planet_threads) =
             galaxy_loader(file_path);
@@ -171,6 +175,7 @@ impl Orchestrator {
         }
     }
 
+    #[must_use]
     pub fn get_galaxy(&self) -> &PlanetMap {
         &self.galaxy
     }

@@ -1,3 +1,4 @@
+use crate::globals::get_explorer_timeout;
 use crate::logging_utils::log_internal;
 use crate::orchestrator::ExplorerBag;
 use crate::orchestrator::conversations::orch_explorer::move_to_planet::errors::MoveToPlanetErrors;
@@ -16,6 +17,7 @@ use common_game::protocols::orchestrator_explorer::OrchestratorToExplorer::MoveT
 use common_game::protocols::planet_explorer::ExplorerToPlanet;
 use common_game::utils::ID;
 use crossbeam_channel::Sender;
+use std::time::Duration;
 
 ///**Move To Planet Conversation - Send Move Request**
 ///
@@ -252,6 +254,11 @@ impl Conversation<ExplorerBag> for MoveToPlanetConversation<WaitMoveToPlanetResp
 
     fn get_priority(&self) -> i32 {
         4
+    }
+
+    // Longer timeout, since it involves a communication with an Explorer
+    fn get_timeout(&self) -> Option<Duration> {
+        Some(Duration::from_millis(get_explorer_timeout()))
     }
 }
 

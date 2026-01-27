@@ -1,3 +1,4 @@
+use crate::globals::get_explorer_timeout;
 use crate::logging_utils::log_internal;
 use crate::orchestrator::ExplorerBag;
 use crate::orchestrator::conversations::PossibleExpectedKinds::ExplorerToOrchKind;
@@ -14,6 +15,7 @@ use common_game::protocols::orchestrator_explorer::{
     ExplorerToOrchestrator, ExplorerToOrchestratorKind,
 };
 use common_game::utils::ID;
+use std::time::Duration;
 
 ///**Move To Planet Conversation - Waiting Travel Request**
 ///
@@ -110,6 +112,11 @@ impl Conversation<ExplorerBag> for MoveToPlanetConversation<WaitingTravelRequest
     /// Returns the priority of this conversation within the orchestrator's queue.
     fn get_priority(&self) -> i32 {
         4
+    }
+
+    // Longer timeout, since it involves a communication with an Explorer
+    fn get_timeout(&self) -> Option<Duration> {
+        Some(Duration::from_millis(get_explorer_timeout()))
     }
 }
 

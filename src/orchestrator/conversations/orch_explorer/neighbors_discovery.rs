@@ -1,3 +1,4 @@
+use crate::globals::get_explorer_timeout;
 use crate::logging_utils::log_internal;
 use crate::orchestrator::ExplorerBag;
 use crate::orchestrator::conversations::PossibleExpectedKinds::ExplorerToOrchKind;
@@ -12,6 +13,7 @@ use common_game::protocols::orchestrator_explorer::{
     ExplorerToOrchestrator, ExplorerToOrchestratorKind, OrchestratorToExplorer,
 };
 use common_game::utils::ID;
+use std::time::Duration;
 
 ///**Neighbors Discovery Conversation**
 ///
@@ -213,6 +215,11 @@ impl Conversation<ExplorerBag> for NeighborsDiscoveryConversation<WaitingExplore
 
     fn get_priority(&self) -> i32 {
         3
+    }
+
+    // Longer timeout, since it involves a communication with an Explorer
+    fn get_timeout(&self) -> Option<Duration> {
+        Some(Duration::from_millis(get_explorer_timeout()))
     }
 }
 

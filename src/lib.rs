@@ -13,11 +13,12 @@ pub use orchestrator::Orchestrator;
 use std::path::Path;
 
 /// Run the orchestrator with the default galaxy configuration
-pub fn run() -> Orchestrator{
+#[must_use]
+pub fn run(game_step: u64) -> Orchestrator {
     // Initialize and start logger
     logging_utils::start_logger();
 
-    let mut orchestrator = orchestrator::Orchestrator::new(Path::new("galaxy/test_galaxy.txt"));
+    let mut orchestrator = Orchestrator::new(Path::new("galaxy/test_galaxy.txt"), game_step);
 
     orchestrator.run();
 
@@ -25,10 +26,8 @@ pub fn run() -> Orchestrator{
 }
 
 /// Create the orchestrator with a custom galaxy file path
-pub fn create_with_path<P: AsRef<Path>>(galaxy_path: P) -> Orchestrator{
+pub fn create_with_path<P: AsRef<Path>>(galaxy_path: P, game_step: u64) -> Orchestrator {
     logging_utils::start_logger();
 
-    let orchestrator = orchestrator::Orchestrator::new(galaxy_path.as_ref());
-
-    orchestrator
+    Orchestrator::new(galaxy_path.as_ref(), game_step)
 }

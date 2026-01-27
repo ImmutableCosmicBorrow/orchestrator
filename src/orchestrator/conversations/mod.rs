@@ -1,4 +1,5 @@
 use crate::galaxy_setup::OrchPlanSenderMap;
+use crate::globals::TIMEOUT;
 use crate::logging_utils::{log_internal, log_msg_to};
 use crate::orchestrator::ExplorerBag;
 use crate::payload;
@@ -61,9 +62,10 @@ pub trait Conversation<T: Debug + Eq + Hash>: Send + Sync {
     }
 
     /// Returns the timeout duration for this conversation state.
-    /// Override this in states that should time out after a certain period.
+    /// The default timeout is `TIMEOUT` and does not depend on the game step.
+    /// Override this in states that should not time out, or time out after a different period.
     fn get_timeout(&self) -> Option<Duration> {
-        None
+        Some(Duration::from_millis(TIMEOUT))
     }
 
     /// Called when the conversation times out.

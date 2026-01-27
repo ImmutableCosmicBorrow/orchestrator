@@ -1,3 +1,3 @@
 fn main() {
-    orchestrator::run();
+    let _ = orchestrator::run(1000);
 }

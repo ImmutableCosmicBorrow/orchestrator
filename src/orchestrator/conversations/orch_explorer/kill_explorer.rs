@@ -1,3 +1,4 @@
+use crate::globals::get_explorer_timeout;
 use crate::logging_utils::log_internal;
 use crate::orchestrator::conversations::orch_planet::adv_dead_explorer::{
     AdvDeadExplorer, SendingDeadExpAdv,
@@ -13,6 +14,7 @@ use common_game::protocols::orchestrator_explorer::{
     ExplorerToOrchestrator, ExplorerToOrchestratorKind, OrchestratorToExplorer,
 };
 use common_game::utils::ID;
+use std::time::Duration;
 
 ///**Kill Explorer Conversation**
 ///
@@ -247,6 +249,11 @@ impl Conversation<ExplorerBag> for KillExplorerConversation<WaitingKillExplorerR
 
     fn get_priority(&self) -> i32 {
         5
+    }
+
+    // Longer timeout, since it involves a communication with an Explorer
+    fn get_timeout(&self) -> Option<Duration> {
+        Some(Duration::from_millis(get_explorer_timeout()))
     }
 }
 
