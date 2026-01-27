@@ -19,6 +19,7 @@ use std::collections::HashMap;
 use std::path::Path;
 use std::thread;
 use std::thread::JoinHandle;
+use std::time::Duration;
 
 // Planets are removed from PlanetMap and stopped via OrchestratorToPlanet message.
 pub(crate) type OrchPlanSenderMap = HashMap<ID, Sender<OrchestratorToPlanet>>;
@@ -275,11 +276,16 @@ pub(crate) fn create_and_spawn_explorers(
         unbounded::<OrchestratorToExplorer>();
     let (tx_planet_to_explorer, rx_planet_to_explorer) = unbounded::<PlanetToExplorer>();
     let id = get_id_manager().get_next_explorer_id();
+
+    let planet_sender: Sender<ExplorerToPlanet> = unbounded::<ExplorerToPlanet>().0;
     let mut explorer = explorer_nico::Explorer::new(
         id,
+        1,//TODO fix this, added at random
+        planet_sender, // added at random 
         tx_to_orchestrator,
         rx_orchestrator_to_explorer,
         rx_planet_to_explorer,
+        Duration::new(1000, 2000000), // added at random 
     );
 
     log_internal(
