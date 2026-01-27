@@ -1,7 +1,7 @@
 use crate::id::IdManager;
 use crate::logging_utils::log_internal;
-use crate::planet::{add_planet_with_neighbors, PlanetMap};
 use crate::payload;
+use crate::planet::{PlanetMap, add_planet_with_neighbors};
 
 use common_game::logging::Channel;
 use common_game::protocols::orchestrator_planet::{OrchestratorToPlanet, PlanetToOrchestrator};

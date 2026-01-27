@@ -25,11 +25,14 @@ use crate::orchestrator::conversations::orch_explorer::start_explorer::{
 use crate::orchestrator::conversations::orch_planet::{
     SendingPlanetStart, StartPlanetConversation,
 };
+use common_explorer::ExplorerAI;
 pub(crate) use common_explorer::ExplorerBagContent;
 use common_game::components::forge::Forge;
 use common_game::logging::Channel;
-use common_game::protocols::orchestrator_explorer::{ExplorerToOrchestrator, OrchestratorToExplorer};
 use common_game::protocols::orchestrator_explorer::ExplorerToOrchestrator::TravelToPlanetRequest;
+use common_game::protocols::orchestrator_explorer::{
+    ExplorerToOrchestrator, OrchestratorToExplorer,
+};
 use common_game::protocols::orchestrator_planet::PlanetToOrchestrator;
 use common_game::protocols::planet_explorer::{ExplorerToPlanet, PlanetToExplorer};
 use common_game::utils::ID;
@@ -39,7 +42,6 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 use std::thread::JoinHandle;
 use std::time::Duration;
-use common_explorer::ExplorerAI;
 
 type ExplorersLocationRef = Arc<Mutex<HashMap<ID, ID>>>;
 
@@ -61,7 +63,7 @@ pub struct Orchestrator {
     explorer_senders: SendersToExplorer,
     planets_receiver: Receiver<PlanetToOrchestrator>,
     explorers_receiver: Receiver<ExplorerToOrchestrator<ExplorerBag>>,
-    explorer_to_orchestrator_sender : Sender<ExplorerToOrchestrator<ExplorerBagContent>>,
+    explorer_to_orchestrator_sender: Sender<ExplorerToOrchestrator<ExplorerBagContent>>,
     forge: Arc<Forge>,
     convo_scheduler: ConvoScheduler<ExplorerBag>,
     galaxy: PlanetMap,
@@ -102,14 +104,14 @@ impl Orchestrator {
             explorer_senders: Arc::new(Mutex::new(HashMap::new())),
             planets_receiver,
             explorers_receiver,
-            explorer_to_orchestrator_sender : tx_explorer_to_orchestrator,
+            explorer_to_orchestrator_sender: tx_explorer_to_orchestrator,
             forge,
             galaxy,
             convo_scheduler: ConvoScheduler::new(),
             planet_explorer_channels,
             explorers_location: Arc::new(Mutex::new(HashMap::new())),
             planet_threads, // threads were spawned in galaxy_loader/create_planet_with_channels
-            explorer_threads : HashMap::new(),
+            explorer_threads: HashMap::new(),
         }
     }
 
@@ -444,7 +446,7 @@ impl Orchestrator {
     /// # Panics
     ///
     /// Panics if a mutex lock is poisoned.
-    pub fn add_explorer(&mut self, explorer_type : &ExplorerType, into_planet : ID){
+    pub fn add_explorer(&mut self, explorer_type: &ExplorerType, into_planet: ID) {
         // Create channels
         let (tx_orchestrator_to_explorer, rx_orchestrator_to_explorer) =
             unbounded::<OrchestratorToExplorer>();
@@ -452,23 +454,34 @@ impl Orchestrator {
         let id = get_id_manager().get_next_explorer_id();
 
         // Save Explorer - Planet channels
-        self.planet_explorer_channels.planet_to_explorer_senders.lock().unwrap().insert(id, tx_planet_to_explorer);
-        self.explorer_senders.lock().unwrap().insert(id, tx_orchestrator_to_explorer);
+        self.planet_explorer_channels
+            .planet_to_explorer_senders
+            .lock()
+            .unwrap()
+            .insert(id, tx_planet_to_explorer);
+        self.explorer_senders
+            .lock()
+            .unwrap()
+            .insert(id, tx_orchestrator_to_explorer);
 
-        if let Some(planet_sender) = self.planet_explorer_channels.explorer_to_planet_senders.lock().unwrap().get(&into_planet) {
+        if let Some(planet_sender) = self
+            .planet_explorer_channels
+            .explorer_to_planet_senders
+            .lock()
+            .unwrap()
+            .get(&into_planet)
+        {
             // If the planet sender exists, create the Explorer
-            let mut explorer : Box<dyn ExplorerAI + Send> = match explorer_type{
-                ExplorerType::Nico => {
-                    Box::new(explorer_nico::Explorer::new(
-                        id,
-                        into_planet,
-                        planet_sender.clone(),
-                        self.explorer_to_orchestrator_sender.clone(),
-                        rx_orchestrator_to_explorer,
-                        rx_planet_to_explorer,
-                        Duration::from_millis(get_game_step())
-                    ))
-                }
+            let mut explorer: Box<dyn ExplorerAI + Send> = match explorer_type {
+                ExplorerType::Nico => Box::new(explorer_nico::Explorer::new(
+                    id,
+                    into_planet,
+                    planet_sender.clone(),
+                    self.explorer_to_orchestrator_sender.clone(),
+                    rx_orchestrator_to_explorer,
+                    rx_planet_to_explorer,
+                    Duration::from_millis(get_game_step()),
+                )),
                 ExplorerType::Rob => {
                     todo!()
                 }
@@ -479,7 +492,7 @@ impl Orchestrator {
 
             // Spawn the Explorer
             let handle = thread::spawn(move || {
-                let result =explorer.run();
+                let result = explorer.run();
 
                 if let Err(e) = result {
                     log_internal(
@@ -488,7 +501,7 @@ impl Orchestrator {
                             action: "Explorer thread ended with an error",
                             explorer_id : id,
                             error : e
-                        )
+                        ),
                     );
                 } else {
                     log_internal(
@@ -496,7 +509,7 @@ impl Orchestrator {
                         payload!(
                             action : "Explorer thread ended correctly",
                             explorer_id : id,
-                        )
+                        ),
                     );
                 }
             });
@@ -504,7 +517,6 @@ impl Orchestrator {
             self.explorer_threads.insert(id, handle);
 
             // TODO: Tell the Planet that an Explorer is coming
-
         } else {
             // If the sender for that Planet does not exist, log the warning and return
             log_internal(
@@ -512,7 +524,7 @@ impl Orchestrator {
                 payload!(
                     action: "The specified Planet sender does not exist, the Explorer has not been created",
                     planet_id : into_planet,
-                )
+                ),
             );
         }
     }
