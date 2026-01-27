@@ -280,12 +280,12 @@ pub(crate) fn create_and_spawn_explorers(
     let planet_sender: Sender<ExplorerToPlanet> = unbounded::<ExplorerToPlanet>().0;
     let mut explorer = explorer_nico::Explorer::new(
         id,
-        1,//TODO fix this, added at random
-        planet_sender, // added at random 
+        1,             //TODO fix this, added at random
+        planet_sender, // added at random
         tx_to_orchestrator,
         rx_orchestrator_to_explorer,
         rx_planet_to_explorer,
-        Duration::new(1000, 2000000), // added at random 
+        Duration::new(1000, 2_000_000), // added at random
     );
 
     log_internal(

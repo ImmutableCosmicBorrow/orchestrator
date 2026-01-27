@@ -16,6 +16,9 @@ use crate::orchestrator::conversations::ToExplorerStruct;
 use crate::orchestrator::conversations::ToPlanetStruct;
 use crate::orchestrator::conversations::orch_explorer::kill_explorer::KillExplorerConversation;
 use crate::orchestrator::conversations::orch_explorer::kill_explorer::SendingKillExplorer;
+use crate::orchestrator::conversations::orch_explorer::move_to_planet::{
+    MoveToPlanetConversation, WaitingTravelRequest,
+};
 use crate::orchestrator::conversations::orch_explorer::start_explorer::{
     SendingExplorerStart, StartExplorerConversation,
 };
@@ -26,6 +29,7 @@ pub(crate) use common_explorer::ExplorerBagContent;
 use common_game::components::forge::Forge;
 use common_game::logging::Channel;
 use common_game::protocols::orchestrator_explorer::ExplorerToOrchestrator;
+use common_game::protocols::orchestrator_explorer::ExplorerToOrchestrator::TravelToPlanetRequest;
 use common_game::protocols::orchestrator_planet::PlanetToOrchestrator;
 use common_game::protocols::planet_explorer::{ExplorerToPlanet, PlanetToExplorer};
 use common_game::utils::ID;
@@ -34,8 +38,6 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::thread::JoinHandle;
-use common_game::protocols::orchestrator_explorer::ExplorerToOrchestrator::TravelToPlanetRequest;
-use crate::orchestrator::conversations::orch_explorer::move_to_planet::{MoveToPlanetConversation, WaitingTravelRequest};
 
 type ExplorersLocationRef = Arc<Mutex<HashMap<ID, ID>>>;
 
@@ -46,8 +48,6 @@ pub(crate) struct PlanetExplorerChannels {
     planet_to_explorer_senders: Arc<Mutex<HashMap<ID, Sender<PlanetToExplorer>>>>,
     explorer_to_planet_senders: Arc<Mutex<HashMap<ID, Sender<ExplorerToPlanet>>>>,
 }
-
-
 
 pub struct Orchestrator {
     planets_senders: SendersToPlanet,
@@ -198,6 +198,7 @@ impl Orchestrator {
     }
 
     //TODO: FIX CLIPPY ERRORS TOO MANY LINES
+    #[allow(clippy::too_many_lines)]
     fn handle_message(&mut self, message: PossibleMessage<ExplorerBag>) {
         let message_kind = message.to_kind_type();
         let entities_ids = message.get_entity_ids();
@@ -244,8 +245,10 @@ impl Orchestrator {
                                 explorer_id,
                                 current_planet_id,
                             } => {
-                                let to_explorer_struct =
-                                    ToExplorerStruct::new(self.explorer_senders.clone(), explorer_id);
+                                let to_explorer_struct = ToExplorerStruct::new(
+                                    self.explorer_senders.clone(),
+                                    explorer_id,
+                                );
                                 let state = conversations::orch_explorer::neighbors_discovery::WaitingExplorerNeighborsRequest::new(
                                     to_explorer_struct,
                                     self.galaxy.clone(),
@@ -272,25 +275,41 @@ impl Orchestrator {
                                 current_planet_id,
                                 dst_planet_id,
                             } => {
-                                let to_explorer_struct = ToExplorerStruct::new(self.explorer_senders.clone(), explorer_id);
-                                let curr_planet_struct = ToPlanetStruct::new(self.planets_senders.clone(), current_planet_id);
-                                let dst_planet_struct = ToPlanetStruct::new(self.planets_senders.clone(), dst_planet_id);
+                                let to_explorer_struct = ToExplorerStruct::new(
+                                    self.explorer_senders.clone(),
+                                    explorer_id,
+                                );
+                                let curr_planet_struct = ToPlanetStruct::new(
+                                    self.planets_senders.clone(),
+                                    current_planet_id,
+                                );
+                                let dst_planet_struct = ToPlanetStruct::new(
+                                    self.planets_senders.clone(),
+                                    dst_planet_id,
+                                );
                                 let state = WaitingTravelRequest::new(
-                                    self.galaxy.clone(), self.planet_explorer_channels.clone(), curr_planet_struct,dst_planet_struct,to_explorer_struct, self.explorers_location.clone()
+                                    self.galaxy.clone(),
+                                    self.planet_explorer_channels.clone(),
+                                    curr_planet_struct,
+                                    dst_planet_struct,
+                                    to_explorer_struct,
+                                    self.explorers_location.clone(),
                                 );
                                 //TODO: WHY is ID explorer_id? should be a new conversation ID
-                                let new_conv = MoveToPlanetConversation::<WaitingTravelRequest>::new(explorer_id,state);
+                                let new_conv =
+                                    MoveToPlanetConversation::<WaitingTravelRequest>::new(
+                                        explorer_id,
+                                        state,
+                                    );
                                 self.convo_scheduler.add_conversation(Box::new(new_conv));
-                                self.handle_message(
-                                    PossibleMessage::ExplorerToOrch(
-                                        TravelToPlanetRequest {
-                                            explorer_id,
-                                            current_planet_id,
-                                            dst_planet_id,
-                                        }
-                                    )
-                                );
-                            },
+                                self.handle_message(PossibleMessage::ExplorerToOrch(
+                                    TravelToPlanetRequest {
+                                        explorer_id,
+                                        current_planet_id,
+                                        dst_planet_id,
+                                    },
+                                ));
+                            }
                             // The other messages are responses that do not start a conversation
                             _ => {
                                 log_internal(
@@ -346,7 +365,8 @@ impl Orchestrator {
                     if let Some((vec, handle_outgoing)) = kill_expl_vec {
                         for el in vec {
                             let conv_id = get_id_manager().get_next_conversation_id();
-                            let to_explorer_struct = ToExplorerStruct::new(explorer_senders.clone(), el.0);
+                            let to_explorer_struct =
+                                ToExplorerStruct::new(explorer_senders.clone(), el.0);
 
                             let to_planet_struct =
                                 ToPlanetStruct::new(planets_senders.clone(), el.1);

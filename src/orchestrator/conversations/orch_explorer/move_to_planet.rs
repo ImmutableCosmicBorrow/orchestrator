@@ -46,9 +46,21 @@ pub(crate) struct WaitingTravelRequest {
 }
 
 impl WaitingTravelRequest {
-    pub (crate) fn new(galaxy: PlanetMap, planet_explorer_channels: PlanetExplorerChannels,curr_planet_struct: ToPlanetStruct,dst_planet_struct: ToPlanetStruct,explorer_struct: ToExplorerStruct, explorers_location_ref: ExplorersLocationRef) -> Self {
+    pub(crate) fn new(
+        galaxy: PlanetMap,
+        planet_explorer_channels: PlanetExplorerChannels,
+        curr_planet_struct: ToPlanetStruct,
+        dst_planet_struct: ToPlanetStruct,
+        explorer_struct: ToExplorerStruct,
+        explorers_location_ref: ExplorersLocationRef,
+    ) -> Self {
         Self {
-            galaxy, planet_explorer_channels, curr_planet_struct, dst_planet_struct, explorer_struct, explorers_location_ref
+            galaxy,
+            planet_explorer_channels,
+            curr_planet_struct,
+            dst_planet_struct,
+            explorer_struct,
+            explorers_location_ref,
         }
     }
 }
