@@ -60,7 +60,7 @@ pub struct Orchestrator {
     galaxy: PlanetMap,
     planet_explorer_channels: PlanetExplorerChannels,
     explorers_location: ExplorersLocationRef,
-    planet_threads: HashMap<ID, JoinHandle<()>>,
+    planet_threads: std::sync::Arc<std::sync::Mutex<HashMap<ID, JoinHandle<()>>>>,
     explorer_threads: HashMap<ID, JoinHandle<()>>,
 }
 
@@ -105,7 +105,7 @@ impl Orchestrator {
             convo_scheduler: ConvoScheduler::new(),
             planet_explorer_channels,
             explorers_location: Arc::new(Mutex::new(HashMap::new())),
-            planet_threads, // threads were spawned in galaxy_loader/create_planet_with_channels
+            planet_threads: Arc::new(Mutex::new(planet_threads)), // threads were spawned in galaxy_loader/create_planet_with_channels
             explorer_threads,
         }
     }
@@ -359,6 +359,8 @@ impl Orchestrator {
         let explorer_senders = self.explorer_senders.clone();
         let planets_senders = self.planets_senders.clone();
         let explorer_locations = self.explorers_location.clone();
+        let galaxy = self.galaxy.clone();
+        let planet_threads = self.planet_threads.clone();
         thread::spawn(move || {
             loop {
                 // Check for timed-out conversations and handle them
@@ -400,6 +402,30 @@ impl Orchestrator {
 
                             convo_scheduler.add_conversation(Box::new(convo)
                                 as Box<dyn conversations::Conversation<ExplorerBag> + Send + Sync>);
+                        }
+                        // Remove the planet from the galaxy and notify the planet thread to stop.
+                        if let (Some(planet_id), _) = convo.get_entities_ids() {
+                            let planets_senders_clone = planets_senders.clone();
+                            let galaxy_clone = galaxy.clone();
+                            let planet_threads_clone = planet_threads.clone();
+                            // remove_node_with_stop will remove the node from the PlanetMap and then
+                            // call the provided closure to kill the planet (send KillPlanet and remove sender).
+                            crate::planet::remove_node_with_stop(&galaxy_clone, planet_id, |dead_id| {
+                                // remove and notify sender
+                                let mut lock = planets_senders_clone.lock().unwrap();
+                                if let Some(sender) = lock.remove(&dead_id) {
+                                    let _ = sender.send(
+                                        common_game::protocols::orchestrator_planet::OrchestratorToPlanet::KillPlanet,
+                                    );
+                                }
+
+                                // remove and join the planet thread handle if present
+                                if let Ok(mut th_lock) = planet_threads_clone.lock()
+                                    && let Some(handle) = th_lock.remove(&dead_id)
+                                {
+                                    let _ = handle.join();
+                                }
+                            });
                         }
                     }
 
