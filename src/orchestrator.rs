@@ -523,12 +523,13 @@ impl Orchestrator {
     /// # Panics
     ///
     /// Panics if a mutex lock is poisoned.
+    ///
     pub fn add_explorer(&mut self, explorer_type: &ExplorerType, into_planet: ID) {
         // Create channels
         let (tx_orchestrator_to_explorer, rx_orchestrator_to_explorer) =
             unbounded::<OrchestratorToExplorer>();
         let (tx_planet_to_explorer, rx_planet_to_explorer) = unbounded::<PlanetToExplorer>();
-        let id = get_id_manager().get_next_explorer_id();
+        let id = get_id_manager().get_next_explorer_id_by_type(explorer_type);
 
         // Save Explorer - Planet channels
         self.planet_explorer_channels

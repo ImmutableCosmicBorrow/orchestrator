@@ -1,3 +1,4 @@
+use crate::ExplorerType;
 use common_game::utils::ID;
 use std::sync::{Arc, Mutex};
 
@@ -26,20 +27,25 @@ impl Default for IdManager {
 }
 
 impl IdManager {
-    const ID_MASK: u32 = 0xF; // 4 bits = 16 planets max per type
-
     const CONVERSATION_SHIFT: u32 = 16;
 
-    const PLANET_SHIFT: u32 = 12;
-    const TRIP_SHIFT: u32 = 11;
-    const RUSTRELLI_SHIFT: u32 = 10;
-    const LUNA4_SHIFT: u32 = 9;
-    const RUSTY_CRAB_SHIFT: u32 = 8;
-    const ENTERPRISE_SHIFT: u32 = 7;
-    const ORBITRON_SHIFT: u32 = 6;
-    const HOUSTON_SHIFT: u32 = 5;
+    const PLANET_MASK: u32 = 0b1111_1111; // 8 bits = 256 planets max per type
 
-    const EXPLORER_SHIFT: u32 = 4;
+    const PLANET_SHIFT: u32 = 15;
+    const TRIP_SHIFT: u32 = 14;
+    const RUSTRELLI_SHIFT: u32 = 13;
+    const LUNA4_SHIFT: u32 = 12;
+    const RUSTY_CRAB_SHIFT: u32 = 11;
+    const ENTERPRISE_SHIFT: u32 = 10;
+    const ORBITRON_SHIFT: u32 = 9;
+    const HOUSTON_SHIFT: u32 = 8;
+
+    const EXPLORER_MASK: u32 = 0b1111; // 4 bits = 16 explorers max per type
+
+    const EXPLORER_SHIFT: u32 = 7;
+    const NICO_SHIFT: u32 = 6;
+    const JACO_SHIFT: u32 = 5;
+    const ROB_SHIFT: u32 = 4;
 
     pub fn new() -> Self {
         IdManager {
@@ -49,12 +55,83 @@ impl IdManager {
         }
     }
 
+    //------ Planet ID Generation -----//
+
     fn get_next_planet_id(&self) -> ID {
         let mut id_lock = self.planet.lock().unwrap();
         let id = *id_lock;
         *id_lock += 1;
         id
     }
+
+    pub fn get_next_trip_id(&self) -> ID {
+        let id = self.get_next_planet_id();
+        1 << Self::PLANET_SHIFT | 1 << Self::TRIP_SHIFT | (id & Self::PLANET_MASK)
+    }
+
+    pub fn get_next_rustrelli_id(&self) -> ID {
+        let id = self.get_next_planet_id();
+        1 << Self::PLANET_SHIFT | 1 << Self::RUSTRELLI_SHIFT | (id & Self::PLANET_MASK)
+    }
+
+    pub fn get_next_luna4_id(&self) -> ID {
+        let id = self.get_next_planet_id();
+        1 << Self::PLANET_SHIFT | 1 << Self::LUNA4_SHIFT | (id & Self::PLANET_MASK)
+    }
+
+    pub fn get_next_rusty_crab_id(&self) -> ID {
+        let id = self.get_next_planet_id();
+        1 << Self::PLANET_SHIFT | 1 << Self::RUSTY_CRAB_SHIFT | (id & Self::PLANET_MASK)
+    }
+
+    pub fn get_next_enterprise_id(&self) -> ID {
+        let id = self.get_next_planet_id();
+        1 << Self::PLANET_SHIFT | 1 << Self::ENTERPRISE_SHIFT | (id & Self::PLANET_MASK)
+    }
+
+    pub fn get_next_orbitron_id(&self) -> ID {
+        let id = self.get_next_planet_id();
+        1 << Self::PLANET_SHIFT | 1 << Self::ORBITRON_SHIFT | (id & Self::PLANET_MASK)
+    }
+
+    pub fn get_next_houston_id(&self) -> ID {
+        let id = self.get_next_planet_id();
+        1 << Self::PLANET_SHIFT | 1 << Self::HOUSTON_SHIFT | (id & Self::PLANET_MASK)
+    }
+
+    //------ Explorer ID Generation -----//
+
+    fn get_next_explorer_id(&self) -> ID {
+        let mut id_lock = self.explorer.lock().unwrap();
+        let id = *id_lock;
+        *id_lock += 1;
+        1 << Self::EXPLORER_SHIFT | id
+    }
+
+    pub fn get_next_explorer_id_by_type(&self, explorer_type: &ExplorerType) -> ID {
+        match explorer_type {
+            ExplorerType::Nico => self.get_next_nico_id(),
+            ExplorerType::Jaco => self.get_next_jaco_id(),
+            ExplorerType::Rob => self.get_next_rob_id(),
+        }
+    }
+
+    pub fn get_next_nico_id(&self) -> ID {
+        let id = self.get_next_explorer_id();
+        1 << Self::EXPLORER_SHIFT | 1 << Self::NICO_SHIFT | (id & Self::EXPLORER_MASK)
+    }
+
+    pub fn get_next_jaco_id(&self) -> ID {
+        let id = self.get_next_explorer_id();
+        1 << Self::EXPLORER_SHIFT | 1 << Self::JACO_SHIFT | (id & Self::EXPLORER_MASK)
+    }
+
+    pub fn get_next_rob_id(&self) -> ID {
+        let id = self.get_next_explorer_id();
+        1 << Self::EXPLORER_SHIFT | 1 << Self::ROB_SHIFT | (id & Self::EXPLORER_MASK)
+    }
+
+    //------ Conversation ID Generation -----//
 
     pub fn get_next_conversation_id(&self) -> ID {
         let mut id_lock = self.conversation.lock().unwrap();
@@ -63,87 +140,67 @@ impl IdManager {
         1 << Self::CONVERSATION_SHIFT | id
     }
 
-    pub fn get_next_explorer_id(&self) -> ID {
-        let mut id_lock = self.explorer.lock().unwrap();
-        let id = *id_lock;
-        *id_lock += 1;
-        1 << Self::EXPLORER_SHIFT | id
-    }
-
-    pub fn get_next_trip_id(&self) -> ID {
-        let id = self.get_next_planet_id();
-        1 << Self::PLANET_SHIFT | 1 << Self::TRIP_SHIFT | (id & Self::ID_MASK)
-    }
-
-    pub fn get_next_rustrelli_id(&self) -> ID {
-        let id = self.get_next_planet_id();
-        1 << Self::PLANET_SHIFT | 1 << Self::RUSTRELLI_SHIFT | (id & Self::ID_MASK)
-    }
-
-    pub fn get_next_luna4_id(&self) -> ID {
-        let id = self.get_next_planet_id();
-        1 << Self::PLANET_SHIFT | 1 << Self::LUNA4_SHIFT | (id & Self::ID_MASK)
-    }
-
-    pub fn get_next_rusty_crab_id(&self) -> ID {
-        let id = self.get_next_planet_id();
-        1 << Self::PLANET_SHIFT | 1 << Self::RUSTY_CRAB_SHIFT | (id & Self::ID_MASK)
-    }
-
-    pub fn get_next_enterprise_id(&self) -> ID {
-        let id = self.get_next_planet_id();
-        1 << Self::PLANET_SHIFT | 1 << Self::ENTERPRISE_SHIFT | (id & Self::ID_MASK)
-    }
-
-    pub fn get_next_orbitron_id(&self) -> ID {
-        let id = self.get_next_planet_id();
-        1 << Self::PLANET_SHIFT | 1 << Self::ORBITRON_SHIFT | (id & Self::ID_MASK)
-    }
-
-    pub fn get_next_houston_id(&self) -> ID {
-        let id = self.get_next_planet_id();
-        1 << Self::PLANET_SHIFT | 1 << Self::HOUSTON_SHIFT | (id & Self::ID_MASK)
-    }
+    //----- Planet ID checks -----//
 
     pub fn is_planet_id(id: ID) -> bool {
-        (id & (1 << Self::PLANET_SHIFT)) != 0
+        !Self::is_conversation_id(id) && ((id & (1 << Self::PLANET_SHIFT)) != 0)
     }
 
     // Helper functions to identify planet types
+    // IMPORTANT: These check both the PLANET_SHIFT bit AND the specific planet type bit
+    // to avoid misidentifying other entity types that might coincidentally have the type bit set
     pub fn is_trip_id(id: ID) -> bool {
-        (id & (1 << Self::TRIP_SHIFT)) != 0
+        Self::is_planet_id(id) && ((id & (1 << Self::TRIP_SHIFT)) != 0)
     }
 
     pub fn is_rustrelli_id(id: ID) -> bool {
-        (id & (1 << Self::RUSTRELLI_SHIFT)) != 0
+        Self::is_planet_id(id) && ((id & (1 << Self::RUSTRELLI_SHIFT)) != 0)
     }
 
     pub fn is_luna4_id(id: ID) -> bool {
-        (id & (1 << Self::LUNA4_SHIFT)) != 0
+        Self::is_planet_id(id) && ((id & (1 << Self::LUNA4_SHIFT)) != 0)
     }
 
     pub fn is_rusty_crab_id(id: ID) -> bool {
-        (id & (1 << Self::RUSTY_CRAB_SHIFT)) != 0
+        Self::is_planet_id(id) && ((id & (1 << Self::RUSTY_CRAB_SHIFT)) != 0)
     }
 
     pub fn is_enterprise_id(id: ID) -> bool {
-        (id & (1 << Self::ENTERPRISE_SHIFT)) != 0
+        Self::is_planet_id(id) && ((id & (1 << Self::ENTERPRISE_SHIFT)) != 0)
     }
 
     pub fn is_orbitron_id(id: ID) -> bool {
-        (id & (1 << Self::ORBITRON_SHIFT)) != 0
+        Self::is_planet_id(id) && ((id & (1 << Self::ORBITRON_SHIFT)) != 0)
     }
 
     pub fn is_houston_id(id: ID) -> bool {
-        (id & (1 << Self::HOUSTON_SHIFT)) != 0
+        Self::is_planet_id(id) && ((id & (1 << Self::HOUSTON_SHIFT)) != 0)
     }
+
+    //----- Explorer ID checks -----//
 
     pub fn is_explorer_id(id: ID) -> bool {
-        (id & (1 << Self::EXPLORER_SHIFT)) != 0
+        !Self::is_conversation_id(id)
+            && !Self::is_planet_id(id)
+            && ((id & (1 << Self::EXPLORER_SHIFT)) != 0)
     }
 
+    pub fn is_nico_id(id: ID) -> bool {
+        Self::is_explorer_id(id) && ((id & (1 << Self::NICO_SHIFT)) != 0)
+    }
+
+    pub fn is_jaco_id(id: ID) -> bool {
+        Self::is_explorer_id(id) && ((id & (1 << Self::JACO_SHIFT)) != 0)
+    }
+
+    pub fn is_rob_id(id: ID) -> bool {
+        Self::is_explorer_id(id) && ((id & (1 << Self::ROB_SHIFT)) != 0)
+    }
+
+    //----- Conversation ID checks -----//
+
     pub fn is_conversation_id(id: ID) -> bool {
-        (id & (1 << Self::CONVERSATION_SHIFT)) != 0
+        ((id & (1 << Self::CONVERSATION_SHIFT)) != 0)
     }
 }
 
