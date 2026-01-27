@@ -25,14 +25,14 @@ use std::time::Duration;
 ///
 /// The conversation starts in the [`SendingExplorerStop`] state, which sends an
 /// [`OrchestratorToExplorer::StopExplorerAI`] when the [`Conversation::transition`] method is called.
-struct SendingExplorerStop {
+pub(crate) struct SendingExplorerStop {
     /// A struct containing fields to send messages to the specific explorer
     to_explorer_struct: ToExplorerStruct,
 }
 
 impl SendingExplorerStop {
     /// Constructor for [`SendingExplorerStop`] state struct
-    fn new(to_explorer_struct: ToExplorerStruct) -> Self {
+    pub(crate) fn new(to_explorer_struct: ToExplorerStruct) -> Self {
         Self { to_explorer_struct }
     }
 }
@@ -41,14 +41,14 @@ impl SendingExplorerStop {
 ///
 /// In the [`WaitingExplorerStopResult`] state, the conversation expects an
 /// [`ExplorerToOrchestrator::StopExplorerAIResult`] message to confirm the AI has successfully halted.
-struct WaitingExplorerStopResult {
+pub(crate) struct WaitingExplorerStopResult {
     /// ID of the explorer we are waiting for
     explorer_id: ID,
 }
 
 impl WaitingExplorerStopResult {
     /// The constructor for [`WaitingExplorerStopResult`] state struct
-    fn new(explorer_id: ID) -> Self {
+    pub(crate) fn new(explorer_id: ID) -> Self {
         Self { explorer_id }
     }
 }
@@ -57,7 +57,7 @@ impl WaitingExplorerStopResult {
 ///
 /// This is the generic FSM struct that takes the generic type `State` to ensure only methods
 /// of that specific state can be called during the conversation.
-struct StopExplorerConversation<State> {
+pub(crate) struct StopExplorerConversation<State> {
     /// Conversation ID
     id: ID,
     /// Optional expected message to trigger the transition
@@ -128,7 +128,7 @@ impl Conversation<ExplorerBag> for StopExplorerConversation<SendingExplorerStop>
 
 impl StopExplorerConversation<SendingExplorerStop> {
     /// The constructor for [`StopExplorerConversation`] in the [`SendingExplorerStop`] state
-    fn new(id: ID, state: SendingExplorerStop) -> Self {
+    pub (crate) fn new(id: ID, state: SendingExplorerStop) -> Self {
         Self {
             id,
             expected_message: None,

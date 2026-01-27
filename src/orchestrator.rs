@@ -14,8 +14,8 @@ use crate::globals::{get_game_step, set_game_step};
 use crate::logging_utils::log_internal;
 use crate::orchestrator::conversations::ToExplorerStruct;
 use crate::orchestrator::conversations::ToPlanetStruct;
-use crate::orchestrator::conversations::orch_explorer::kill_explorer::KillExplorerConversation;
-use crate::orchestrator::conversations::orch_explorer::kill_explorer::SendingKillExplorer;
+use crate::orchestrator::conversations::orch_explorer::kill_explorer::{KillExplorerConversation, SendingKillExplorer};
+use crate::orchestrator::conversations::orch_explorer::stop_explorer::{SendingExplorerStop, StopExplorerConversation};
 use crate::orchestrator::conversations::orch_explorer::move_to_planet::{
     MoveToPlanetConversation, WaitingTravelRequest,
 };
@@ -71,6 +71,7 @@ pub struct Orchestrator {
     explorers_location: ExplorersLocationRef,
     planet_threads: std::sync::Arc<std::sync::Mutex<HashMap<ID, JoinHandle<()>>>>,
     explorer_threads: HashMap<ID, JoinHandle<()>>,
+    manual_mode: bool,
 }
 
 impl Orchestrator {
@@ -112,6 +113,7 @@ impl Orchestrator {
             explorers_location: Arc::new(Mutex::new(HashMap::new())),
             planet_threads: Arc::new(Mutex::new(planet_threads)), // threads were spawned in galaxy_loader/create_planet_with_channels
             explorer_threads: HashMap::new(),
+            manual_mode: false,
         }
     }
 
@@ -201,6 +203,44 @@ impl Orchestrator {
     #[must_use]
     pub fn get_galaxy(&self) -> &PlanetMap {
         &self.galaxy
+    }
+
+    /// Toggles between manual and automatic mode for the orchestrator.
+    ///
+    /// # Panics
+    ///
+    /// Panics if a mutex lock is poisoned.
+    pub fn change_mode(&mut self) {
+        self.manual_mode = !self.manual_mode;
+        if self.manual_mode {
+            log_internal(
+                Channel::Info,
+                payload!(
+                    action : "Orchestrator switched to MANUAL mode",
+                )
+            );
+            for explorer_id in self.explorer_senders.lock().unwrap().keys() {
+                let to_explorer = ToExplorerStruct::new(self.explorer_senders.clone(), *explorer_id);
+                let state = SendingExplorerStop::new(to_explorer);
+                let stop_ai_convo =
+                    StopExplorerConversation::new(get_id_manager().get_next_conversation_id(), state);
+                self.convo_scheduler.add_conversation(Box::new(stop_ai_convo));
+            }
+        } else {
+            log_internal(
+                Channel::Info,
+                payload!(
+                    action : "Orchestrator switched to AUTOMATIC mode",
+                )
+            );
+            for explorer_id in self.explorer_senders.lock().unwrap().keys() {
+                let to_explorer = ToExplorerStruct::new(self.explorer_senders.clone(), *explorer_id);
+                let state = SendingExplorerStart::new(to_explorer);
+                let start_ai_convo =
+                    StartExplorerConversation::new(get_id_manager().get_next_conversation_id(), state);
+                self.convo_scheduler.add_conversation(Box::new(start_ai_convo));
+            }
+        }
     }
 
     fn start_background_event_senders(&self) {
