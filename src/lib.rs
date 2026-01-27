@@ -9,6 +9,7 @@ mod planet_factory;
 // Re-export public items that other crates can use
 pub use globals::get_id_manager;
 pub use orchestrator::Orchestrator;
+pub use orchestrator::ExplorerType;
 
 use std::path::Path;
 
