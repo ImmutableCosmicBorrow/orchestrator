@@ -29,7 +29,6 @@ use common_explorer::ExplorerAI;
 pub(crate) use common_explorer::ExplorerBagContent;
 use common_game::components::forge::Forge;
 use common_game::logging::Channel;
-use common_game::protocols::orchestrator_explorer::ExplorerToOrchestrator::TravelToPlanetRequest;
 use common_game::protocols::orchestrator_explorer::{
     ExplorerToOrchestrator, OrchestratorToExplorer,
 };
@@ -183,6 +182,9 @@ impl Orchestrator {
                         }
                     }
                 }
+
+                //TODO!
+
                 // Periodic check to determine if there are any explorers left.
                 // If none remain, shut the game down.
                 recv(timeout) -> _ => {
@@ -257,8 +259,61 @@ impl Orchestrator {
         crate::orchestrator::event_senders::enable_asteroids();
     }
 
-    //TODO: FIX CLIPPY ERRORS TOO MANY LINES
-    #[allow(clippy::too_many_lines)]
+    fn create_neighbors_request_conversation(&mut self, explorer_id: ID) -> ID {
+        let to_explorer_struct = ToExplorerStruct::new(self.explorer_senders.clone(), explorer_id);
+        let state =
+            conversations::orch_explorer::neighbors_discovery::WaitingExplorerNeighborsRequest::new(
+                to_explorer_struct,
+                self.galaxy.clone(),
+            );
+
+        let id = get_id_manager().get_next_conversation_id();
+        let new_conv =
+            conversations::orch_explorer::neighbors_discovery::NeighborsDiscoveryConversation::<
+                conversations::orch_explorer::neighbors_discovery::WaitingExplorerNeighborsRequest,
+            >::new(id, state);
+
+        self.convo_scheduler
+            .add_conversation(Box::new(new_conv)
+                as Box<dyn conversations::Conversation<ExplorerBag> + Send + Sync>);
+
+        /*self.handle_message(PossibleMessage::ExplorerToOrch(
+            ExplorerToOrchestrator::NeighborsRequest {
+                explorer_id,
+                current_planet_id,
+            },
+        ));*/
+
+        id
+    }
+
+    fn create_travel_to_planet_request_conversation(
+        &mut self,
+        explorer_id: ID,
+        current_planet_id: ID,
+        dst_planet_id: ID,
+    ) -> ID {
+        let to_explorer_struct = ToExplorerStruct::new(self.explorer_senders.clone(), explorer_id);
+        let curr_planet_struct =
+            ToPlanetStruct::new(self.planets_senders.clone(), current_planet_id);
+        let dst_planet_struct = ToPlanetStruct::new(self.planets_senders.clone(), dst_planet_id);
+        let state = WaitingTravelRequest::new(
+            self.galaxy.clone(),
+            self.planet_explorer_channels.clone(),
+            curr_planet_struct,
+            dst_planet_struct,
+            to_explorer_struct,
+            self.explorers_location.clone(),
+        );
+
+        let id = get_id_manager().get_next_conversation_id();
+        let new_conv = MoveToPlanetConversation::<WaitingTravelRequest>::new(id, state);
+
+        self.convo_scheduler.add_conversation(Box::new(new_conv));
+
+        id
+    }
+
     fn handle_message(&mut self, message: PossibleMessage<ExplorerBag>) {
         let message_kind = message.to_kind_type();
         let entities_ids = message.get_entity_ids();
@@ -275,126 +330,70 @@ impl Orchestrator {
             ),
         );
 
-        let matching_conversation = self
+        let convo_id = self
             .convo_scheduler
-            .find_matching_conversation(&message_kind, entities_ids);
+            .find_matching_conversation(&message_kind, entities_ids)
+            .map(|convo| convo.get_id())
+            .or_else(|| self.try_create_conversation(&message, &message_kind, entities_ids));
 
-        match matching_conversation {
-            // If the message matches the expected kind, we let the message wait for the transition
-            Some(conversation) => {
-                // Log match with the conversation id
+        if let Some(id) = convo_id {
+            log_internal(
+                Channel::Trace,
+                payload!(
+                    event: "MessageMatchedConversation",
+                    conversation_id: id,
+                    message_kind: format!("{:?}", message_kind),
+                    from_planet: format!("{:?}", entities_ids.0),
+                    from_explorer: format!("{:?}", entities_ids.1)
+                ),
+            );
+            self.convo_scheduler.add_waiting_message(id, message);
+        }
+    }
+
+    fn try_create_conversation(
+        &mut self,
+        message: &PossibleMessage<ExplorerBag>,
+        message_kind: &conversations::PossibleExpectedKinds,
+        entities_ids: (Option<ID>, Option<ID>),
+    ) -> Option<ID> {
+        match message {
+            PossibleMessage::ExplorerToOrch(msg) => match msg {
+                ExplorerToOrchestrator::NeighborsRequest {
+                    explorer_id,
+                    current_planet_id: _,
+                } => Some(self.create_neighbors_request_conversation(*explorer_id)),
+                ExplorerToOrchestrator::TravelToPlanetRequest {
+                    explorer_id,
+                    current_planet_id,
+                    dst_planet_id,
+                } => Some(self.create_travel_to_planet_request_conversation(
+                    *explorer_id,
+                    *current_planet_id,
+                    *dst_planet_id,
+                )),
+                _ => {
+                    log_internal(
+                        Channel::Debug,
+                        payload!(
+                            action: "Received ExplorerToOrchestrator message that does not start a conversation. Ignoring.",
+                            message_kind: format!("{:?}", message_kind),
+                            from_explorer: entities_ids.1.unwrap(),
+                        ),
+                    );
+                    None
+                }
+            },
+            PossibleMessage::PlanetToOrch(_) => {
                 log_internal(
-                    Channel::Trace,
+                    Channel::Debug,
                     payload!(
-                        event: "MessageMatchedConversation",
-                        conversation_id: conversation.get_id(),
+                        action: "Received PlanetToOrchestrator message that does not start a conversation. Ignoring.",
                         message_kind: format!("{:?}", message_kind),
-                        from_planet: format!("{:?}", entities_ids.0),
-                        from_explorer: format!("{:?}", entities_ids.1)
+                        from_planet: entities_ids.0.unwrap(),
                     ),
                 );
-                self.convo_scheduler
-                    .add_waiting_message(conversation.get_id(), message);
-            }
-            None => {
-                match message {
-                    PossibleMessage::ExplorerToOrch(msg) => {
-                        match msg {
-                            #[allow(unused_variables)]
-                            ExplorerToOrchestrator::NeighborsRequest {
-                                explorer_id,
-                                current_planet_id,
-                            } => {
-                                let to_explorer_struct = ToExplorerStruct::new(
-                                    self.explorer_senders.clone(),
-                                    explorer_id,
-                                );
-                                let state = conversations::orch_explorer::neighbors_discovery::WaitingExplorerNeighborsRequest::new(
-                                    to_explorer_struct,
-                                    self.galaxy.clone(),
-                                );
-                                let new_conv = conversations::orch_explorer::neighbors_discovery::NeighborsDiscoveryConversation::<conversations::orch_explorer::neighbors_discovery::WaitingExplorerNeighborsRequest>::new(
-                                    explorer_id,
-                                    state,
-                                );
-                                self.convo_scheduler.add_conversation(Box::new(new_conv)
-                                    as Box<
-                                        dyn conversations::Conversation<ExplorerBag> + Send + Sync,
-                                    >);
-
-                                self.handle_message(PossibleMessage::ExplorerToOrch(
-                                    ExplorerToOrchestrator::NeighborsRequest {
-                                        explorer_id,
-                                        current_planet_id,
-                                    },
-                                ));
-                            }
-                            #[allow(unused_variables)]
-                            ExplorerToOrchestrator::TravelToPlanetRequest {
-                                explorer_id,
-                                current_planet_id,
-                                dst_planet_id,
-                            } => {
-                                let to_explorer_struct = ToExplorerStruct::new(
-                                    self.explorer_senders.clone(),
-                                    explorer_id,
-                                );
-                                let curr_planet_struct = ToPlanetStruct::new(
-                                    self.planets_senders.clone(),
-                                    current_planet_id,
-                                );
-                                let dst_planet_struct = ToPlanetStruct::new(
-                                    self.planets_senders.clone(),
-                                    dst_planet_id,
-                                );
-                                let state = WaitingTravelRequest::new(
-                                    self.galaxy.clone(),
-                                    self.planet_explorer_channels.clone(),
-                                    curr_planet_struct,
-                                    dst_planet_struct,
-                                    to_explorer_struct,
-                                    self.explorers_location.clone(),
-                                );
-                                //TODO: WHY is ID explorer_id? should be a new conversation ID
-                                let new_conv =
-                                    MoveToPlanetConversation::<WaitingTravelRequest>::new(
-                                        explorer_id,
-                                        state,
-                                    );
-                                self.convo_scheduler.add_conversation(Box::new(new_conv));
-                                self.handle_message(PossibleMessage::ExplorerToOrch(
-                                    TravelToPlanetRequest {
-                                        explorer_id,
-                                        current_planet_id,
-                                        dst_planet_id,
-                                    },
-                                ));
-                            }
-                            // The other messages are responses that do not start a conversation
-                            _ => {
-                                log_internal(
-                                    Channel::Debug,
-                                    payload!(
-                                        action : "Received ExplorerToOrchestrator message that does not start a conversation. Ignoring.",
-                                        message_kind : format!{"{:?}", message_kind},
-                                        from_explorer : entities_ids.1.unwrap(),
-                                    ),
-                                );
-                            }
-                        }
-                    }
-                    // Since the planet never starts a conversation, we just ignore these messages
-                    PossibleMessage::PlanetToOrch(_) => {
-                        log_internal(
-                            Channel::Debug,
-                            payload!(
-                                action : "Received PlanetToOrchestrator message that does not start a conversation. Ignoring.",
-                                message_kind : format!{"{message_kind:?}"},
-                                from_planet : entities_ids.0.unwrap(),
-                            ),
-                        );
-                    }
-                }
+                None
             }
         }
     }
@@ -408,10 +407,6 @@ impl Orchestrator {
         let planet_threads = self.planet_threads.clone();
         thread::spawn(move || {
             loop {
-                // Check for timed-out conversations and handle them
-                // (will panic for conversations that don't override on_timeout)
-                convo_scheduler.handle_timeouts();
-
                 if convo_scheduler.is_empty() {
                     // Wait for new messages to arrive
                     thread::sleep(std::time::Duration::from_millis(10));
