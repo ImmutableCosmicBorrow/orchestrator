@@ -478,7 +478,6 @@ impl Orchestrator {
                 let current_convo = convo_scheduler.get_next_conversation();
 
                 if let Some(convo) = current_convo {
-                    let msg = convo_scheduler.get_waiting_message(convo.get_id());
                     let kill_expl_vec = convo.get_kill_explorers_vec();
 
                     if let Some((vec, handle_outgoing)) = kill_expl_vec {
@@ -501,9 +500,7 @@ impl Orchestrator {
                                 conv_id,
                                 state_struct,
                             );
-
-                            convo_scheduler.add_conversation(Box::new(convo)
-                                as Box<dyn conversations::Conversation<ExplorerBag> + Send + Sync>);
+                            convo_scheduler.add_conversation(Box::new(convo));
                         }
                         // Remove the planet from the galaxy and notify the planet thread to stop.
                         if let (Some(planet_id), _) = convo.get_entities_ids() {
@@ -535,34 +532,34 @@ impl Orchestrator {
                         }
                     }
 
-                    // Log transition execution with convo id, expected kind, and incoming message kind
-                    match &msg {
-                        Some(m) => log_internal(
+                    let id = convo.get_id();
+                    let msg = convo_scheduler.get_waiting_message(id);
+                    let should_transition = msg.is_some() || convo.get_expected_kind().is_none();
+
+                    // Transition only if the waiting message is Some or if the expected kind is None
+                    // Otherwise, add the conversation back in the convo_scheduler
+                    if should_transition {
+                        log_internal(
                             Channel::Trace,
                             payload!(
-                                event: "ConversationTransition",
-                                conversation_id: convo.get_id(),
-                                expected_kind: format!("{:?}", convo.get_expected_kind()),
-                                message_kind: format!("{:?}", m.to_kind_type())
+                                event: "Conversation Transition",
+                                conversation_id: id,
+                                old_expected_kind: format!("{:?}", convo.get_expected_kind()),
                             ),
-                        ),
-                        None => log_internal(
-                            Channel::Trace,
-                            payload!(
-                                event: "ConversationTransition",
-                                conversation_id: convo.get_id(),
-                                expected_kind: format!("{:?}", convo.get_expected_kind()),
-                                message_kind: "None"
-                            ),
-                        ),
-                    }
-
-                    if convo.get_expected_kind().is_some() {
-                        let new_convo = convo.transition(msg);
-
-                        if let Some(new_real_convo) = new_convo {
-                            convo_scheduler.add_conversation(new_real_convo);
+                        );
+                        if let Some(convo) = convo.transition(msg){
+                            convo_scheduler.add_conversation(convo);
+                        } else{
+                            log_internal(
+                                Channel::Trace,
+                                payload!(
+                                    event: "Conversation Closed",
+                                    conversation_id: id,
+                                )
+                            );
                         }
+                    } else {
+                        convo_scheduler.add_conversation(convo);
                     }
                 }
             }
