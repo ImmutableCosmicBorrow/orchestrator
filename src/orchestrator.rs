@@ -165,7 +165,6 @@ impl Orchestrator {
         if let Some(explorer) = explorer2 {
             orchestrator.add_explorer(&explorer, planet_id);
         }
-
         // Return the Orchestrator
         orchestrator
     }
@@ -202,7 +201,7 @@ impl Orchestrator {
 
         // Main loop
         loop {
-            let timeout = crossbeam_channel::after(Duration::from_millis(100));
+            let timeout = crossbeam_channel::after(Duration::from_millis(1000));
             select! {
                 recv(self.planets_receiver) -> msg => {
                     match msg {
@@ -377,32 +376,24 @@ impl Orchestrator {
     }
 
     fn handle_message(&mut self, message: PossibleMessage<ExplorerBag>) {
+        // TODO! idk if this is really needed, because without this, if i run with log=info or log=debug it works, but log=trace doesn't
+        // I think it's because emitting logs is slow, so process_messages thread goes slower and does not add the new expected message fast enough
+
+        // A small sleep to avoid handling the answer before handling the conversation transition
+        thread::sleep(Duration::from_millis(10));
+
         let message_kind = message.to_kind_type();
         let entities_ids = message.get_entity_ids();
-
-        // Log every incoming message with source and intended receiver (Orchestrator)
-        log_internal(
-            Channel::Trace,
-            payload!(
-                event: "MessageReceived",
-                message_kind: format!("{:?}", message_kind),
-                from_planet: format!("{:?}", entities_ids.0),
-                from_explorer: format!("{:?}", entities_ids.1),
-                to: "Orchestrator"
-            ),
-        );
-
         let convo_id = self
             .convo_scheduler
             .find_matching_conversation(&message_kind, entities_ids)
-            .map(|convo| convo.get_id())
             .or_else(|| self.try_create_conversation(&message, &message_kind, entities_ids));
 
         if let Some(id) = convo_id {
             log_internal(
                 Channel::Trace,
                 payload!(
-                    event: "MessageMatchedConversation",
+                    event: "Message matched conversation",
                     conversation_id: id,
                     message_kind: format!("{:?}", message_kind),
                     from_planet: format!("{:?}", entities_ids.0),
@@ -436,7 +427,7 @@ impl Orchestrator {
                 )),
                 _ => {
                     log_internal(
-                        Channel::Debug,
+                        Channel::Warning,
                         payload!(
                             action: "Received ExplorerToOrchestrator message that does not start a conversation. Ignoring.",
                             message_kind: format!("{:?}", message_kind),
@@ -448,7 +439,7 @@ impl Orchestrator {
             },
             PossibleMessage::PlanetToOrch(_) => {
                 log_internal(
-                    Channel::Debug,
+                    Channel::Warning,
                     payload!(
                         action: "Received PlanetToOrchestrator message that does not start a conversation. Ignoring.",
                         message_kind: format!("{:?}", message_kind),
@@ -476,10 +467,8 @@ impl Orchestrator {
                 }
 
                 let current_convo = convo_scheduler.get_next_conversation();
-
                 if let Some(convo) = current_convo {
                     let kill_expl_vec = convo.get_kill_explorers_vec();
-
                     if let Some((vec, handle_outgoing)) = kill_expl_vec {
                         for el in vec {
                             let conv_id = get_id_manager().get_next_conversation_id();
@@ -531,11 +520,9 @@ impl Orchestrator {
                             );
                         }
                     }
-
                     let id = convo.get_id();
                     let msg = convo_scheduler.get_waiting_message(id);
                     let should_transition = msg.is_some() || convo.get_expected_kind().is_none();
-
                     // Transition only if the waiting message is Some or if the expected kind is None
                     // Otherwise, add the conversation back in the convo_scheduler
                     if should_transition {
@@ -547,16 +534,8 @@ impl Orchestrator {
                                 old_expected_kind: format!("{:?}", convo.get_expected_kind()),
                             ),
                         );
-                        if let Some(convo) = convo.transition(msg){
+                        if let Some(convo) = convo.transition(msg) {
                             convo_scheduler.add_conversation(convo);
-                        } else{
-                            log_internal(
-                                Channel::Trace,
-                                payload!(
-                                    event: "Conversation Closed",
-                                    conversation_id: id,
-                                )
-                            );
                         }
                     } else {
                         convo_scheduler.add_conversation(convo);
@@ -633,14 +612,13 @@ impl Orchestrator {
         self.explorer_threads.insert(id, handle);
 
         // Tell the Planet that an Explorer is coming
-
-        // dummy_to_planet will not be used by the conversation since the Explorer is not in a Planet
-        let dummy_to_planet = ToPlanetStruct::new(self.planets_senders.clone(), 0);
+        // TODO! now I am using the same ToPlanetStruct for current planet and destination planet
+        // because explorer does not have a current planet, but I don't know if it is the correct way to handle this
         let to_planet = ToPlanetStruct::new(self.planets_senders.clone(), into_planet);
         let to_explorer = ToExplorerStruct::new(self.explorer_senders.clone(), id);
         let state = SendManualMoveRequest::new(
             self.explorers_location.clone(),
-            dummy_to_planet,
+            to_planet.clone(),
             to_planet,
             to_explorer,
             self.planet_explorer_channels.clone(),
