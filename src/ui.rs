@@ -1,5 +1,6 @@
 use std::collections::HashSet;
 
+use crate::ExplorerType;
 use crate::orchestrator::ExplorersLocationRef;
 use common_explorer::ExplorerBagContent;
 use common_game::components::planet::DummyPlanetState;
@@ -21,6 +22,7 @@ pub enum UiToOrchestratorCommand {
     GetExplorersPosition,
     GetPlanetSnapshot(ID),
     GetExplorerSnapshot(ID),
+    AddExplorer(ExplorerType, ID), //explorer type, planet id
 
     // explorer commands: move and resource crafting/combining
     ManualMoveExplorer(ID, ID, ID), // Explorer ID, current planet, dst planet
