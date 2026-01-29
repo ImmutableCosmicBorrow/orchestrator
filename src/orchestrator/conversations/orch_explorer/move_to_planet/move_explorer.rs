@@ -1,7 +1,5 @@
 use crate::globals::get_explorer_timeout;
 use crate::logging_utils::log_internal;
-use crate::orchestrator::ExplorerBag;
-use crate::orchestrator::conversations::orch_explorer::move_to_planet::errors::MoveToPlanetErrors;
 use crate::orchestrator::conversations::orch_explorer::move_to_planet::{
     MoveToPlanetConversation, SendMoveRequest, WaitMoveToPlanetResponse,
 };
@@ -18,6 +16,7 @@ use common_game::protocols::planet_explorer::ExplorerToPlanet;
 use common_game::utils::ID;
 use crossbeam_channel::Sender;
 use std::time::Duration;
+use common_explorer::ExplorerBagContent;
 
 ///**Move To Planet Conversation - Send Move Request**
 ///
@@ -25,7 +24,7 @@ use std::time::Duration;
 /// Orchestrator-Planet handshake and the Explorer's actual transition. Its primary role is to
 /// provide the Explorer with the technical means (communication channels) to interact with its new home.
 // SEND MOVE REQUEST IMPLEMENTATION
-impl Conversation<ExplorerBag> for MoveToPlanetConversation<SendMoveRequest> {
+impl Conversation<ExplorerBagContent> for MoveToPlanetConversation<SendMoveRequest> {
     /// Returns the unique ID of the conversation instance.
     fn get_id(&self) -> ID {
         self.id
@@ -67,8 +66,8 @@ impl Conversation<ExplorerBag> for MoveToPlanetConversation<SendMoveRequest> {
     ///   [`ErrorState`] via [`CommonErrorTypes::MessageToExplorerFailed`].
     fn transition(
         self: Box<Self>,
-        _msg_wrapped: Option<PossibleMessage<ExplorerBag>>,
-    ) -> Option<Box<dyn Conversation<ExplorerBag> + Send + Sync>> {
+        _msg_wrapped: Option<PossibleMessage<ExplorerBagContent>>,
+    ) -> Option<Box<dyn Conversation<ExplorerBagContent> + Send + Sync>> {
         // Determine the sender
         let sender_to_new_planet = if self.state.is_explorer_moving {
             // Explorer is moving, we need to find the sender to the planet
@@ -80,7 +79,7 @@ impl Conversation<ExplorerBag> for MoveToPlanetConversation<SendMoveRequest> {
                 ));
                 let error_state = ErrorState::new(error, self.id);
                 return Some(
-                    Box::new(error_state) as Box<dyn Conversation<ExplorerBag> + Send + Sync>
+                    Box::new(error_state) as Box<dyn Conversation<ExplorerBagContent> + Send + Sync>
                 );
             }
         } else {
@@ -117,7 +116,7 @@ impl Conversation<ExplorerBag> for MoveToPlanetConversation<SendMoveRequest> {
                     }
                 };
                 let error_state = ErrorState::new(error, self.id);
-                Some(Box::new(error_state) as Box<dyn Conversation<ExplorerBag> + Send + Sync>)
+                Some(Box::new(error_state) as Box<dyn Conversation<ExplorerBagContent> + Send + Sync>)
             }
         }
     }
@@ -155,7 +154,7 @@ impl MoveToPlanetConversation<SendMoveRequest> {
 /// This is the final terminal state in the movement sequence. It ensures that the Orchestrator
 /// and the Explorer have a synchronized view of the world state after the handover.
 // WAIT MOVE TO PLANET RESPONSE IMPLEMENTATION
-impl Conversation<ExplorerBag> for MoveToPlanetConversation<WaitMoveToPlanetResponse> {
+impl Conversation<ExplorerBagContent> for MoveToPlanetConversation<WaitMoveToPlanetResponse> {
     /// Returns the unique ID of the conversation instance.
     fn get_id(&self) -> ID {
         self.id
@@ -181,8 +180,6 @@ impl Conversation<ExplorerBag> for MoveToPlanetConversation<WaitMoveToPlanetResp
     /// the `explorers_location_ref` map.
     /// * **Update Success**: Returns `None`. This **terminates** the conversation successfully,
     ///   closing the movement lifecycle.
-    /// * **Registry Failure**: If the explorer entry is missing from the global list, transitions
-    ///   to an [`ErrorState`] with [`MoveToPlanetErrors::ExplorerLocationNotFound`].
     ///
     /// #### 2. Graceful Termination of Rejections
     /// If the move was flagged as unauthorized, the explorer still acknowledges the instruction.
@@ -194,8 +191,8 @@ impl Conversation<ExplorerBag> for MoveToPlanetConversation<WaitMoveToPlanetResp
     /// [`ErrorState`] with [`CommonErrorTypes::WrongMessage`].
     fn transition(
         self: Box<Self>,
-        msg_wrapped: Option<PossibleMessage<ExplorerBag>>,
-    ) -> Option<Box<dyn Conversation<ExplorerBag> + Send + Sync>> {
+        msg_wrapped: Option<PossibleMessage<ExplorerBagContent>>,
+    ) -> Option<Box<dyn Conversation<ExplorerBagContent> + Send + Sync>> {
         if let Some(PossibleMessage::ExplorerToOrch(
             ExplorerToOrchestrator::MovedToPlanetResult {
                 explorer_id,
@@ -215,41 +212,34 @@ impl Conversation<ExplorerBag> for MoveToPlanetConversation<WaitMoveToPlanetResp
                     ),
                 );
 
-                return match self.move_explorer_location(explorer_id, planet_id) {
-                    Ok(()) => {
-                        log_internal(
-                            Channel::Debug,
-                            payload!(
-                                action : "Changed Explorer location in List, closing conversation",
-                                explorer_id : explorer_id,
-                                changed_to_planet_id : planet_id,
-                                conversation_id : self.id
-                            ),
-                        );
-                        None // Successful termination
-                    }
-                    Err(e) => {
-                        let err_struct = ErrorState::new(Box::new(e), self.id);
-                        Some(Box::new(err_struct))
-                    }
-                };
+                self.move_explorer_location(explorer_id, planet_id);
+                log_internal(
+                    Channel::Debug,
+                    payload!(
+                        action : "Changed Explorer location in List, closing conversation",
+                        explorer_id : explorer_id,
+                        changed_to_planet_id : planet_id,
+                        conversation_id : self.id
+                    )
+                );
+
             }
+
             // Explorer responded correctly but move was disallowed previously
             log_internal(
                 Channel::Warning,
                 payload!(
-                    action : "Explorer cannot move (destination not a neighbor), closing conversation",
-                    explorer_id : explorer_id,
-                    destination_planet_id : planet_id,
-                    conversation_id : self.id
-                ),
+                        action : "Explorer cannot move (destination not a neighbor), closing conversation",
+                        explorer_id : explorer_id,
+                        destination_planet_id : planet_id,
+                        conversation_id : self.id
+                    ),
             );
             return None; // Graceful close
         }
-
         // Wrong message, closing Conversation
         let error_state = ErrorState::new(Box::new(CommonErrorTypes::WrongMessage), self.id);
-        Some(Box::new(error_state) as Box<dyn Conversation<ExplorerBag> + Send + Sync>)
+        Some(Box::new(error_state) as Box<dyn Conversation<ExplorerBagContent> + Send + Sync>)
     }
 
     fn get_priority(&self) -> i32 {
@@ -279,18 +269,13 @@ impl MoveToPlanetConversation<WaitMoveToPlanetResponse> {
         &self,
         explorer_id: ID,
         dst_planet_id: ID,
-    ) -> Result<(), MoveToPlanetErrors> {
-        if let Some(location) = self
+    )  {
+        self
             .state
             .explorers_location_ref
             .lock()
             .unwrap()
-            .get_mut(&explorer_id)
-        {
-            *location = dst_planet_id;
-            return Ok(());
-        }
+            .insert(explorer_id, dst_planet_id);
 
-        Err(MoveToPlanetErrors::ExplorerLocationNotFound(explorer_id))
     }
 }

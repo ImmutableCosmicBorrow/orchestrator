@@ -1,5 +1,5 @@
 use crate::logging_utils::log_internal;
-use crate::orchestrator::ExplorerBag;
+use crate::orchestrator::ExplorerBagContent;
 use crate::orchestrator::conversations::Conversation;
 use crate::orchestrator::conversations::PossibleExpectedKinds;
 use crate::orchestrator::conversations::PossibleMessage;
@@ -54,7 +54,7 @@ pub struct ConvoScheduler<T: Debug + Eq + Hash> {
     active_convos: ConversationMap<T>,
     inactive_convos: ConversationMap<T>,
     by_expected_msg: Arc<Mutex<HashMap<PossibleExpectedKinds, HashSet<ID>>>>,
-    waiting_msgs: Arc<Mutex<HashMap<ID, PossibleMessage<ExplorerBag>>>>,
+    waiting_msgs: Arc<Mutex<HashMap<ID, PossibleMessage<ExplorerBagContent>>>>,
     /// Maps conversation IDs to their timeout info: (start time, timeout duration)
     timeouts: Arc<Mutex<HashMap<ID, (Instant, Duration)>>>,
 }
@@ -259,7 +259,7 @@ impl<T: Debug + Eq + Hash> ConvoScheduler<T> {
         self.active_convos.lock().unwrap().contains_key(&id)
     }
 
-    pub fn add_waiting_message(&self, convo_id: ID, message: PossibleMessage<ExplorerBag>) {
+    pub fn add_waiting_message(&self, convo_id: ID, message: PossibleMessage<ExplorerBagContent>) {
         // Clear any timeout when a message arrives - the conversation is no longer waiting
         self.clear_timeout(convo_id);
 
@@ -297,7 +297,7 @@ impl<T: Debug + Eq + Hash> ConvoScheduler<T> {
         );
     }
 
-    pub fn get_waiting_message(&self, convo_id: ID) -> Option<PossibleMessage<ExplorerBag>> {
+    pub fn get_waiting_message(&self, convo_id: ID) -> Option<PossibleMessage<ExplorerBagContent>> {
         self.waiting_msgs.lock().unwrap().remove(&convo_id)
     }
 
@@ -372,7 +372,7 @@ mod tests {
         }
     }
 
-    impl Conversation<ExplorerBag> for MockConversation {
+    impl Conversation<ExplorerBagContent> for MockConversation {
         fn get_id(&self) -> ID {
             self.id
         }
@@ -387,8 +387,8 @@ mod tests {
 
         fn transition(
             self: Box<Self>,
-            _msg: Option<PossibleMessage<ExplorerBag>>,
-        ) -> Option<Box<dyn Conversation<ExplorerBag> + Send + Sync>> {
+            _msg: Option<PossibleMessage<ExplorerBagContent>>,
+        ) -> Option<Box<dyn Conversation<ExplorerBagContent> + Send + Sync>> {
             let mut state = self.state.lock().unwrap();
             state.transitions = 1;
             state.alive = false;
@@ -448,13 +448,13 @@ mod tests {
 
     #[test]
     fn scheduler_new_is_empty() {
-        let scheduler = ConvoScheduler::<ExplorerBag>::new();
+        let scheduler = ConvoScheduler::<ExplorerBagContent>::new();
         assert!(scheduler.is_empty());
     }
 
     #[test]
     fn scheduler_add_single_conversation() {
-        let scheduler = ConvoScheduler::<ExplorerBag>::new();
+        let scheduler = ConvoScheduler::<ExplorerBagContent>::new();
         let convo = Box::new(MockConversation::new(100, 1, 10, None));
 
         scheduler.add_conversation(convo);
@@ -463,7 +463,7 @@ mod tests {
 
     #[test]
     fn scheduler_get_next_conversation() {
-        let scheduler = ConvoScheduler::<ExplorerBag>::new();
+        let scheduler = ConvoScheduler::<ExplorerBagContent>::new();
         let convo = Box::new(MockConversation::new(100, 1, 10, None));
         scheduler.add_conversation(convo);
 
@@ -487,13 +487,13 @@ mod tests {
 
     #[test]
     fn scheduler_get_from_empty_returns_none() {
-        let scheduler = ConvoScheduler::<ExplorerBag>::new();
+        let scheduler = ConvoScheduler::<ExplorerBagContent>::new();
         assert!(scheduler.get_next_conversation().is_none());
     }
 
     #[test]
     fn scheduler_clone_shares_state() {
-        let scheduler = ConvoScheduler::<ExplorerBag>::new();
+        let scheduler = ConvoScheduler::<ExplorerBagContent>::new();
         scheduler.add_conversation(Box::new(MockConversation::new(100, 1, 10, None)));
 
         let cloned = scheduler.clone();
@@ -509,7 +509,7 @@ mod tests {
 
     #[test]
     fn find_matching_conversation_by_kind_and_entity() {
-        let scheduler = ConvoScheduler::<ExplorerBag>::new();
+        let scheduler = ConvoScheduler::<ExplorerBagContent>::new();
         let kind = PossibleExpectedKinds::PlanetToOrchKind(PlanetToOrchestratorKind::AsteroidAck);
 
         let convo = Box::new(MockConversation::with_expected_kind(
@@ -527,7 +527,7 @@ mod tests {
 
     #[test]
     fn find_matching_conversation_wrong_entity() {
-        let scheduler = ConvoScheduler::<ExplorerBag>::new();
+        let scheduler = ConvoScheduler::<ExplorerBagContent>::new();
         let kind = PossibleExpectedKinds::PlanetToOrchKind(PlanetToOrchestratorKind::AsteroidAck);
 
         let convo = Box::new(MockConversation::with_expected_kind(
@@ -544,7 +544,7 @@ mod tests {
 
     #[test]
     fn find_matching_conversation_wrong_kind() {
-        let scheduler = ConvoScheduler::<ExplorerBag>::new();
+        let scheduler = ConvoScheduler::<ExplorerBagContent>::new();
         let kind1 = PossibleExpectedKinds::PlanetToOrchKind(PlanetToOrchestratorKind::AsteroidAck);
         let kind2 = PossibleExpectedKinds::PlanetToOrchKind(PlanetToOrchestratorKind::SunrayAck);
 
@@ -558,7 +558,7 @@ mod tests {
 
     #[test]
     fn find_matching_conversation_no_expected_kind() {
-        let scheduler = ConvoScheduler::<ExplorerBag>::new();
+        let scheduler = ConvoScheduler::<ExplorerBagContent>::new();
         let kind = PossibleExpectedKinds::PlanetToOrchKind(PlanetToOrchestratorKind::AsteroidAck);
 
         let convo = Box::new(MockConversation::new(100, 42, 10, None));
@@ -570,7 +570,7 @@ mod tests {
 
     #[test]
     fn find_matching_multiple_same_kind_different_entities() {
-        let scheduler = ConvoScheduler::<ExplorerBag>::new();
+        let scheduler = ConvoScheduler::<ExplorerBagContent>::new();
         let kind = PossibleExpectedKinds::PlanetToOrchKind(PlanetToOrchestratorKind::AsteroidAck);
 
         scheduler.add_conversation(Box::new(MockConversation::with_expected_kind(
@@ -611,14 +611,14 @@ mod tests {
 
     #[test]
     fn get_waiting_message_not_found() {
-        let scheduler = ConvoScheduler::<ExplorerBag>::new();
+        let scheduler = ConvoScheduler::<ExplorerBagContent>::new();
         let msg = scheduler.get_waiting_message(999);
         assert!(msg.is_none());
     }
 
     #[test]
     fn get_waiting_message_twice_returns_none() {
-        let scheduler = ConvoScheduler::<ExplorerBag>::new();
+        let scheduler = ConvoScheduler::<ExplorerBagContent>::new();
         scheduler.get_waiting_message(100);
         let msg = scheduler.get_waiting_message(100);
         assert!(msg.is_none());
@@ -632,7 +632,7 @@ mod tests {
     fn concurrent_add() {
         use std::thread;
 
-        let scheduler = Arc::new(ConvoScheduler::<ExplorerBag>::new());
+        let scheduler = Arc::new(ConvoScheduler::<ExplorerBagContent>::new());
         let mut handles = vec![];
 
         for thread_id in 0..4 {
@@ -667,7 +667,7 @@ mod tests {
     fn concurrent_get() {
         use std::thread;
 
-        let scheduler = Arc::new(ConvoScheduler::<ExplorerBag>::new());
+        let scheduler = Arc::new(ConvoScheduler::<ExplorerBagContent>::new());
 
         for i in 0..100 {
             scheduler.add_conversation(Box::new(MockConversation::new(
@@ -686,6 +686,7 @@ mod tests {
             let results_clone = results.clone();
             let handle = thread::spawn(move || {
                 while let Some(convo) = scheduler_clone.get_next_conversation() {
+                    let convo: Box<dyn Conversation<ExplorerBagContent> + Send + Sync> = convo;
                     results_clone.lock().unwrap().push(convo.get_id());
                 }
             });
@@ -704,7 +705,7 @@ mod tests {
     fn concurrent_add_and_get() {
         use std::thread;
 
-        let scheduler = Arc::new(ConvoScheduler::<ExplorerBag>::new());
+        let scheduler = Arc::new(ConvoScheduler::<ExplorerBagContent>::new());
         let results = Arc::new(Mutex::new(Vec::new()));
 
         let scheduler_producer = scheduler.clone();
@@ -726,6 +727,7 @@ mod tests {
             let mut count = 0;
             while count < 50 {
                 if let Some(convo) = scheduler_consumer.get_next_conversation() {
+                    let convo: Box<dyn Conversation<ExplorerBagContent> + Send + Sync> = convo;
                     results_clone.lock().unwrap().push(convo.get_id());
                     count += 1;
                 }
@@ -774,7 +776,7 @@ mod tests {
         }
     }
 
-    impl Conversation<ExplorerBag> for TimeoutMockConversation {
+    impl Conversation<ExplorerBagContent> for TimeoutMockConversation {
         fn get_id(&self) -> ID {
             self.id
         }
@@ -791,8 +793,8 @@ mod tests {
 
         fn transition(
             self: Box<Self>,
-            _msg: Option<PossibleMessage<ExplorerBag>>,
-        ) -> Option<Box<dyn Conversation<ExplorerBag> + Send + Sync>> {
+            _msg: Option<PossibleMessage<ExplorerBagContent>>,
+        ) -> Option<Box<dyn Conversation<ExplorerBagContent> + Send + Sync>> {
             None
         }
 
@@ -812,7 +814,7 @@ mod tests {
 
     #[test]
     fn timeout_registered_when_conversation_added() {
-        let scheduler = ConvoScheduler::<ExplorerBag>::new();
+        let scheduler = ConvoScheduler::<ExplorerBagContent>::new();
         let timeout_duration = Duration::from_millis(100);
 
         let convo = TimeoutMockConversation::new(1, 10, Some(timeout_duration));
@@ -827,7 +829,7 @@ mod tests {
 
     #[test]
     fn no_timeout_registered_for_conversation_without_timeout() {
-        let scheduler = ConvoScheduler::<ExplorerBag>::new();
+        let scheduler = ConvoScheduler::<ExplorerBagContent>::new();
 
         let convo = MockConversation::new(1, 10, 1, None);
         scheduler.add_conversation(Box::new(convo));
@@ -839,7 +841,7 @@ mod tests {
 
     #[test]
     fn timeout_cleared_when_message_arrives() {
-        let scheduler = ConvoScheduler::<ExplorerBag>::new();
+        let scheduler = ConvoScheduler::<ExplorerBagContent>::new();
         let timeout_duration = Duration::from_secs(10);
 
         let convo = TimeoutMockConversation::new(1, 10, Some(timeout_duration));
@@ -862,7 +864,7 @@ mod tests {
 
     #[test]
     fn handle_timeouts_calls_on_timeout() {
-        let scheduler = ConvoScheduler::<ExplorerBag>::new();
+        let scheduler = ConvoScheduler::<ExplorerBagContent>::new();
 
         // Add a conversation with a very short timeout
         let on_timeout_called = Arc::new(Mutex::new(false));
@@ -895,7 +897,7 @@ mod tests {
 
     #[test]
     fn handle_timeouts_does_nothing_before_expiry() {
-        let scheduler = ConvoScheduler::<ExplorerBag>::new();
+        let scheduler = ConvoScheduler::<ExplorerBagContent>::new();
 
         // Add a conversation with a long timeout
         let convo = TimeoutMockConversation::new(1, 10, Some(Duration::from_secs(60)));
@@ -910,7 +912,7 @@ mod tests {
 
     #[test]
     fn get_timed_out_conversations_works() {
-        let scheduler = ConvoScheduler::<ExplorerBag>::new();
+        let scheduler = ConvoScheduler::<ExplorerBagContent>::new();
 
         // Manually set a timeout that has already expired
         scheduler.timeouts.lock().unwrap().insert(
@@ -928,7 +930,7 @@ mod tests {
 
     #[test]
     fn is_timed_out_works() {
-        let scheduler = ConvoScheduler::<ExplorerBag>::new();
+        let scheduler = ConvoScheduler::<ExplorerBagContent>::new();
 
         // Not registered = not timed out
         assert!(!scheduler.is_timed_out(1));

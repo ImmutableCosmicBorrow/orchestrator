@@ -1,5 +1,5 @@
 use crate::logging_utils::log_internal;
-use crate::orchestrator::ExplorerBag;
+use crate::orchestrator::ExplorerBagContent;
 use crate::orchestrator::conversations::PossibleExpectedKinds::PlanetToOrchKind;
 use crate::orchestrator::conversations::{
     CommonErrorTypes, Conversation, ErrorState, PossibleExpectedKinds, PossibleMessage,
@@ -63,7 +63,7 @@ struct InternalStateConversation<State> {
 }
 
 // SENDING INTERNAL STATE REQUEST IMPLEMENTATION
-impl Conversation<ExplorerBag> for InternalStateConversation<SendingInternalStateRequest> {
+impl Conversation<ExplorerBagContent> for InternalStateConversation<SendingInternalStateRequest> {
     fn get_id(&self) -> ID {
         self.id
     }
@@ -87,8 +87,8 @@ impl Conversation<ExplorerBag> for InternalStateConversation<SendingInternalStat
     /// The next state: [`InternalStateConversation<WaitingInternalStateResponse>`] if the request was sent successfully.
     fn transition(
         self: Box<Self>,
-        _msg_wrapped: Option<PossibleMessage<ExplorerBag>>,
-    ) -> Option<Box<dyn Conversation<ExplorerBag> + Send + Sync>> {
+        _msg_wrapped: Option<PossibleMessage<ExplorerBagContent>>,
+    ) -> Option<Box<dyn Conversation<ExplorerBagContent> + Send + Sync>> {
         match self
             .state
             .to_planet_struct
@@ -109,7 +109,7 @@ impl Conversation<ExplorerBag> for InternalStateConversation<SendingInternalStat
                     ToPlanetError::SenderNotFound(id) => CommonErrorTypes::PlanetSenderNotFound(id),
                 };
                 let error_state = ErrorState::new(Box::new(error), self.id);
-                Some(Box::new(error_state) as Box<dyn Conversation<ExplorerBag> + Send + Sync>)
+                Some(Box::new(error_state) as Box<dyn Conversation<ExplorerBagContent> + Send + Sync>)
             }
         }
     }
@@ -130,7 +130,7 @@ impl InternalStateConversation<SendingInternalStateRequest> {
 }
 
 // WAITING RESPONSE IMPLEMENTATION
-impl Conversation<ExplorerBag> for InternalStateConversation<WaitingInternalStateResponse> {
+impl Conversation<ExplorerBagContent> for InternalStateConversation<WaitingInternalStateResponse> {
     fn get_id(&self) -> ID {
         self.id
     }
@@ -152,8 +152,8 @@ impl Conversation<ExplorerBag> for InternalStateConversation<WaitingInternalStat
     /// [`ErrorState`] with [`CommonErrorTypes::WrongMessage`] if the trigger message is different from the expected one [`PlanetToOrchestrator::InternalStateResponse`]
     fn transition(
         self: Box<Self>,
-        msg_wrapped: Option<PossibleMessage<ExplorerBag>>,
-    ) -> Option<Box<dyn Conversation<ExplorerBag> + Send + Sync>> {
+        msg_wrapped: Option<PossibleMessage<ExplorerBagContent>>,
+    ) -> Option<Box<dyn Conversation<ExplorerBagContent> + Send + Sync>> {
         if let Some(PossibleMessage::PlanetToOrch(PlanetToOrchestrator::InternalStateResponse {
             planet_id,
             planet_state,
@@ -174,7 +174,7 @@ impl Conversation<ExplorerBag> for InternalStateConversation<WaitingInternalStat
 
         //Wrong Message, close conversation
         let error_state = ErrorState::new(Box::new(CommonErrorTypes::WrongMessage), self.id);
-        Some(Box::new(error_state) as Box<dyn Conversation<ExplorerBag> + Send + Sync>)
+        Some(Box::new(error_state) as Box<dyn Conversation<ExplorerBagContent> + Send + Sync>)
     }
 
     fn get_priority(&self) -> i32 {

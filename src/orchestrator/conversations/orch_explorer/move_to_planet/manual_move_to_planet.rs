@@ -1,4 +1,4 @@
-use crate::orchestrator::ExplorerBag;
+use common_explorer::ExplorerBagContent;
 use crate::orchestrator::conversations::orch_explorer::move_to_planet::{
     MoveToPlanetConversation, SendIncomingRequest, SendManualMoveRequest,
 };
@@ -11,7 +11,7 @@ use common_game::utils::ID;
 /// specific game logic) rather than an explorer's own request. It serves as an
 /// initialization point for forced transitions.
 // SEND MANUAL MOVE REQUEST IMPLEMENTATION
-impl Conversation<ExplorerBag> for MoveToPlanetConversation<SendManualMoveRequest> {
+impl Conversation<ExplorerBagContent> for MoveToPlanetConversation<SendManualMoveRequest> {
     /// Returns the unique ID of the conversation instance.
     fn get_id(&self) -> ID {
         self.id
@@ -48,8 +48,8 @@ impl Conversation<ExplorerBag> for MoveToPlanetConversation<SendManualMoveReques
     /// the process of notifying the destination planet of the entity's arrival.
     fn transition(
         self: Box<Self>,
-        _msg_wrapped: Option<PossibleMessage<ExplorerBag>>,
-    ) -> Option<Box<dyn Conversation<ExplorerBag> + Send + Sync>> {
+        _msg_wrapped: Option<PossibleMessage<ExplorerBagContent>>,
+    ) -> Option<Box<dyn Conversation<ExplorerBagContent> + Send + Sync>> {
         let handle_outgoing = self.explorer_is_in_planets();
 
         let state_struct = SendIncomingRequest::new(

@@ -7,7 +7,7 @@
 use crate::logging_utils::log_internal;
 use crate::orchestrator::conversations::{self, SendersToExplorer, SendersToPlanet};
 use crate::orchestrator::queue::ConvoScheduler;
-use crate::orchestrator::{ExplorerBag, ExplorersLocationRef};
+use crate::orchestrator::{ExplorerBagContent, ExplorersLocationRef};
 use crate::payload;
 use crate::planet::PlanetMap;
 
@@ -427,7 +427,7 @@ struct ConversationCtx {
     planets_senders: SendersToPlanet,
     forge: Arc<Forge>,
     explorer_senders: SendersToExplorer,
-    convo_scheduler: ConvoScheduler<ExplorerBag>,
+    convo_scheduler: ConvoScheduler<ExplorerBagContent>,
 }
 
 //
@@ -452,7 +452,7 @@ fn send_asteroid(universe: &UniverseCtx, convo: &ConversationCtx, planet_id: ID)
     convo
         .convo_scheduler
         .add_conversation(Box::new(conversation)
-            as Box<dyn conversations::Conversation<ExplorerBag> + Send + Sync>);
+            as Box<dyn conversations::Conversation<ExplorerBagContent> + Send + Sync>);
 
     // Log scheduling of asteroid conversation
     log_internal(
@@ -477,7 +477,7 @@ fn send_sunray(convo: &ConversationCtx, planet_id: ID) {
     convo
         .convo_scheduler
         .add_conversation(Box::new(conversation)
-            as Box<dyn conversations::Conversation<ExplorerBag> + Send + Sync>);
+            as Box<dyn conversations::Conversation<ExplorerBagContent> + Send + Sync>);
 
     // Log scheduling of sunray conversation
     log_internal(
@@ -699,7 +699,7 @@ pub fn init_background_event_scheduler(
     forge: Arc<Forge>,
     explorers_location: ExplorersLocationRef,
     explorer_senders: SendersToExplorer,
-    convo_scheduler: ConvoScheduler<ExplorerBag>,
+    convo_scheduler: ConvoScheduler<ExplorerBagContent>,
     galaxy: PlanetMap,
 ) {
     let ctrl = scheduler_ctrl();

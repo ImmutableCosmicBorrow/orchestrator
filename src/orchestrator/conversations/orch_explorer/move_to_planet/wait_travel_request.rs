@@ -1,6 +1,5 @@
 use crate::globals::get_explorer_timeout;
 use crate::logging_utils::log_internal;
-use crate::orchestrator::ExplorerBag;
 use crate::orchestrator::conversations::PossibleExpectedKinds::ExplorerToOrchKind;
 use crate::orchestrator::conversations::orch_explorer::move_to_planet::WaitingTravelRequest;
 use crate::orchestrator::conversations::orch_explorer::move_to_planet::{
@@ -16,6 +15,7 @@ use common_game::protocols::orchestrator_explorer::{
 };
 use common_game::utils::ID;
 use std::time::Duration;
+use common_explorer::ExplorerBagContent;
 
 ///**Move To Planet Conversation - Waiting Travel Request**
 ///
@@ -30,7 +30,7 @@ use std::time::Duration;
 ///    [`SendMoveRequest`] with a failure flag to inform the explorer that the move is impossible.
 /// 4. **Error Handling:** If an unexpected message type is received, transitions to an [`ErrorState`].
 // WAITING TRAVEL REQUEST IMPLEMENTATION
-impl Conversation<ExplorerBag> for MoveToPlanetConversation<WaitingTravelRequest> {
+impl Conversation<ExplorerBagContent> for MoveToPlanetConversation<WaitingTravelRequest> {
     /// Returns the unique ID of the conversation instance.
     fn get_id(&self) -> ID {
         self.id
@@ -55,8 +55,8 @@ impl Conversation<ExplorerBag> for MoveToPlanetConversation<WaitingTravelRequest
     /// proceed with the travel handshake or reject the request.
     fn transition(
         self: Box<Self>,
-        msg_wrapped: Option<PossibleMessage<ExplorerBag>>,
-    ) -> Option<Box<dyn Conversation<ExplorerBag> + Send + Sync>> {
+        msg_wrapped: Option<PossibleMessage<ExplorerBagContent>>,
+    ) -> Option<Box<dyn Conversation<ExplorerBagContent> + Send + Sync>> {
         if let Some(PossibleMessage::ExplorerToOrch(
             ExplorerToOrchestrator::TravelToPlanetRequest {
                 explorer_id: _explorer_id,
@@ -106,7 +106,7 @@ impl Conversation<ExplorerBag> for MoveToPlanetConversation<WaitingTravelRequest
 
         // Case 3: Invalid message or timeout.
         let error_state = ErrorState::new(Box::new(CommonErrorTypes::WrongMessage), self.id);
-        Some(Box::new(error_state) as Box<dyn Conversation<ExplorerBag> + Send + Sync>)
+        Some(Box::new(error_state) as Box<dyn Conversation<ExplorerBagContent> + Send + Sync>)
     }
 
     /// Returns the priority of this conversation within the orchestrator's queue.

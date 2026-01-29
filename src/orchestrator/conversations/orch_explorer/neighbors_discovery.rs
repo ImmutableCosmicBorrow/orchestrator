@@ -1,6 +1,6 @@
 use crate::globals::get_explorer_timeout;
 use crate::logging_utils::log_internal;
-use crate::orchestrator::ExplorerBag;
+use crate::orchestrator::ExplorerBagContent;
 use crate::orchestrator::conversations::PossibleExpectedKinds::ExplorerToOrchKind;
 use crate::orchestrator::conversations::{
     CommonErrorTypes, Conversation, ErrorState, ErrorType, PossibleExpectedKinds, PossibleMessage,
@@ -88,7 +88,7 @@ pub(crate) struct NeighborsDiscoveryConversation<State> {
 }
 
 // SENDING NEIGHBORS RESPONSE IMPLEMENTATION
-impl Conversation<ExplorerBag> for NeighborsDiscoveryConversation<SendingNeighborsResponse> {
+impl Conversation<ExplorerBagContent> for NeighborsDiscoveryConversation<SendingNeighborsResponse> {
     fn get_id(&self) -> ID {
         self.id
     }
@@ -110,8 +110,8 @@ impl Conversation<ExplorerBag> for NeighborsDiscoveryConversation<SendingNeighbo
     /// [`ErrorState`] if the message failed to send or the explorer's sender is missing.
     fn transition(
         self: Box<Self>,
-        _msg_wrapped: Option<PossibleMessage<ExplorerBag>>,
-    ) -> Option<Box<dyn Conversation<ExplorerBag> + Send + Sync>> {
+        _msg_wrapped: Option<PossibleMessage<ExplorerBagContent>>,
+    ) -> Option<Box<dyn Conversation<ExplorerBagContent> + Send + Sync>> {
         match self
             .state
             .to_explorer_struct
@@ -139,7 +139,7 @@ impl Conversation<ExplorerBag> for NeighborsDiscoveryConversation<SendingNeighbo
                     }
                 };
                 let error_state = ErrorState::new(Box::new(error), self.id);
-                Some(Box::new(error_state) as Box<dyn Conversation<ExplorerBag> + Send + Sync>)
+                Some(Box::new(error_state) as Box<dyn Conversation<ExplorerBagContent> + Send + Sync>)
             }
         }
     }
@@ -161,7 +161,7 @@ impl NeighborsDiscoveryConversation<SendingNeighborsResponse> {
 }
 
 // WAITING EXPLORER NEIGHBORS REQUEST IMPLEMENTATION
-impl Conversation<ExplorerBag> for NeighborsDiscoveryConversation<WaitingExplorerNeighborsRequest> {
+impl Conversation<ExplorerBagContent> for NeighborsDiscoveryConversation<WaitingExplorerNeighborsRequest> {
     fn get_id(&self) -> ID {
         self.id
     }
@@ -183,8 +183,8 @@ impl Conversation<ExplorerBag> for NeighborsDiscoveryConversation<WaitingExplore
     /// [`ErrorState`] if the planet ID is not found in the galaxy or a wrong message type is received.
     fn transition(
         self: Box<Self>,
-        msg_wrapped: Option<PossibleMessage<ExplorerBag>>,
-    ) -> Option<Box<dyn Conversation<ExplorerBag> + Send + Sync>> {
+        msg_wrapped: Option<PossibleMessage<ExplorerBagContent>>,
+    ) -> Option<Box<dyn Conversation<ExplorerBagContent> + Send + Sync>> {
         if let Some(PossibleMessage::ExplorerToOrch(ExplorerToOrchestrator::NeighborsRequest {
             explorer_id: _explorer_id,
             current_planet_id,
@@ -210,7 +210,7 @@ impl Conversation<ExplorerBag> for NeighborsDiscoveryConversation<WaitingExplore
 
         //Wrong Message, close conversation
         let error_state = ErrorState::new(Box::new(CommonErrorTypes::WrongMessage), self.id);
-        Some(Box::new(error_state) as Box<dyn Conversation<ExplorerBag> + Send + Sync>)
+        Some(Box::new(error_state) as Box<dyn Conversation<ExplorerBagContent> + Send + Sync>)
     }
 
     fn get_priority(&self) -> i32 {

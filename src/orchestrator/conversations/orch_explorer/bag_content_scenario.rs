@@ -1,6 +1,5 @@
 use crate::globals::get_explorer_timeout;
 use crate::logging_utils::log_internal;
-use crate::orchestrator::ExplorerBag;
 use crate::orchestrator::conversations::{
     CommonErrorTypes, Conversation, ErrorState, PossibleExpectedKinds, PossibleMessage,
     ToExplorerError, ToExplorerStruct,
@@ -12,6 +11,7 @@ use common_game::protocols::orchestrator_explorer::{
 };
 use common_game::utils::ID;
 use std::time::Duration;
+use common_explorer::ExplorerBagContent;
 
 ///**Bag Content Conversation**
 ///
@@ -67,7 +67,7 @@ struct BagContentConversation<State> {
 }
 
 // SENDING BAG CONTENT REQUEST IMPLEMENTATION
-impl Conversation<ExplorerBag> for BagContentConversation<SendingBagContentRequest> {
+impl Conversation<ExplorerBagContent> for BagContentConversation<SendingBagContentRequest> {
     fn get_id(&self) -> ID {
         self.id
     }
@@ -91,8 +91,8 @@ impl Conversation<ExplorerBag> for BagContentConversation<SendingBagContentReque
     /// The next state: [`BagContentConversation<WaitingBagContentResponse>`] if the request was sent successfully.
     fn transition(
         self: Box<Self>,
-        _msg_wrapped: Option<PossibleMessage<ExplorerBag>>,
-    ) -> Option<Box<dyn Conversation<ExplorerBag> + Send + Sync>> {
+        _msg_wrapped: Option<PossibleMessage<ExplorerBagContent>>,
+    ) -> Option<Box<dyn Conversation<ExplorerBagContent> + Send + Sync>> {
         match self
             .state
             .to_explorer_struct
@@ -114,7 +114,7 @@ impl Conversation<ExplorerBag> for BagContentConversation<SendingBagContentReque
                     }
                 };
                 let error_state = ErrorState::new(Box::new(error), self.id);
-                Some(Box::new(error_state) as Box<dyn Conversation<ExplorerBag> + Send + Sync>)
+                Some(Box::new(error_state) as Box<dyn Conversation<ExplorerBagContent> + Send + Sync>)
             }
         }
     }
@@ -136,7 +136,7 @@ impl BagContentConversation<SendingBagContentRequest> {
 }
 
 // WAITING BAG CONTENT RESPONSE IMPLEMENTATION
-impl Conversation<ExplorerBag> for BagContentConversation<WaitingBagContentResponse> {
+impl Conversation<ExplorerBagContent> for BagContentConversation<WaitingBagContentResponse> {
     fn get_id(&self) -> ID {
         self.id
     }
@@ -158,8 +158,8 @@ impl Conversation<ExplorerBag> for BagContentConversation<WaitingBagContentRespo
     /// [`ErrorState`] with [`CommonErrorTypes::WrongMessage`] if the received message does not match the expected response kind.
     fn transition(
         self: Box<Self>,
-        msg_wrapped: Option<PossibleMessage<ExplorerBag>>,
-    ) -> Option<Box<dyn Conversation<ExplorerBag> + Send + Sync>> {
+        msg_wrapped: Option<PossibleMessage<ExplorerBagContent>>,
+    ) -> Option<Box<dyn Conversation<ExplorerBagContent> + Send + Sync>> {
         if let Some(PossibleMessage::ExplorerToOrch(ExplorerToOrchestrator::BagContentResponse {
             explorer_id,
             bag_content,
@@ -180,7 +180,7 @@ impl Conversation<ExplorerBag> for BagContentConversation<WaitingBagContentRespo
 
         //Wrong Message, close conversation
         let error_state = ErrorState::new(Box::new(CommonErrorTypes::WrongMessage), self.id);
-        Some(Box::new(error_state) as Box<dyn Conversation<ExplorerBag> + Send + Sync>)
+        Some(Box::new(error_state) as Box<dyn Conversation<ExplorerBagContent> + Send + Sync>)
     }
 
     fn get_priority(&self) -> i32 {
@@ -220,7 +220,7 @@ mod tests {
     const CONV_ID: u32 = 1;
     const EXPLORER_ID: u32 = 2;
 
-    struct DummyExplorerBag;
+    struct DummyExplorerBagContent;
 
     // --- Helper functions ---
 

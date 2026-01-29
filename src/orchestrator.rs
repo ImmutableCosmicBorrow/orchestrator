@@ -29,8 +29,7 @@ use crate::orchestrator::conversations::orch_explorer::stop_explorer::{
 use crate::orchestrator::conversations::orch_planet::{
     SendingPlanetStart, StartPlanetConversation,
 };
-use common_explorer::ExplorerAI;
-pub(crate) use common_explorer::ExplorerBagContent;
+use common_explorer::{ExplorerAI, ExplorerBagContent};
 use common_game::components::forge::Forge;
 use common_game::logging::Channel;
 use common_game::protocols::orchestrator_explorer::{
@@ -53,7 +52,6 @@ pub enum ExplorerType {
     Nico,
     Jaco,
 }
-type ExplorerBag = ExplorerBagContent;
 
 #[derive(Clone)]
 pub(crate) struct PlanetExplorerChannels {
@@ -65,10 +63,10 @@ pub struct Orchestrator {
     planets_senders: SendersToPlanet,
     explorer_senders: SendersToExplorer,
     planets_receiver: Receiver<PlanetToOrchestrator>,
-    explorers_receiver: Receiver<ExplorerToOrchestrator<ExplorerBag>>,
+    explorers_receiver: Receiver<ExplorerToOrchestrator<ExplorerBagContent>>,
     explorer_to_orchestrator_sender: Sender<ExplorerToOrchestrator<ExplorerBagContent>>,
     forge: Arc<Forge>,
-    convo_scheduler: ConvoScheduler<ExplorerBag>,
+    convo_scheduler: ConvoScheduler<ExplorerBagContent>,
     galaxy: PlanetMap,
     planet_explorer_channels: PlanetExplorerChannels,
     explorers_location: ExplorersLocationRef,
@@ -336,7 +334,7 @@ impl Orchestrator {
 
         self.convo_scheduler
             .add_conversation(Box::new(new_conv)
-                as Box<dyn conversations::Conversation<ExplorerBag> + Send + Sync>);
+                as Box<dyn conversations::Conversation<ExplorerBagContent> + Send + Sync>);
 
         /*self.handle_message(PossibleMessage::ExplorerToOrch(
             ExplorerToOrchestrator::NeighborsRequest {
@@ -375,7 +373,7 @@ impl Orchestrator {
         id
     }
 
-    fn handle_message(&mut self, message: PossibleMessage<ExplorerBag>) {
+    fn handle_message(&mut self, message: PossibleMessage<ExplorerBagContent>) {
         // TODO! idk if this is really needed, because without this, if i run with log=info or log=debug it works, but log=trace doesn't
         // I think it's because emitting logs is slow, so process_messages thread goes slower and does not add the new expected message fast enough
 
@@ -406,7 +404,7 @@ impl Orchestrator {
 
     fn try_create_conversation(
         &mut self,
-        message: &PossibleMessage<ExplorerBag>,
+        message: &PossibleMessage<ExplorerBagContent>,
         message_kind: &conversations::PossibleExpectedKinds,
         entities_ids: (Option<ID>, Option<ID>),
     ) -> Option<ID> {

@@ -1,7 +1,7 @@
 use crate::galaxy_setup::OrchPlanSenderMap;
 use crate::globals::TIMEOUT;
 use crate::logging_utils::{log_internal, log_msg_to};
-use crate::orchestrator::ExplorerBag;
+use crate::orchestrator::ExplorerBagContent;
 use crate::payload;
 use common_game::logging::{ActorType, Channel, EventType};
 use common_game::protocols::orchestrator_explorer::{
@@ -340,7 +340,7 @@ impl ErrorState {
     }
 }
 
-impl Conversation<ExplorerBag> for ErrorState {
+impl Conversation<ExplorerBagContent> for ErrorState {
     fn get_id(&self) -> ID {
         self.id
     }
@@ -353,8 +353,8 @@ impl Conversation<ExplorerBag> for ErrorState {
 
     fn transition(
         self: Box<Self>,
-        _msg_wrapped: Option<PossibleMessage<ExplorerBag>>,
-    ) -> Option<Box<dyn Conversation<ExplorerBag> + Send + Sync>> {
+        _msg_wrapped: Option<PossibleMessage<ExplorerBagContent>>,
+    ) -> Option<Box<dyn Conversation<ExplorerBagContent> + Send + Sync>> {
         log_internal(
             Channel::Warning,
             payload!(
