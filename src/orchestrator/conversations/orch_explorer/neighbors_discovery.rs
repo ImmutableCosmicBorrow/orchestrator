@@ -206,7 +206,8 @@ impl Conversation<ExplorerBagContent>
                 }
                 Err(err) => {
                     let error_struct = ErrorState::new(err, self.id);
-                    Some(Box::new(error_struct))
+                    Some(Box::new(error_struct)
+                        as Box<dyn Conversation<ExplorerBagContent> + Send + Sync>)
                 }
             };
         }
@@ -327,7 +328,7 @@ mod tests {
         let conv = make_wait_conv(senders, INIT_PATH);
         let msg = PossibleMessage::ExplorerToOrch(ExplorerToOrchestrator::NeighborsRequest {
             explorer_id: EXPLORER_ID,
-            current_planet_id: 1_010_001, // Valid planet ID from galaxy.json
+            current_planet_id: 49_153, // Valid planet ID from galaxy.json
         });
         let next_conv = conv
             .transition(Some(msg))
