@@ -11,7 +11,7 @@ use crate::planet::PlanetMap;
 use crate::{get_id_manager, payload};
 
 use crate::globals::{get_game_step, set_game_step};
-use crate::logging_utils::log_internal;
+use crate::logging_utils::{log_internal, log_msg_from};
 use crate::orchestrator::conversations::ToExplorerStruct;
 use crate::orchestrator::conversations::ToPlanetStruct;
 use crate::orchestrator::conversations::orch_explorer::kill_explorer::{
@@ -31,7 +31,7 @@ use crate::orchestrator::conversations::orch_planet::{
 };
 use common_explorer::{ExplorerAI, ExplorerBagContent};
 use common_game::components::forge::Forge;
-use common_game::logging::Channel;
+use common_game::logging::{ActorType, Channel, EventType};
 use common_game::protocols::orchestrator_explorer::{
     ExplorerToOrchestrator, OrchestratorToExplorer,
 };
@@ -199,11 +199,19 @@ impl Orchestrator {
 
         // Main loop
         loop {
-            let timeout = crossbeam_channel::after(Duration::from_millis(1000));
+            let timeout = crossbeam_channel::after(Duration::from_millis(100));
             select! {
                 recv(self.planets_receiver) -> msg => {
                     match msg {
                         Ok(msg) => {
+                            log_msg_from(
+                                Channel::Trace,
+                                EventType::MessagePlanetToOrchestrator,
+                                (ActorType::Planet, msg.planet_id()),
+                                payload!(
+                                    msg : format!("{msg:?}"),
+                                )
+                            );
                             self.handle_message(PossibleMessage::PlanetToOrch(msg));
                         }
                         Err(e) => {
@@ -220,6 +228,14 @@ impl Orchestrator {
                 recv(self.explorers_receiver) -> msg => {
                     match msg {
                         Ok(msg) => {
+                            log_msg_from(
+                                Channel::Trace,
+                                EventType::MessageExplorerToOrchestrator,
+                                (ActorType::Planet, msg.explorer_id()),
+                                payload!(
+                                    msg : format!("{msg:?}"),
+                                )
+                            );
                             self.handle_message(PossibleMessage::ExplorerToOrch(msg));
                         }
                         Err(e) => {
