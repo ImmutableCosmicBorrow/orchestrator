@@ -428,7 +428,7 @@ impl Orchestrator {
                 );
             }
             AddPlanet(planet_id, connected_planets) => {
-                planet::add_planet_with_neighbors(&self.galaxy, planet_id, connected_planets);  
+                planet::add_planet_with_neighbors(&self.galaxy, planet_id, connected_planets);
             }
 
             // Explorer Movement Commands
@@ -444,8 +444,6 @@ impl Orchestrator {
                     current_planet,
                     dst_planet,
                 );
-
-            
             }
 
             // Explorer Resource Commands
@@ -504,7 +502,6 @@ impl Orchestrator {
                     &self.forge,
                     planet_id,
                 );
-
             }
 
             // Planet AI Control Commands
@@ -514,7 +511,6 @@ impl Orchestrator {
                     &self.planets_senders,
                     planet_id,
                 );
-
             }
             StopPlanetAI(planet_id) => {
                 convo_factory::create_stop_planet_conversation(
@@ -522,9 +518,9 @@ impl Orchestrator {
                     &self.planets_senders,
                     planet_id,
                 );
-
             }
-            ResetPlanetAI(planet_id) => { // morally a stop + start
+            ResetPlanetAI(planet_id) => {
+                // morally a stop + start
                 convo_factory::create_stop_planet_conversation(
                     &self.convo_scheduler,
                     &self.planets_senders,
@@ -536,7 +532,6 @@ impl Orchestrator {
                     &self.planets_senders,
                     planet_id,
                 );
-
             }
             KillPlanetAI(planet_id) => {
                 convo_factory::create_kill_planet_conversation(
@@ -546,7 +541,6 @@ impl Orchestrator {
                     &self.explorers_location,
                     planet_id,
                 );
-
             }
 
             // Explorer AI Control Commands
@@ -570,7 +564,6 @@ impl Orchestrator {
                     &self.explorer_senders,
                     explorer_id,
                 );
-
             }
             KillExplorerAI(explorer_id) => {
                 convo_factory::create_kill_explorer_conversation(
@@ -579,12 +572,15 @@ impl Orchestrator {
                     &self.planets_senders,
                     &self.explorers_location,
                     explorer_id,
-                    self.explorers_location.lock().unwrap().get(&explorer_id).unwrap().clone(), //TODO: CHECK THAT
-                    true
+                    *self
+                        .explorers_location
+                        .lock()
+                        .unwrap()
+                        .get(&explorer_id)
+                        .unwrap(), //TODO: CHECK THAT
+                    true,
                 );
             }
-
-            
         }
     }
 
@@ -720,7 +716,7 @@ impl Orchestrator {
             .unwrap()
             .insert(id, tx_orchestrator_to_explorer);
 
-        if let Some(planet_sender) = self
+        if let Some(_planet_sender) = self
             .planet_explorer_channels
             .explorer_to_planet_senders
             .lock()
@@ -731,8 +727,6 @@ impl Orchestrator {
             let mut explorer: Box<dyn ExplorerAI + Send> = match explorer_type {
                 ExplorerType::Nico => Box::new(explorer_nico::Explorer::new(
                     id,
-                    into_planet,
-                    planet_sender.clone(),
                     self.explorer_to_orchestrator_sender.clone(),
                     rx_orchestrator_to_explorer,
                     rx_planet_to_explorer,

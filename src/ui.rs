@@ -32,7 +32,7 @@ pub enum UiToOrchestratorCommand {
     // asteroid/sunrays commands
     SendManualAsteroid(ID),
     SendManualSunray(ID),
-   
+
     // start/stop/reset/kill AI commands
     StartPlanetAI(ID),
     StopPlanetAI(ID),
@@ -47,7 +47,7 @@ pub enum UiToOrchestratorCommand {
 // Updates the orchestrator sends back
 pub enum OrchestratorToUiUpdate {
     //rendering commands
-    Galaxy(PlanetMap), 
+    Galaxy(PlanetMap),
     DeadPlanet(ID),
     ExplorersPosition(ExplorersLocationRef),
     PlanetSnapshot(ID, DummyPlanetState),
