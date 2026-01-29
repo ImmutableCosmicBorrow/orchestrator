@@ -222,18 +222,18 @@ impl Conversation<ExplorerBagContent> for MoveToPlanetConversation<WaitMoveToPla
                         conversation_id : self.id
                     ),
                 );
+            } else {
+                // Explorer responded correctly but move was disallowed previously
+                log_internal(
+                    Channel::Warning,
+                    payload!(
+                        action : "Explorer cannot move (destination not a neighbor), closing conversation",
+                        explorer_id : explorer_id,
+                        destination_planet_id : planet_id,
+                        conversation_id : self.id
+                    ),
+                );
             }
-
-            // Explorer responded correctly but move was disallowed previously
-            log_internal(
-                Channel::Warning,
-                payload!(
-                    action : "Explorer cannot move (destination not a neighbor), closing conversation",
-                    explorer_id : explorer_id,
-                    destination_planet_id : planet_id,
-                    conversation_id : self.id
-                ),
-            );
             return None; // Graceful close
         }
         // Wrong message, closing Conversation
