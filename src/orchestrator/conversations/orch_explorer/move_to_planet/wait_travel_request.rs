@@ -9,13 +9,13 @@ use crate::orchestrator::conversations::{
     CommonErrorTypes, Conversation, ErrorState, PossibleExpectedKinds, PossibleMessage,
 };
 use crate::payload;
+use common_explorer::ExplorerBagContent;
 use common_game::logging::Channel;
 use common_game::protocols::orchestrator_explorer::{
     ExplorerToOrchestrator, ExplorerToOrchestratorKind,
 };
 use common_game::utils::ID;
 use std::time::Duration;
-use common_explorer::ExplorerBagContent;
 
 ///**Move To Planet Conversation - Waiting Travel Request**
 ///

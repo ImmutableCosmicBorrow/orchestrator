@@ -5,6 +5,7 @@ use crate::orchestrator::conversations::{
     ToExplorerError, ToExplorerStruct,
 };
 use crate::payload;
+use common_explorer::ExplorerBagContent;
 use common_game::components::resource::ComplexResourceType;
 use common_game::logging::Channel;
 use common_game::protocols::orchestrator_explorer::{
@@ -12,7 +13,6 @@ use common_game::protocols::orchestrator_explorer::{
 };
 use common_game::utils::ID;
 use std::time::Duration;
-use common_explorer::ExplorerBagContent;
 
 ///**Combine Resource Conversation**
 ///
@@ -99,7 +99,9 @@ struct CombineResourceConversation<State> {
 }
 
 // SENDING COMBINE RESOURCE REQUEST IMPLEMENTATION
-impl Conversation<ExplorerBagContent> for CombineResourceConversation<SendingCombineResourceRequest> {
+impl Conversation<ExplorerBagContent>
+    for CombineResourceConversation<SendingCombineResourceRequest>
+{
     fn get_id(&self) -> ID {
         self.id
     }
@@ -148,7 +150,8 @@ impl Conversation<ExplorerBagContent> for CombineResourceConversation<SendingCom
                     }
                 };
                 let error_state = ErrorState::new(Box::new(error), self.id);
-                Some(Box::new(error_state) as Box<dyn Conversation<ExplorerBagContent> + Send + Sync>)
+                Some(Box::new(error_state)
+                    as Box<dyn Conversation<ExplorerBagContent> + Send + Sync>)
             }
         }
     }
@@ -170,7 +173,9 @@ impl CombineResourceConversation<SendingCombineResourceRequest> {
 }
 
 // WAITING COMBINE RESOURCE RESULT IMPLEMENTATION
-impl Conversation<ExplorerBagContent> for CombineResourceConversation<WaitingCombineResourceResult> {
+impl Conversation<ExplorerBagContent>
+    for CombineResourceConversation<WaitingCombineResourceResult>
+{
     fn get_id(&self) -> ID {
         self.id
     }
@@ -224,7 +229,8 @@ impl Conversation<ExplorerBagContent> for CombineResourceConversation<WaitingCom
                         resource: self.state.to_craft,
                     };
                     let error_state = ErrorState::new(Box::new(error_struct), self.id);
-                    Some(Box::new(error_state) as Box<dyn Conversation<ExplorerBagContent> + Send + Sync>)
+                    Some(Box::new(error_state)
+                        as Box<dyn Conversation<ExplorerBagContent> + Send + Sync>)
                 }
             };
         }

@@ -332,9 +332,8 @@ impl Orchestrator {
                 conversations::orch_explorer::neighbors_discovery::WaitingExplorerNeighborsRequest,
             >::new(id, state);
 
-        self.convo_scheduler
-            .add_conversation(Box::new(new_conv)
-                as Box<dyn conversations::Conversation<ExplorerBagContent> + Send + Sync>);
+        self.convo_scheduler.add_conversation(Box::new(new_conv)
+            as Box<dyn conversations::Conversation<ExplorerBagContent> + Send + Sync>);
 
         /*self.handle_message(PossibleMessage::ExplorerToOrch(
             ExplorerToOrchestrator::NeighborsRequest {

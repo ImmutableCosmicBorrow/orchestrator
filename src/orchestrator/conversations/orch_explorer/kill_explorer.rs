@@ -156,7 +156,8 @@ impl Conversation<ExplorerBagContent> for KillExplorerConversation<SendingKillEx
                     }
                 };
                 let error_state = ErrorState::new(Box::new(error), self.id);
-                Some(Box::new(error_state) as Box<dyn Conversation<ExplorerBagContent> + Send + Sync>)
+                Some(Box::new(error_state)
+                    as Box<dyn Conversation<ExplorerBagContent> + Send + Sync>)
             }
         }
     }

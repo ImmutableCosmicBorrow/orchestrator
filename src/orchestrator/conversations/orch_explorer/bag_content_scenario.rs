@@ -5,13 +5,13 @@ use crate::orchestrator::conversations::{
     ToExplorerError, ToExplorerStruct,
 };
 use crate::payload;
+use common_explorer::ExplorerBagContent;
 use common_game::logging::Channel;
 use common_game::protocols::orchestrator_explorer::{
     ExplorerToOrchestrator, ExplorerToOrchestratorKind, OrchestratorToExplorer,
 };
 use common_game::utils::ID;
 use std::time::Duration;
-use common_explorer::ExplorerBagContent;
 
 ///**Bag Content Conversation**
 ///
@@ -114,7 +114,8 @@ impl Conversation<ExplorerBagContent> for BagContentConversation<SendingBagConte
                     }
                 };
                 let error_state = ErrorState::new(Box::new(error), self.id);
-                Some(Box::new(error_state) as Box<dyn Conversation<ExplorerBagContent> + Send + Sync>)
+                Some(Box::new(error_state)
+                    as Box<dyn Conversation<ExplorerBagContent> + Send + Sync>)
             }
         }
     }

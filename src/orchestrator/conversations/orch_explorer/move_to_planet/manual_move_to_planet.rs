@@ -1,8 +1,8 @@
-use common_explorer::ExplorerBagContent;
 use crate::orchestrator::conversations::orch_explorer::move_to_planet::{
     MoveToPlanetConversation, SendIncomingRequest, SendManualMoveRequest,
 };
 use crate::orchestrator::conversations::{Conversation, PossibleExpectedKinds, PossibleMessage};
+use common_explorer::ExplorerBagContent;
 use common_game::utils::ID;
 
 ///**Move To Planet Conversation - Send Manual Move Request**

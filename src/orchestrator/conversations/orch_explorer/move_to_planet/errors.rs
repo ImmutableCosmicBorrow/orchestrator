@@ -22,7 +22,6 @@ pub(crate) enum MoveToPlanetErrors {
     /// A critical inconsistency where the planets have updated their channels,
     /// but the Orchestrator cannot find the sender for the new destination.
     NewSenderToPlanetNotFound(ID),
-
 }
 
 impl ErrorType for MoveToPlanetErrors {

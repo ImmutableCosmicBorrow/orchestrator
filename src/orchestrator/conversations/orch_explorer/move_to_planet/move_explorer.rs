@@ -8,6 +8,7 @@ use crate::orchestrator::conversations::{
     ToExplorerError,
 };
 use crate::payload;
+use common_explorer::ExplorerBagContent;
 use common_game::logging::Channel;
 use common_game::protocols::orchestrator_explorer::ExplorerToOrchestrator;
 use common_game::protocols::orchestrator_explorer::ExplorerToOrchestratorKind::MovedToPlanetResult;
@@ -16,7 +17,6 @@ use common_game::protocols::planet_explorer::ExplorerToPlanet;
 use common_game::utils::ID;
 use crossbeam_channel::Sender;
 use std::time::Duration;
-use common_explorer::ExplorerBagContent;
 
 ///**Move To Planet Conversation - Send Move Request**
 ///
@@ -78,9 +78,8 @@ impl Conversation<ExplorerBagContent> for MoveToPlanetConversation<SendMoveReque
                     self.state.dst_planet_id,
                 ));
                 let error_state = ErrorState::new(error, self.id);
-                return Some(
-                    Box::new(error_state) as Box<dyn Conversation<ExplorerBagContent> + Send + Sync>
-                );
+                return Some(Box::new(error_state)
+                    as Box<dyn Conversation<ExplorerBagContent> + Send + Sync>);
             }
         } else {
             None
@@ -116,7 +115,8 @@ impl Conversation<ExplorerBagContent> for MoveToPlanetConversation<SendMoveReque
                     }
                 };
                 let error_state = ErrorState::new(error, self.id);
-                Some(Box::new(error_state) as Box<dyn Conversation<ExplorerBagContent> + Send + Sync>)
+                Some(Box::new(error_state)
+                    as Box<dyn Conversation<ExplorerBagContent> + Send + Sync>)
             }
         }
     }
@@ -220,20 +220,19 @@ impl Conversation<ExplorerBagContent> for MoveToPlanetConversation<WaitMoveToPla
                         explorer_id : explorer_id,
                         changed_to_planet_id : planet_id,
                         conversation_id : self.id
-                    )
+                    ),
                 );
-
             }
 
             // Explorer responded correctly but move was disallowed previously
             log_internal(
                 Channel::Warning,
                 payload!(
-                        action : "Explorer cannot move (destination not a neighbor), closing conversation",
-                        explorer_id : explorer_id,
-                        destination_planet_id : planet_id,
-                        conversation_id : self.id
-                    ),
+                    action : "Explorer cannot move (destination not a neighbor), closing conversation",
+                    explorer_id : explorer_id,
+                    destination_planet_id : planet_id,
+                    conversation_id : self.id
+                ),
             );
             return None; // Graceful close
         }
@@ -265,17 +264,11 @@ impl MoveToPlanetConversation<WaitMoveToPlanetResponse> {
     }
 
     /// Internal helper to update the thread-safe global list of explorer locations.
-    fn move_explorer_location(
-        &self,
-        explorer_id: ID,
-        dst_planet_id: ID,
-    )  {
-        self
-            .state
+    fn move_explorer_location(&self, explorer_id: ID, dst_planet_id: ID) {
+        self.state
             .explorers_location_ref
             .lock()
             .unwrap()
             .insert(explorer_id, dst_planet_id);
-
     }
 }

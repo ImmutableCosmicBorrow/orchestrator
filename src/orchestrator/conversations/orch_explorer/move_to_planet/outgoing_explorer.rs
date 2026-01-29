@@ -1,4 +1,3 @@
-use common_explorer::ExplorerBagContent;
 use crate::logging_utils::log_msg_to;
 use crate::orchestrator::conversations::orch_explorer::move_to_planet::WaitingOutgoingResponse;
 use crate::orchestrator::conversations::orch_explorer::move_to_planet::errors::MoveToPlanetErrors;
@@ -10,6 +9,7 @@ use crate::orchestrator::conversations::{
     ToPlanetError,
 };
 use crate::payload;
+use common_explorer::ExplorerBagContent;
 use common_game::logging::{ActorType, Channel, EventType};
 use common_game::protocols::orchestrator_planet::{
     OrchestratorToPlanet, PlanetToOrchestrator, PlanetToOrchestratorKind,
@@ -102,7 +102,8 @@ impl Conversation<ExplorerBagContent> for MoveToPlanetConversation<SendOutgoingR
                     }
                 };
                 let error_state = ErrorState::new(error, self.id);
-                Some(Box::new(error_state) as Box<dyn Conversation<ExplorerBagContent> + Send + Sync>)
+                Some(Box::new(error_state)
+                    as Box<dyn Conversation<ExplorerBagContent> + Send + Sync>)
             }
         }
     }
@@ -188,7 +189,8 @@ impl Conversation<ExplorerBagContent> for MoveToPlanetConversation<WaitingOutgoi
                     }),
                     self.id,
                 );
-                Some(Box::new(error_state) as Box<dyn Conversation<ExplorerBagContent> + Send + Sync>)
+                Some(Box::new(error_state)
+                    as Box<dyn Conversation<ExplorerBagContent> + Send + Sync>)
             };
         }
 

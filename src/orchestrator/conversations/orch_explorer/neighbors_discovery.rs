@@ -139,7 +139,8 @@ impl Conversation<ExplorerBagContent> for NeighborsDiscoveryConversation<Sending
                     }
                 };
                 let error_state = ErrorState::new(Box::new(error), self.id);
-                Some(Box::new(error_state) as Box<dyn Conversation<ExplorerBagContent> + Send + Sync>)
+                Some(Box::new(error_state)
+                    as Box<dyn Conversation<ExplorerBagContent> + Send + Sync>)
             }
         }
     }
@@ -161,7 +162,9 @@ impl NeighborsDiscoveryConversation<SendingNeighborsResponse> {
 }
 
 // WAITING EXPLORER NEIGHBORS REQUEST IMPLEMENTATION
-impl Conversation<ExplorerBagContent> for NeighborsDiscoveryConversation<WaitingExplorerNeighborsRequest> {
+impl Conversation<ExplorerBagContent>
+    for NeighborsDiscoveryConversation<WaitingExplorerNeighborsRequest>
+{
     fn get_id(&self) -> ID {
         self.id
     }

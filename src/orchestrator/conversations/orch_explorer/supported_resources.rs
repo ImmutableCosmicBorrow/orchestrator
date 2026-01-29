@@ -121,7 +121,8 @@ impl Conversation<ExplorerBagContent>
                     }
                 };
                 let error_state = ErrorState::new(Box::new(error), self.id);
-                Some(Box::new(error_state) as Box<dyn Conversation<ExplorerBagContent> + Send + Sync>)
+                Some(Box::new(error_state)
+                    as Box<dyn Conversation<ExplorerBagContent> + Send + Sync>)
             }
         }
     }
@@ -143,7 +144,9 @@ impl SupportedResourcesConversation<SendingSupportedResourcesRequest> {
 }
 
 // WAITING SUPPORTED RESOURCES RESULT IMPLEMENTATION
-impl Conversation<ExplorerBagContent> for SupportedResourcesConversation<WaitingSupportedResourcesResult> {
+impl Conversation<ExplorerBagContent>
+    for SupportedResourcesConversation<WaitingSupportedResourcesResult>
+{
     fn get_id(&self) -> ID {
         self.id
     }

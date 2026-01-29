@@ -5,6 +5,7 @@ use crate::orchestrator::conversations::{
     ToExplorerError, ToExplorerStruct,
 };
 use crate::payload;
+use common_explorer::ExplorerBagContent;
 use common_game::components::resource::BasicResourceType;
 use common_game::logging::Channel;
 use common_game::protocols::orchestrator_explorer::{
@@ -12,7 +13,6 @@ use common_game::protocols::orchestrator_explorer::{
 };
 use common_game::utils::ID;
 use std::time::Duration;
-use common_explorer::ExplorerBagContent;
 
 ///**Craft Resource Conversation**
 ///
@@ -148,7 +148,8 @@ impl Conversation<ExplorerBagContent> for CraftResourceConversation<SendingCraft
                     }
                 };
                 let error_state = ErrorState::new(Box::new(error), self.id);
-                Some(Box::new(error_state) as Box<dyn Conversation<ExplorerBagContent> + Send + Sync>)
+                Some(Box::new(error_state)
+                    as Box<dyn Conversation<ExplorerBagContent> + Send + Sync>)
             }
         }
     }
@@ -224,7 +225,8 @@ impl Conversation<ExplorerBagContent> for CraftResourceConversation<WaitingCraft
                         resource: self.state.to_craft,
                     };
                     let error_state = ErrorState::new(Box::new(error_struct), self.id);
-                    Some(Box::new(error_state) as Box<dyn Conversation<ExplorerBagContent> + Send + Sync>)
+                    Some(Box::new(error_state)
+                        as Box<dyn Conversation<ExplorerBagContent> + Send + Sync>)
                 }
             };
         }
