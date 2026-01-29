@@ -3,7 +3,7 @@ mod globals;
 mod id;
 mod logging_utils;
 mod orchestrator;
-mod planet;
+pub mod planet;
 mod planet_factory;
 pub mod ui;
 
