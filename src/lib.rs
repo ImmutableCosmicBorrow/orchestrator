@@ -19,16 +19,31 @@ use crate::ui::UiToOrchestratorCommand;
 
 /// Run the orchestrator with the default galaxy configuration
 #[must_use]
-pub fn run(game_step: u64) -> Orchestrator {
+pub fn run(
+    game_step: u64,
+) -> (
+    Orchestrator,
+    crossbeam_channel::Sender<UiToOrchestratorCommand>,
+    crossbeam_channel::Receiver<OrchestratorToUiUpdate>,
+) {
     // Initialize and start logger
     logging_utils::start_logger();
 
-    let mut orchestrator =
-        Orchestrator::new(Path::new("galaxy/test_galaxy.txt"), game_step, None, None);
+    let (ui_to_orch_sender, ui_to_orch_receiver) =
+        crossbeam_channel::unbounded::<UiToOrchestratorCommand>();
+    let (orch_to_ui_sender, orch_to_ui_receiver) =
+        crossbeam_channel::unbounded::<OrchestratorToUiUpdate>();
+
+    let mut orchestrator = Orchestrator::new(
+        Path::new("galaxy/test_galaxy.txt"),
+        game_step,
+        orch_to_ui_sender,
+        ui_to_orch_receiver,
+    );
 
     orchestrator.run();
 
-    orchestrator
+    (orchestrator, ui_to_orch_sender, orch_to_ui_receiver)
 }
 
 /// Create the orchestrator with a custom galaxy file path
@@ -50,8 +65,8 @@ pub fn create_with_path<P: AsRef<Path>>(
     let orchestrator = Orchestrator::new(
         galaxy_path.as_ref(),
         game_step,
-        Some(orch_to_ui_sender),
-        Some(ui_to_orch_receiver),
+        orch_to_ui_sender,
+        ui_to_orch_receiver,
     );
 
     (orchestrator, ui_to_orch_sender, orch_to_ui_receiver)

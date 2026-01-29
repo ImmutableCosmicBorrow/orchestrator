@@ -6,11 +6,13 @@ use crate::orchestrator::conversations::{
     ToPlanetError, ToPlanetStruct,
 };
 use crate::payload;
+use crate::ui::OrchestratorToUiUpdate;
 use common_game::logging::Channel;
 use common_game::protocols::orchestrator_planet::{
     OrchestratorToPlanet, PlanetToOrchestrator, PlanetToOrchestratorKind,
 };
 use common_game::utils::ID;
+use crossbeam_channel::Sender;
 ///**Internal State Conversation**
 ///
 /// This module manages the conversation between the Orchestrator and a Planet regarding its internal state.
@@ -24,15 +26,23 @@ use common_game::utils::ID;
 ///
 /// The conversation starts in the [`SendingInternalStateRequest`] state, which sends an
 /// [`OrchestratorToPlanet::InternalStateRequest`] when the [`Conversation::transition`] method is called.
-struct SendingInternalStateRequest {
+pub struct SendingInternalStateRequest {
     /// A struct containing fields to send messages to the indicated planet
     to_planet_struct: ToPlanetStruct,
+    /// Optional sender to forward planet state to UI
+    ui_sender: Option<Sender<OrchestratorToUiUpdate>>,
 }
 
 impl SendingInternalStateRequest {
     /// Constructor for [`SendingInternalStateRequest`] state struct
-    fn new(to_planet_struct: ToPlanetStruct) -> Self {
-        Self { to_planet_struct }
+    pub fn new(
+        to_planet_struct: ToPlanetStruct,
+        ui_sender: Option<Sender<OrchestratorToUiUpdate>>,
+    ) -> Self {
+        Self {
+            to_planet_struct,
+            ui_sender,
+        }
     }
 }
 
@@ -43,17 +53,22 @@ impl SendingInternalStateRequest {
 struct WaitingInternalStateResponse {
     /// ID of the planet we are waiting for
     planet_id: ID,
+    /// Optional sender to forward planet state to UI
+    ui_sender: Option<Sender<OrchestratorToUiUpdate>>,
 }
 
 impl WaitingInternalStateResponse {
     /// The constructor for [`WaitingInternalStateResponse`] state struct
-    fn new(planet_id: ID) -> Self {
-        Self { planet_id }
+    fn new(planet_id: ID, ui_sender: Option<Sender<OrchestratorToUiUpdate>>) -> Self {
+        Self {
+            planet_id,
+            ui_sender,
+        }
     }
 }
 
 /// Generic FSM struct for Internal State requests
-struct InternalStateConversation<State> {
+pub struct InternalStateConversation<State> {
     /// Conversation ID
     id: ID,
     /// Optional expected message to trigger the conversation
@@ -98,6 +113,7 @@ impl Conversation<ExplorerBag> for InternalStateConversation<SendingInternalStat
                 let next_state = InternalStateConversation::<WaitingInternalStateResponse>::new(
                     self.id,
                     self.state.to_planet_struct.planet_id,
+                    self.state.ui_sender.clone(),
                 );
                 Some(Box::new(next_state))
             }
@@ -120,7 +136,7 @@ impl Conversation<ExplorerBag> for InternalStateConversation<SendingInternalStat
 }
 
 impl InternalStateConversation<SendingInternalStateRequest> {
-    pub(crate) fn new(id: ID, state: SendingInternalStateRequest) -> Self {
+    pub fn new(id: ID, state: SendingInternalStateRequest) -> Self {
         Self {
             id,
             expected_message: None,
@@ -159,7 +175,14 @@ impl Conversation<ExplorerBag> for InternalStateConversation<WaitingInternalStat
             planet_state,
         })) = msg_wrapped
         {
-            //TODO: SEND PLANET STATE TO UI
+            // Send planet state to UI if sender is available
+            if let Some(ref sender) = self.state.ui_sender {
+                let _ = sender.send(OrchestratorToUiUpdate::PlanetSnapshot(
+                    planet_id,
+                    planet_state.clone(),
+                ));
+            }
+
             log_internal(
                 Channel::Debug,
                 payload!(
@@ -183,13 +206,13 @@ impl Conversation<ExplorerBag> for InternalStateConversation<WaitingInternalStat
 }
 
 impl InternalStateConversation<WaitingInternalStateResponse> {
-    pub(crate) fn new(id: ID, planet_id: ID) -> Self {
+    fn new(id: ID, planet_id: ID, ui_sender: Option<Sender<OrchestratorToUiUpdate>>) -> Self {
         Self {
             id,
             expected_message: Some(PlanetToOrchKind(
                 PlanetToOrchestratorKind::InternalStateResponse,
             )),
-            state: WaitingInternalStateResponse::new(planet_id),
+            state: WaitingInternalStateResponse::new(planet_id, ui_sender),
         }
     }
 }
@@ -234,13 +257,17 @@ mod tests {
         senders: PlanetSenders,
     ) -> Box<InternalStateConversation<SendingInternalStateRequest>> {
         let to_planet = make_to_planet_struct(PLANET_ID, senders);
-        let state = SendingInternalStateRequest::new(to_planet);
+        let state = SendingInternalStateRequest::new(to_planet, None);
         Box::new(InternalStateConversation::<SendingInternalStateRequest>::new(CONV_ID, state))
     }
 
     #[allow(clippy::unnecessary_box_returns)]
     fn make_wait_conv() -> Box<InternalStateConversation<WaitingInternalStateResponse>> {
-        Box::new(InternalStateConversation::<WaitingInternalStateResponse>::new(CONV_ID, PLANET_ID))
+        Box::new(
+            InternalStateConversation::<WaitingInternalStateResponse>::new(
+                CONV_ID, PLANET_ID, None,
+            ),
+        )
     }
 
     fn make_dummy_planet_state() -> DummyPlanetState {
@@ -304,7 +331,7 @@ mod tests {
     fn send_getters() {
         let MakeSendersResult(senders, _rx) = make_senders_with(PLANET_ID);
         let to_planet = make_to_planet_struct(PLANET_ID, senders);
-        let state = SendingInternalStateRequest::new(to_planet);
+        let state = SendingInternalStateRequest::new(to_planet, None);
         let conv = InternalStateConversation::<SendingInternalStateRequest>::new(CONV_ID, state);
         assert_eq!(conv.get_id(), CONV_ID);
         assert_eq!(conv.get_entities_ids(), (Some(PLANET_ID), None));
@@ -341,8 +368,9 @@ mod tests {
 
     #[test]
     fn wait_getters() {
-        let conv =
-            InternalStateConversation::<WaitingInternalStateResponse>::new(CONV_ID, PLANET_ID);
+        let conv = InternalStateConversation::<WaitingInternalStateResponse>::new(
+            CONV_ID, PLANET_ID, None,
+        );
         assert_eq!(conv.get_id(), CONV_ID);
         assert_eq!(conv.get_entities_ids(), (Some(PLANET_ID), None));
         assert_eq!(

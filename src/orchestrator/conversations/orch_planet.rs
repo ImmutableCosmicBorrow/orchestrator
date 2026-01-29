@@ -1,13 +1,12 @@
 pub(crate) mod adv_dead_explorer;
-mod asteroid_scenario;
-mod internal_state_scenario;
-mod kill_planet;
-mod start_planet;
-mod stop_planet;
-mod sunray_scenario;
+pub mod asteroid_scenario;
+pub mod internal_state_scenario;
+pub mod kill_planet;
+pub mod start_planet;
+pub mod stop_planet;
+pub mod sunray_scenario;
 
 pub(crate) use asteroid_scenario::{AsteroidConversation, SendingAsteroid};
-pub(crate) use start_planet::{SendingPlanetStart, StartPlanetConversation};
 pub(crate) use sunray_scenario::{SendSunray, SunrayConversation};
 
 use common_game::protocols::orchestrator_planet::PlanetToOrchestratorKind;

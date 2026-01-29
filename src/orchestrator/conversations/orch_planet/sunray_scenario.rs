@@ -39,7 +39,7 @@ struct WaitingSunrayAck {
 
 impl WaitingSunrayAck {
     /// The constructor for [`WaitingSunrayAck`] state struct
-    fn new(planet_id: ID) -> Self {
+    pub(crate) fn new(planet_id: ID) -> Self {
         Self {
             planet_id,
             wait_start: Instant::now(),

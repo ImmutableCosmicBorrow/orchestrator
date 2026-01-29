@@ -46,7 +46,7 @@ impl ErrorType for CraftingFailed {
 ///
 /// The conversation starts in the [`SendingCraftResourceRequest`] state, which sends an
 /// [`OrchestratorToExplorer::GenerateResourceRequest`] when the [`Conversation::transition`] method is called.
-struct SendingCraftResourceRequest {
+pub struct SendingCraftResourceRequest {
     /// A struct containing fields to send messages to the specific explorer
     to_explorer_struct: ToExplorerStruct,
     /// The basic resource type intended to be generated
@@ -55,7 +55,7 @@ struct SendingCraftResourceRequest {
 
 impl SendingCraftResourceRequest {
     /// Constructor for [`SendingCraftResourceRequest`] state struct
-    fn new(to_explorer_struct: ToExplorerStruct, to_craft: BasicResourceType) -> Self {
+    pub fn new(to_explorer_struct: ToExplorerStruct, to_craft: BasicResourceType) -> Self {
         Self {
             to_explorer_struct,
             to_craft,
@@ -89,7 +89,7 @@ impl WaitingCraftResourceResult {
 ///
 /// This is the generic FSM struct that takes the generic type `State` to ensure only methods
 /// of that specific state can be called during the conversation.
-struct CraftResourceConversation<State> {
+pub struct CraftResourceConversation<State> {
     /// Conversation ID
     id: ID,
     /// Optional expected message to trigger the transition
@@ -160,7 +160,7 @@ impl Conversation<ExplorerBag> for CraftResourceConversation<SendingCraftResourc
 
 impl CraftResourceConversation<SendingCraftResourceRequest> {
     /// The constructor for [`CraftResourceConversation`] in the [`SendingCraftResourceRequest`] state
-    fn new(id: ID, state: SendingCraftResourceRequest) -> Self {
+    pub fn new(id: ID, state: SendingCraftResourceRequest) -> Self {
         Self {
             id,
             expected_message: None,
