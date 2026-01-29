@@ -5,7 +5,7 @@ mod logging_utils;
 mod orchestrator;
 mod planet;
 mod planet_factory;
-mod ui;
+pub mod ui;
 
 // Re-export public items that other crates can use
 pub use globals::get_id_manager;
