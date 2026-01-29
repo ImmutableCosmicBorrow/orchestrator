@@ -21,7 +21,7 @@ use std::path::Path;
 /// - `game_step`: A parameter that regulates the speed of the Explorer's actions.
 #[must_use]
 pub fn run(
-    explorer1: &ExplorerType,
+    explorer1: ExplorerType,
     explorer2: Option<ExplorerType>,
     spawn_planet: Option<ID>,
     game_step: u64,
@@ -50,7 +50,7 @@ pub fn run(
 /// - `game_step`: A parameter that regulates the speed of the Explorer's actions.
 pub fn create_with_path<P: AsRef<Path>>(
     galaxy_path: P,
-    explorer1: &ExplorerType,
+    explorer1: ExplorerType,
     explorer2: Option<ExplorerType>,
     spawn_planet: Option<ID>,
     game_step: u64,

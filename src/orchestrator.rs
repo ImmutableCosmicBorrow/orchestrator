@@ -47,6 +47,7 @@ use std::time::Duration;
 
 type ExplorersLocationRef = Arc<Mutex<HashMap<ID, ID>>>;
 
+#[derive(Clone, Copy)]
 pub enum ExplorerType {
     Rob,
     Nico,
@@ -89,7 +90,7 @@ impl Orchestrator {
     #[must_use]
     pub fn new(
         file_path: &std::path::Path,
-        explorer1: &ExplorerType,
+        explorer1: ExplorerType,
         explorer2: Option<ExplorerType>,
         spawn_planet: Option<ID>,
         game_step: u64,
@@ -161,7 +162,7 @@ impl Orchestrator {
 
         // If the second Explorer is some, add it too
         if let Some(explorer) = explorer2 {
-            orchestrator.add_explorer(&explorer, planet_id);
+            orchestrator.add_explorer(explorer, planet_id);
         }
         // Return the Orchestrator
         orchestrator
@@ -563,7 +564,7 @@ impl Orchestrator {
     ///
     /// Panics if a mutex lock is poisoned.
     ///
-    pub fn add_explorer(&mut self, explorer_type: &ExplorerType, into_planet: ID) {
+    pub fn add_explorer(&mut self, explorer_type: ExplorerType, into_planet: ID) {
         // Create channels
         let (tx_orchestrator_to_explorer, rx_orchestrator_to_explorer) =
             unbounded::<OrchestratorToExplorer>();
