@@ -1,7 +1,6 @@
 use crate::OrchestratorToUiUpdate;
 use crate::globals::get_id_manager;
 use crate::orchestrator::ConvoScheduler;
-use crate::orchestrator::ExplorerBag;
 use crate::orchestrator::ExplorersLocationRef;
 use crate::orchestrator::PlanetExplorerChannels;
 use crate::orchestrator::SendersToPlanet;
@@ -9,6 +8,7 @@ use crate::orchestrator::conversations;
 use crate::orchestrator::conversations::SendersToExplorer;
 use crate::orchestrator::conversations::ToExplorerStruct;
 use crate::orchestrator::conversations::ToPlanetStruct;
+use common_explorer::ExplorerBagContent;
 use crate::orchestrator::conversations::orch_explorer::move_to_planet::MoveToPlanetConversation;
 use crate::orchestrator::conversations::orch_explorer::move_to_planet::WaitingTravelRequest;
 use crate::orchestrator::conversations::orch_planet::internal_state_scenario::SendingInternalStateRequest;
@@ -20,7 +20,7 @@ use std::sync::Arc;
 
 pub(crate) fn create_neighbors_request_conversation(
     galaxy: &PlanetMap,
-    convo_scheduler: &ConvoScheduler<ExplorerBag>,
+    convo_scheduler: &ConvoScheduler<ExplorerBagContent>,
     explorer_senders: &SendersToExplorer,
     explorer_id: ID,
 ) -> ID {
@@ -38,7 +38,7 @@ pub(crate) fn create_neighbors_request_conversation(
         >::new(id, state);
 
     convo_scheduler.add_conversation(
-        Box::new(new_conv) as Box<dyn conversations::Conversation<ExplorerBag> + Send + Sync>
+        Box::new(new_conv) as Box<dyn conversations::Conversation<ExplorerBagContent> + Send + Sync>
     );
 
     /*self.handle_message(PossibleMessage::ExplorerToOrch(
@@ -53,7 +53,7 @@ pub(crate) fn create_neighbors_request_conversation(
 
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn create_travel_to_planet_request_conversation(
-    convo_scheduler: &ConvoScheduler<ExplorerBag>,
+    convo_scheduler: &ConvoScheduler<ExplorerBagContent>,
     galaxy: &PlanetMap,
     planet_explorer_channels: &PlanetExplorerChannels,
     explorer_senders: &SendersToExplorer,
@@ -84,7 +84,7 @@ pub(crate) fn create_travel_to_planet_request_conversation(
 }
 
 pub(crate) fn create_internal_state_conversation(
-    convo_scheduler: &ConvoScheduler<ExplorerBag>,
+    convo_scheduler: &ConvoScheduler<ExplorerBagContent>,
     planets_senders: &SendersToPlanet,
     ui_sender: Sender<OrchestratorToUiUpdate>,
     planet_id: ID,
@@ -100,14 +100,14 @@ pub(crate) fn create_internal_state_conversation(
     >::new(id, state);
 
     convo_scheduler.add_conversation(
-        Box::new(new_conv) as Box<dyn conversations::Conversation<ExplorerBag> + Send + Sync>
+        Box::new(new_conv) as Box<dyn conversations::Conversation<ExplorerBagContent> + Send + Sync>
     );
 
     id
 }
 
 pub(crate) fn create_bag_content_conversation(
-    convo_scheduler: &ConvoScheduler<ExplorerBag>,
+    convo_scheduler: &ConvoScheduler<ExplorerBagContent>,
     explorer_senders: &SendersToExplorer,
     ui_sender: Sender<OrchestratorToUiUpdate>,
     explorer_id: ID,
@@ -123,13 +123,13 @@ pub(crate) fn create_bag_content_conversation(
     >::new(id, state);
 
     convo_scheduler.add_conversation(
-        Box::new(new_conv) as Box<dyn conversations::Conversation<ExplorerBag> + Send + Sync>
+        Box::new(new_conv) as Box<dyn conversations::Conversation<ExplorerBagContent> + Send + Sync>
     );
     id
 }
 
 pub(crate) fn create_craft_resource_conversation(
-    convo_scheduler: &ConvoScheduler<ExplorerBag>,
+    convo_scheduler: &ConvoScheduler<ExplorerBagContent>,
     explorer_senders: &SendersToExplorer,
     explorer_id: ID,
     resource_type: common_game::components::resource::BasicResourceType,
@@ -145,13 +145,13 @@ pub(crate) fn create_craft_resource_conversation(
     >::new(id, state);
 
     convo_scheduler.add_conversation(
-        Box::new(new_conv) as Box<dyn conversations::Conversation<ExplorerBag> + Send + Sync>
+        Box::new(new_conv) as Box<dyn conversations::Conversation<ExplorerBagContent> + Send + Sync>
     );
     id
 }
 
 pub(crate) fn create_combine_resource_conversation(
-    convo_scheduler: &ConvoScheduler<ExplorerBag>,
+    convo_scheduler: &ConvoScheduler<ExplorerBagContent>,
     explorer_senders: &SendersToExplorer,
     explorer_id: ID,
     resource_type: common_game::components::resource::ComplexResourceType,
@@ -167,13 +167,13 @@ pub(crate) fn create_combine_resource_conversation(
     >::new(id, state);
 
     convo_scheduler.add_conversation(
-        Box::new(new_conv) as Box<dyn conversations::Conversation<ExplorerBag> + Send + Sync>
+        Box::new(new_conv) as Box<dyn conversations::Conversation<ExplorerBagContent> + Send + Sync>
     );
     id
 }
 
 pub(crate) fn create_start_explorer_conversation(
-    convo_scheduler: &ConvoScheduler<ExplorerBag>,
+    convo_scheduler: &ConvoScheduler<ExplorerBagContent>,
     explorer_senders: &SendersToExplorer,
     explorer_id: ID,
 ) -> ID {
@@ -186,13 +186,13 @@ pub(crate) fn create_start_explorer_conversation(
     >::new(id, state);
 
     convo_scheduler.add_conversation(
-        Box::new(new_conv) as Box<dyn conversations::Conversation<ExplorerBag> + Send + Sync>
+        Box::new(new_conv) as Box<dyn conversations::Conversation<ExplorerBagContent> + Send + Sync>
     );
     id
 }
 
 pub(crate) fn create_stop_explorer_conversation(
-    convo_scheduler: &ConvoScheduler<ExplorerBag>,
+    convo_scheduler: &ConvoScheduler<ExplorerBagContent>,
     explorer_senders: &SendersToExplorer,
     explorer_id: ID,
 ) -> ID {
@@ -205,13 +205,13 @@ pub(crate) fn create_stop_explorer_conversation(
     >::new(id, state);
 
     convo_scheduler.add_conversation(
-        Box::new(new_conv) as Box<dyn conversations::Conversation<ExplorerBag> + Send + Sync>
+        Box::new(new_conv) as Box<dyn conversations::Conversation<ExplorerBagContent> + Send + Sync>
     );
     id
 }
 
 pub(crate) fn create_kill_explorer_conversation(
-    convo_scheduler: &ConvoScheduler<ExplorerBag>,
+    convo_scheduler: &ConvoScheduler<ExplorerBagContent>,
     explorer_senders: &SendersToExplorer,
     planets_senders: &SendersToPlanet,
     explorers_location: &ExplorersLocationRef,
@@ -233,13 +233,13 @@ pub(crate) fn create_kill_explorer_conversation(
     >::new(id, state);
 
     convo_scheduler.add_conversation(
-        Box::new(new_conv) as Box<dyn conversations::Conversation<ExplorerBag> + Send + Sync>
+        Box::new(new_conv) as Box<dyn conversations::Conversation<ExplorerBagContent> + Send + Sync>
     );
     id
 }
 
 pub(crate) fn create_reset_explorer_conversation(
-    convo_scheduler: &ConvoScheduler<ExplorerBag>,
+    convo_scheduler: &ConvoScheduler<ExplorerBagContent>,
     explorer_senders: &SendersToExplorer,
     explorer_id: ID,
 ) -> ID {
@@ -252,13 +252,13 @@ pub(crate) fn create_reset_explorer_conversation(
     >::new(id, state);
 
     convo_scheduler.add_conversation(
-        Box::new(new_conv) as Box<dyn conversations::Conversation<ExplorerBag> + Send + Sync>
+        Box::new(new_conv) as Box<dyn conversations::Conversation<ExplorerBagContent> + Send + Sync>
     );
     id
 }
 
 pub(crate) fn create_start_planet_conversation(
-    convo_scheduler: &ConvoScheduler<ExplorerBag>,
+    convo_scheduler: &ConvoScheduler<ExplorerBagContent>,
     planets_senders: &SendersToPlanet,
     planet_id: ID,
 ) -> ID {
@@ -270,13 +270,13 @@ pub(crate) fn create_start_planet_conversation(
     >::new(id, state);
 
     convo_scheduler.add_conversation(
-        Box::new(new_conv) as Box<dyn conversations::Conversation<ExplorerBag> + Send + Sync>
+        Box::new(new_conv) as Box<dyn conversations::Conversation<ExplorerBagContent> + Send + Sync>
     );
     id
 }
 
 pub(crate) fn create_stop_planet_conversation(
-    convo_scheduler: &ConvoScheduler<ExplorerBag>,
+    convo_scheduler: &ConvoScheduler<ExplorerBagContent>,
     planets_senders: &SendersToPlanet,
     planet_id: ID,
 ) -> ID {
@@ -288,13 +288,13 @@ pub(crate) fn create_stop_planet_conversation(
     >::new(id, state);
 
     convo_scheduler.add_conversation(
-        Box::new(new_conv) as Box<dyn conversations::Conversation<ExplorerBag> + Send + Sync>
+        Box::new(new_conv) as Box<dyn conversations::Conversation<ExplorerBagContent> + Send + Sync>
     );
     id
 }
 
 pub(crate) fn create_kill_planet_conversation(
-    convo_scheduler: &ConvoScheduler<ExplorerBag>,
+    convo_scheduler: &ConvoScheduler<ExplorerBagContent>,
     planets_senders: &SendersToPlanet,
     explorer_senders: &SendersToExplorer,
     explorers_location: &ExplorersLocationRef,
@@ -312,13 +312,13 @@ pub(crate) fn create_kill_planet_conversation(
     >::new(id, state);
 
     convo_scheduler.add_conversation(
-        Box::new(new_conv) as Box<dyn conversations::Conversation<ExplorerBag> + Send + Sync>
+        Box::new(new_conv) as Box<dyn conversations::Conversation<ExplorerBagContent> + Send + Sync>
     );
     id
 }
 
 pub(crate) fn create_supported_resources_conversation(
-    convo_scheduler: &ConvoScheduler<ExplorerBag>,
+    convo_scheduler: &ConvoScheduler<ExplorerBagContent>,
     explorer_senders: &SendersToExplorer,
     ui_sender: Sender<OrchestratorToUiUpdate>,
     explorer_id: ID,
@@ -336,13 +336,13 @@ pub(crate) fn create_supported_resources_conversation(
         >::new(id, state);
 
     convo_scheduler.add_conversation(
-        Box::new(new_conv) as Box<dyn conversations::Conversation<ExplorerBag> + Send + Sync>
+        Box::new(new_conv) as Box<dyn conversations::Conversation<ExplorerBagContent> + Send + Sync>
     );
     id
 }
 
 pub(crate) fn create_supported_combinations_conversation(
-    convo_scheduler: &ConvoScheduler<ExplorerBag>,
+    convo_scheduler: &ConvoScheduler<ExplorerBagContent>,
     explorer_senders: &SendersToExplorer,
     ui_sender: Sender<OrchestratorToUiUpdate>,
     explorer_id: ID,
@@ -356,13 +356,13 @@ pub(crate) fn create_supported_combinations_conversation(
         >::new(id, state);
 
     convo_scheduler.add_conversation(
-        Box::new(new_conv) as Box<dyn conversations::Conversation<ExplorerBag> + Send + Sync>
+        Box::new(new_conv) as Box<dyn conversations::Conversation<ExplorerBagContent> + Send + Sync>
     );
     id
 }
 
 pub(crate) fn create_asteroid_conversation(
-    convo_scheduler: &ConvoScheduler<ExplorerBag>,
+    convo_scheduler: &ConvoScheduler<ExplorerBagContent>,
     planets_senders: &SendersToPlanet,
     forge: &Arc<Forge>,
     explorers_location: &ExplorersLocationRef,
@@ -382,13 +382,13 @@ pub(crate) fn create_asteroid_conversation(
     >::new(id, state);
 
     convo_scheduler.add_conversation(
-        Box::new(new_conv) as Box<dyn conversations::Conversation<ExplorerBag> + Send + Sync>
+        Box::new(new_conv) as Box<dyn conversations::Conversation<ExplorerBagContent> + Send + Sync>
     );
     id
 }
 
 pub(crate) fn create_sunray_conversation(
-    convo_scheduler: &ConvoScheduler<ExplorerBag>,
+    convo_scheduler: &ConvoScheduler<ExplorerBagContent>,
     planets_senders: &SendersToPlanet,
     forge: &Arc<Forge>,
     planet_id: ID,
@@ -404,7 +404,7 @@ pub(crate) fn create_sunray_conversation(
     >::new(id, state);
 
     convo_scheduler.add_conversation(
-        Box::new(new_conv) as Box<dyn conversations::Conversation<ExplorerBag> + Send + Sync>
+        Box::new(new_conv) as Box<dyn conversations::Conversation<ExplorerBagContent> + Send + Sync>
     );
     id
 }
