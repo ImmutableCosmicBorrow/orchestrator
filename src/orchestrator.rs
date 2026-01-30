@@ -19,16 +19,13 @@ use crate::orchestrator::conversations::orch_explorer::kill_explorer::{
     KillExplorerConversation, SendingKillExplorer,
 };
 use crate::orchestrator::conversations::orch_explorer::move_to_planet::{
-    MoveToPlanetConversation, SendManualMoveRequest, WaitingTravelRequest,
+    MoveToPlanetConversation, SendManualMoveRequest,
 };
 use crate::orchestrator::conversations::orch_explorer::start_explorer::{
     SendingExplorerStart, StartExplorerConversation,
 };
 use crate::orchestrator::conversations::orch_explorer::stop_explorer::{
     SendingExplorerStop, StopExplorerConversation,
-};
-use crate::orchestrator::conversations::orch_planet::start_planet::{
-    SendingPlanetStart, StartPlanetConversation,
 };
 use common_explorer::ExplorerAI;
 pub(crate) use common_explorer::ExplorerBagContent;
@@ -84,7 +81,6 @@ pub struct Orchestrator {
 
 impl Orchestrator {
     // ---------------- PUBLIC API ---------------------
-
 
     /// Creates a new Orchestrator instance from a galaxy configuration file.
     /// - `file_path`: The path of the galaxy configuration file.
@@ -439,7 +435,6 @@ impl Orchestrator {
         );
     }
 
-    
     pub fn kill_planet(&self, planet_id: ID) {
         convo_factory::create_kill_planet_conversation(
             &self.convo_scheduler,
@@ -666,6 +661,38 @@ impl Orchestrator {
             }
             AddExplorer(explorer_type, into_planet) => {
                 self.add_explorer(explorer_type, into_planet);
+            }
+            SwitchGameMode => {
+                self.change_mode();
+            }
+            EndGame => {
+                log_internal(
+                    Channel::Info,
+                    payload!(
+                        action : "Received EndGame command from UI. Shutting down orchestrator",
+                    ),
+                );
+                std::process::exit(0);
+            }
+            PauseGame => {
+                crate::orchestrator::event_senders::disable_asteroids();
+                crate::orchestrator::event_senders::disable_sunrays();
+                log_internal(
+                    Channel::Info,
+                    payload!(
+                        action : "Received PauseGame command from UI. Pausing background events",
+                    ),
+                );
+            }
+            ResumeGame => {
+                crate::orchestrator::event_senders::enable_asteroids();
+                crate::orchestrator::event_senders::enable_sunrays();
+                log_internal(
+                    Channel::Info,
+                    payload!(
+                        action : "Received ResumeGame command from UI. Resuming background events",
+                    ),
+                );
             }
 
             // Explorer Movement Commands

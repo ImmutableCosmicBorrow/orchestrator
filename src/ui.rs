@@ -20,6 +20,10 @@ pub enum UiToOrchestratorCommand {
     GetPlanetSnapshot(ID),
     GetExplorerSnapshot(ID),
     AddExplorer(ExplorerType, ID), //explorer type, planet id
+    SwitchGameMode,
+    EndGame,
+    PauseGame,
+    ResumeGame,
 
     // explorer commands: move and resource crafting/combining
     ManualMoveExplorer(ID, ID, ID), // Explorer ID, current planet, dst planet
