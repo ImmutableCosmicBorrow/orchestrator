@@ -925,6 +925,11 @@ impl Orchestrator {
             }
         });
 
+        self.explorers_location
+            .lock()
+            .unwrap()
+            .insert(id, into_planet);
+
         // Add handle to the hashmap
         self.explorer_threads.insert(id, handle);
 
