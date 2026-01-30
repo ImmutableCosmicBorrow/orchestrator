@@ -51,7 +51,7 @@ pub fn run(
         explorer2,
         spawn_planet,
     );
-    
+
     // Initialize and start logger
     logging_utils::start_logger();
 
@@ -76,9 +76,9 @@ pub fn create_with_path<P: AsRef<Path>>(
     Orchestrator,
     crossbeam_channel::Sender<UiToOrchestratorCommand>,
     crossbeam_channel::Receiver<OrchestratorToUiUpdate>,
-)  {
+) {
     logging_utils::start_logger();
-    
+
     let (ui_to_orch_sender, ui_to_orch_receiver) =
         crossbeam_channel::unbounded::<UiToOrchestratorCommand>();
     let (orch_to_ui_sender, orch_to_ui_receiver) =

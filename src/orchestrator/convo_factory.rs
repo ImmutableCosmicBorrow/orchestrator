@@ -8,11 +8,11 @@ use crate::orchestrator::conversations;
 use crate::orchestrator::conversations::SendersToExplorer;
 use crate::orchestrator::conversations::ToExplorerStruct;
 use crate::orchestrator::conversations::ToPlanetStruct;
-use common_explorer::ExplorerBagContent;
 use crate::orchestrator::conversations::orch_explorer::move_to_planet::MoveToPlanetConversation;
 use crate::orchestrator::conversations::orch_explorer::move_to_planet::WaitingTravelRequest;
 use crate::orchestrator::conversations::orch_planet::internal_state_scenario::SendingInternalStateRequest;
 use crate::planet::PlanetMap;
+use common_explorer::ExplorerBagContent;
 use common_game::components::forge::Forge;
 use common_game::utils::ID;
 use crossbeam_channel::Sender;
@@ -37,9 +37,8 @@ pub(crate) fn create_neighbors_request_conversation(
             conversations::orch_explorer::neighbors_discovery::WaitingExplorerNeighborsRequest,
         >::new(id, state);
 
-    convo_scheduler.add_conversation(
-        Box::new(new_conv) as Box<dyn conversations::Conversation<ExplorerBagContent> + Send + Sync>
-    );
+    convo_scheduler.add_conversation(Box::new(new_conv)
+        as Box<dyn conversations::Conversation<ExplorerBagContent> + Send + Sync>);
 
     /*self.handle_message(PossibleMessage::ExplorerToOrch(
         ExplorerToOrchestrator::NeighborsRequest {
@@ -99,9 +98,8 @@ pub(crate) fn create_internal_state_conversation(
         SendingInternalStateRequest,
     >::new(id, state);
 
-    convo_scheduler.add_conversation(
-        Box::new(new_conv) as Box<dyn conversations::Conversation<ExplorerBagContent> + Send + Sync>
-    );
+    convo_scheduler.add_conversation(Box::new(new_conv)
+        as Box<dyn conversations::Conversation<ExplorerBagContent> + Send + Sync>);
 
     id
 }
@@ -122,9 +120,8 @@ pub(crate) fn create_bag_content_conversation(
         conversations::orch_explorer::bag_content_scenario::SendingBagContentRequest,
     >::new(id, state);
 
-    convo_scheduler.add_conversation(
-        Box::new(new_conv) as Box<dyn conversations::Conversation<ExplorerBagContent> + Send + Sync>
-    );
+    convo_scheduler.add_conversation(Box::new(new_conv)
+        as Box<dyn conversations::Conversation<ExplorerBagContent> + Send + Sync>);
     id
 }
 
@@ -144,9 +141,8 @@ pub(crate) fn create_craft_resource_conversation(
         conversations::orch_explorer::craft_resource::SendingCraftResourceRequest,
     >::new(id, state);
 
-    convo_scheduler.add_conversation(
-        Box::new(new_conv) as Box<dyn conversations::Conversation<ExplorerBagContent> + Send + Sync>
-    );
+    convo_scheduler.add_conversation(Box::new(new_conv)
+        as Box<dyn conversations::Conversation<ExplorerBagContent> + Send + Sync>);
     id
 }
 
@@ -166,9 +162,8 @@ pub(crate) fn create_combine_resource_conversation(
         conversations::orch_explorer::combine_resource::SendingCombineResourceRequest,
     >::new(id, state);
 
-    convo_scheduler.add_conversation(
-        Box::new(new_conv) as Box<dyn conversations::Conversation<ExplorerBagContent> + Send + Sync>
-    );
+    convo_scheduler.add_conversation(Box::new(new_conv)
+        as Box<dyn conversations::Conversation<ExplorerBagContent> + Send + Sync>);
     id
 }
 
@@ -185,9 +180,8 @@ pub(crate) fn create_start_explorer_conversation(
         conversations::orch_explorer::start_explorer::SendingExplorerStart,
     >::new(id, state);
 
-    convo_scheduler.add_conversation(
-        Box::new(new_conv) as Box<dyn conversations::Conversation<ExplorerBagContent> + Send + Sync>
-    );
+    convo_scheduler.add_conversation(Box::new(new_conv)
+        as Box<dyn conversations::Conversation<ExplorerBagContent> + Send + Sync>);
     id
 }
 
@@ -204,9 +198,8 @@ pub(crate) fn create_stop_explorer_conversation(
         conversations::orch_explorer::stop_explorer::SendingExplorerStop,
     >::new(id, state);
 
-    convo_scheduler.add_conversation(
-        Box::new(new_conv) as Box<dyn conversations::Conversation<ExplorerBagContent> + Send + Sync>
-    );
+    convo_scheduler.add_conversation(Box::new(new_conv)
+        as Box<dyn conversations::Conversation<ExplorerBagContent> + Send + Sync>);
     id
 }
 
@@ -232,9 +225,8 @@ pub(crate) fn create_kill_explorer_conversation(
         conversations::orch_explorer::kill_explorer::SendingKillExplorer,
     >::new(id, state);
 
-    convo_scheduler.add_conversation(
-        Box::new(new_conv) as Box<dyn conversations::Conversation<ExplorerBagContent> + Send + Sync>
-    );
+    convo_scheduler.add_conversation(Box::new(new_conv)
+        as Box<dyn conversations::Conversation<ExplorerBagContent> + Send + Sync>);
     id
 }
 
@@ -251,9 +243,8 @@ pub(crate) fn create_reset_explorer_conversation(
         conversations::orch_explorer::reset_explorer::SendingExplorerReset,
     >::new(id, state);
 
-    convo_scheduler.add_conversation(
-        Box::new(new_conv) as Box<dyn conversations::Conversation<ExplorerBagContent> + Send + Sync>
-    );
+    convo_scheduler.add_conversation(Box::new(new_conv)
+        as Box<dyn conversations::Conversation<ExplorerBagContent> + Send + Sync>);
     id
 }
 
@@ -269,9 +260,8 @@ pub(crate) fn create_start_planet_conversation(
         conversations::orch_planet::start_planet::SendingPlanetStart,
     >::new(id, state);
 
-    convo_scheduler.add_conversation(
-        Box::new(new_conv) as Box<dyn conversations::Conversation<ExplorerBagContent> + Send + Sync>
-    );
+    convo_scheduler.add_conversation(Box::new(new_conv)
+        as Box<dyn conversations::Conversation<ExplorerBagContent> + Send + Sync>);
     id
 }
 
@@ -287,9 +277,8 @@ pub(crate) fn create_stop_planet_conversation(
         conversations::orch_planet::stop_planet::SendingPlanetStop,
     >::new(id, state);
 
-    convo_scheduler.add_conversation(
-        Box::new(new_conv) as Box<dyn conversations::Conversation<ExplorerBagContent> + Send + Sync>
-    );
+    convo_scheduler.add_conversation(Box::new(new_conv)
+        as Box<dyn conversations::Conversation<ExplorerBagContent> + Send + Sync>);
     id
 }
 
@@ -311,9 +300,8 @@ pub(crate) fn create_kill_planet_conversation(
         conversations::orch_planet::kill_planet::SendPlanetKill,
     >::new(id, state);
 
-    convo_scheduler.add_conversation(
-        Box::new(new_conv) as Box<dyn conversations::Conversation<ExplorerBagContent> + Send + Sync>
-    );
+    convo_scheduler.add_conversation(Box::new(new_conv)
+        as Box<dyn conversations::Conversation<ExplorerBagContent> + Send + Sync>);
     id
 }
 
@@ -335,9 +323,8 @@ pub(crate) fn create_supported_resources_conversation(
             conversations::orch_explorer::supported_resources::SendingSupportedResourcesRequest,
         >::new(id, state);
 
-    convo_scheduler.add_conversation(
-        Box::new(new_conv) as Box<dyn conversations::Conversation<ExplorerBagContent> + Send + Sync>
-    );
+    convo_scheduler.add_conversation(Box::new(new_conv)
+        as Box<dyn conversations::Conversation<ExplorerBagContent> + Send + Sync>);
     id
 }
 
@@ -355,9 +342,8 @@ pub(crate) fn create_supported_combinations_conversation(
             conversations::orch_explorer::supported_combination::SendingSupportedCombinationRequest,
         >::new(id, state);
 
-    convo_scheduler.add_conversation(
-        Box::new(new_conv) as Box<dyn conversations::Conversation<ExplorerBagContent> + Send + Sync>
-    );
+    convo_scheduler.add_conversation(Box::new(new_conv)
+        as Box<dyn conversations::Conversation<ExplorerBagContent> + Send + Sync>);
     id
 }
 
@@ -381,9 +367,8 @@ pub(crate) fn create_asteroid_conversation(
         conversations::orch_planet::asteroid_scenario::SendingAsteroid,
     >::new(id, state);
 
-    convo_scheduler.add_conversation(
-        Box::new(new_conv) as Box<dyn conversations::Conversation<ExplorerBagContent> + Send + Sync>
-    );
+    convo_scheduler.add_conversation(Box::new(new_conv)
+        as Box<dyn conversations::Conversation<ExplorerBagContent> + Send + Sync>);
     id
 }
 
@@ -403,8 +388,7 @@ pub(crate) fn create_sunray_conversation(
         conversations::orch_planet::sunray_scenario::SendSunray,
     >::new(id, state);
 
-    convo_scheduler.add_conversation(
-        Box::new(new_conv) as Box<dyn conversations::Conversation<ExplorerBagContent> + Send + Sync>
-    );
+    convo_scheduler.add_conversation(Box::new(new_conv)
+        as Box<dyn conversations::Conversation<ExplorerBagContent> + Send + Sync>);
     id
 }

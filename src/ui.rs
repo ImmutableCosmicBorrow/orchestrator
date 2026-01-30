@@ -11,9 +11,6 @@ use common_game::{
 
 use crate::planet::PlanetMap;
 
-//TODO: modify create_with_path to return also ui channels
-//TODO: create conversation factory?
-
 // Commands you can send to the orchestrator
 pub enum UiToOrchestratorCommand {
     //rendering commands
@@ -42,8 +39,8 @@ pub enum UiToOrchestratorCommand {
     StartExplorerAI(ID),
     StopExplorerAI(ID),
     ResetExplorerAI(ID),
-    KillExplorerAI(ID),
-    KillPlanetAI(ID),
+    KillExplorer(ID),
+    KillPlanet(ID),
 }
 
 // Updates the orchestrator sends back
