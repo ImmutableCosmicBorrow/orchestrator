@@ -25,6 +25,23 @@ pub fn log_msg_to(channel: Channel, event_type: EventType, to: (ActorType, ID), 
     .emit();
 }
 
+/// Creates and emits a log event with `ActorType::Orchestrator` as receiver
+pub fn log_msg_from(
+    channel: Channel,
+    event_type: EventType,
+    from: (ActorType, ID),
+    payload: Payload,
+) {
+    LogEvent::new(
+        Some(Participant::new(from.0, from.1)),
+        Some(Participant::new(ActorType::Orchestrator, 0u8)),
+        event_type,
+        channel,
+        payload,
+    )
+    .emit();
+}
+
 /// Creates and emits a log event without sender and receiver, and with `EventType::InternalOrchestratorAction`
 pub fn log_internal(channel: Channel, payload: Payload) {
     LogEvent::system(EventType::InternalOrchestratorAction, channel, payload).emit();

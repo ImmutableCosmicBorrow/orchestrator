@@ -108,7 +108,7 @@ impl IdManager {
         1 << Self::EXPLORER_SHIFT | id
     }
 
-    pub fn get_next_explorer_id_by_type(&self, explorer_type: &ExplorerType) -> ID {
+    pub fn get_next_explorer_id_by_type(&self, explorer_type: ExplorerType) -> ID {
         match explorer_type {
             ExplorerType::Nico => self.get_next_nico_id(),
             ExplorerType::Jaco => self.get_next_jaco_id(),

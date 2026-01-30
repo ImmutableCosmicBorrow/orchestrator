@@ -1,5 +1,4 @@
 use crate::logging_utils::log_msg_to;
-use crate::orchestrator::ExplorerBag;
 use crate::orchestrator::conversations::orch_explorer::move_to_planet::WaitingOutgoingResponse;
 use crate::orchestrator::conversations::orch_explorer::move_to_planet::errors::MoveToPlanetErrors;
 use crate::orchestrator::conversations::orch_explorer::move_to_planet::{
@@ -10,6 +9,7 @@ use crate::orchestrator::conversations::{
     ToPlanetError,
 };
 use crate::payload;
+use common_explorer::ExplorerBagContent;
 use common_game::logging::{ActorType, Channel, EventType};
 use common_game::protocols::orchestrator_planet::{
     OrchestratorToPlanet, PlanetToOrchestrator, PlanetToOrchestratorKind,
@@ -27,7 +27,7 @@ use common_game::utils::ID;
 /// 3. **Failure:** If the message cannot be sent (e.g., communication channel broken) or the sender to the current planet is not found, it
 ///    transitions to an [`ErrorState`].
 // SEND OUTGOING REQUEST IMPLEMENTATION
-impl Conversation<ExplorerBag> for MoveToPlanetConversation<SendOutgoingRequest> {
+impl Conversation<ExplorerBagContent> for MoveToPlanetConversation<SendOutgoingRequest> {
     /// Returns the unique ID of the conversation instance.
     fn get_id(&self) -> ID {
         self.id
@@ -62,8 +62,8 @@ impl Conversation<ExplorerBag> for MoveToPlanetConversation<SendOutgoingRequest>
     ///   underlying transport (channel) has failed or closed unexpectedly.
     fn transition(
         self: Box<Self>,
-        _msg_wrapped: Option<PossibleMessage<ExplorerBag>>,
-    ) -> Option<Box<dyn Conversation<ExplorerBag> + Send + Sync>> {
+        _msg_wrapped: Option<PossibleMessage<ExplorerBagContent>>,
+    ) -> Option<Box<dyn Conversation<ExplorerBagContent> + Send + Sync>> {
         match self.state.curr_planet_struct.to_planet(
             OrchestratorToPlanet::OutgoingExplorerRequest {
                 explorer_id: self.state.explorer_struct.explorer_id,
@@ -102,7 +102,8 @@ impl Conversation<ExplorerBag> for MoveToPlanetConversation<SendOutgoingRequest>
                     }
                 };
                 let error_state = ErrorState::new(error, self.id);
-                Some(Box::new(error_state) as Box<dyn Conversation<ExplorerBag> + Send + Sync>)
+                Some(Box::new(error_state)
+                    as Box<dyn Conversation<ExplorerBagContent> + Send + Sync>)
             }
         }
     }
@@ -138,7 +139,7 @@ impl MoveToPlanetConversation<SendOutgoingRequest> {
 ///    an [`ErrorState`] to abort the movement.
 /// 4. **Error Handling:** Transitions to [`ErrorState`] if an unexpected message is received.
 // WAITING OUTGOING RESPONSE IMPLEMENTATION
-impl Conversation<ExplorerBag> for MoveToPlanetConversation<WaitingOutgoingResponse> {
+impl Conversation<ExplorerBagContent> for MoveToPlanetConversation<WaitingOutgoingResponse> {
     /// Returns the unique ID of the conversation instance.
     fn get_id(&self) -> ID {
         self.id
@@ -160,8 +161,8 @@ impl Conversation<ExplorerBag> for MoveToPlanetConversation<WaitingOutgoingRespo
     /// Processes the planet's response regarding the explorer's departure.
     fn transition(
         self: Box<Self>,
-        msg_wrapped: Option<PossibleMessage<ExplorerBag>>,
-    ) -> Option<Box<dyn Conversation<ExplorerBag> + Send + Sync>> {
+        msg_wrapped: Option<PossibleMessage<ExplorerBagContent>>,
+    ) -> Option<Box<dyn Conversation<ExplorerBagContent> + Send + Sync>> {
         if let Some(PossibleMessage::PlanetToOrch(
             PlanetToOrchestrator::OutgoingExplorerResponse {
                 planet_id,
@@ -188,12 +189,13 @@ impl Conversation<ExplorerBag> for MoveToPlanetConversation<WaitingOutgoingRespo
                     }),
                     self.id,
                 );
-                Some(Box::new(error_state) as Box<dyn Conversation<ExplorerBag> + Send + Sync>)
+                Some(Box::new(error_state)
+                    as Box<dyn Conversation<ExplorerBagContent> + Send + Sync>)
             };
         }
 
         let error_state = ErrorState::new(Box::new(CommonErrorTypes::WrongMessage), self.id);
-        Some(Box::new(error_state) as Box<dyn Conversation<ExplorerBag> + Send + Sync>)
+        Some(Box::new(error_state) as Box<dyn Conversation<ExplorerBagContent> + Send + Sync>)
     }
 
     /// Returns the priority of this conversation.

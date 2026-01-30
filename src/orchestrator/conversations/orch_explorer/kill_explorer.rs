@@ -7,7 +7,7 @@ use crate::orchestrator::conversations::{
     CommonErrorTypes, Conversation, ErrorState, PossibleExpectedKinds, PossibleMessage,
     ToExplorerError, ToExplorerStruct, ToPlanetStruct,
 };
-use crate::orchestrator::{ExplorerBag, ExplorersLocationRef};
+use crate::orchestrator::{ExplorerBagContent, ExplorersLocationRef};
 use crate::payload;
 use common_game::logging::Channel;
 use common_game::protocols::orchestrator_explorer::{
@@ -103,7 +103,7 @@ pub(crate) struct KillExplorerConversation<State> {
 }
 
 // SENDING KILL EXPLORER IMPLEMENTATION
-impl Conversation<ExplorerBag> for KillExplorerConversation<SendingKillExplorer> {
+impl Conversation<ExplorerBagContent> for KillExplorerConversation<SendingKillExplorer> {
     fn get_id(&self) -> ID {
         self.id
     }
@@ -125,8 +125,8 @@ impl Conversation<ExplorerBag> for KillExplorerConversation<SendingKillExplorer>
     /// [`KillExplorerConversation<WaitingKillExplorerResult>`] if the request was sent successfully.
     fn transition(
         self: Box<Self>,
-        _msg_wrapped: Option<PossibleMessage<ExplorerBag>>,
-    ) -> Option<Box<dyn Conversation<ExplorerBag> + Send + Sync>> {
+        _msg_wrapped: Option<PossibleMessage<ExplorerBagContent>>,
+    ) -> Option<Box<dyn Conversation<ExplorerBagContent> + Send + Sync>> {
         match self
             .state
             .to_explorer_struct
@@ -156,7 +156,8 @@ impl Conversation<ExplorerBag> for KillExplorerConversation<SendingKillExplorer>
                     }
                 };
                 let error_state = ErrorState::new(Box::new(error), self.id);
-                Some(Box::new(error_state) as Box<dyn Conversation<ExplorerBag> + Send + Sync>)
+                Some(Box::new(error_state)
+                    as Box<dyn Conversation<ExplorerBagContent> + Send + Sync>)
             }
         }
     }
@@ -178,7 +179,7 @@ impl KillExplorerConversation<SendingKillExplorer> {
 }
 
 // WAITING KILL EXPLORER RESULT IMPLEMENTATION
-impl Conversation<ExplorerBag> for KillExplorerConversation<WaitingKillExplorerResult> {
+impl Conversation<ExplorerBagContent> for KillExplorerConversation<WaitingKillExplorerResult> {
     fn get_id(&self) -> ID {
         self.id
     }
@@ -202,8 +203,8 @@ impl Conversation<ExplorerBag> for KillExplorerConversation<WaitingKillExplorerR
     /// panic if an unexpected message is received.
     fn transition(
         self: Box<Self>,
-        msg_wrapped: Option<PossibleMessage<ExplorerBag>>,
-    ) -> Option<Box<dyn Conversation<ExplorerBag> + Send + Sync>> {
+        msg_wrapped: Option<PossibleMessage<ExplorerBagContent>>,
+    ) -> Option<Box<dyn Conversation<ExplorerBagContent> + Send + Sync>> {
         if let Some(PossibleMessage::ExplorerToOrch(ExplorerToOrchestrator::KillExplorerResult {
             explorer_id,
         })) = msg_wrapped
@@ -244,7 +245,7 @@ impl Conversation<ExplorerBag> for KillExplorerConversation<WaitingKillExplorerR
             ),
         );
         let error_state = ErrorState::new(Box::new(CommonErrorTypes::WrongMessage), self.id);
-        Some(Box::new(error_state) as Box<dyn Conversation<ExplorerBag> + Send + Sync>)
+        Some(Box::new(error_state) as Box<dyn Conversation<ExplorerBagContent> + Send + Sync>)
     }
 
     fn get_priority(&self) -> i32 {

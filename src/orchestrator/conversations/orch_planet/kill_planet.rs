@@ -4,7 +4,7 @@ use crate::orchestrator::conversations::{
     CommonErrorTypes, Conversation, ErrorState, KillExplorersList, PossibleExpectedKinds,
     PossibleMessage, SendersToExplorer, SendersToPlanet, ToPlanetError, ToPlanetStruct,
 };
-use crate::orchestrator::{ExplorerBag, ExplorersLocationRef};
+use crate::orchestrator::{ExplorerBagContent, ExplorersLocationRef};
 use crate::payload;
 use common_game::logging::Channel;
 use common_game::protocols::orchestrator_planet::PlanetToOrchestratorKind::KillPlanetResult;
@@ -93,7 +93,7 @@ pub(crate) struct KillPlanetConversation<State> {
 }
 
 // SEND PLANET KILL IMPLEMENTATION
-impl Conversation<ExplorerBag> for KillPlanetConversation<SendPlanetKill> {
+impl Conversation<ExplorerBagContent> for KillPlanetConversation<SendPlanetKill> {
     fn get_id(&self) -> ID {
         self.id
     }
@@ -115,8 +115,8 @@ impl Conversation<ExplorerBag> for KillPlanetConversation<SendPlanetKill> {
     /// [`KillPlanetConversation<WaitingPlanetKillResult>`] if the kill command was sent successfully.
     fn transition(
         self: Box<Self>,
-        _msg_wrapped: Option<PossibleMessage<ExplorerBag>>,
-    ) -> Option<Box<dyn Conversation<ExplorerBag> + Send + Sync>> {
+        _msg_wrapped: Option<PossibleMessage<ExplorerBagContent>>,
+    ) -> Option<Box<dyn Conversation<ExplorerBagContent> + Send + Sync>> {
         match self
             .state
             .to_planet_struct
@@ -142,7 +142,8 @@ impl Conversation<ExplorerBag> for KillPlanetConversation<SendPlanetKill> {
                     ToPlanetError::SenderNotFound(id) => CommonErrorTypes::PlanetSenderNotFound(id),
                 };
                 let error_state = ErrorState::new(Box::new(error), self.id);
-                Some(Box::new(error_state) as Box<dyn Conversation<ExplorerBag> + Send + Sync>)
+                Some(Box::new(error_state)
+                    as Box<dyn Conversation<ExplorerBagContent> + Send + Sync>)
             }
         }
     }
@@ -164,7 +165,7 @@ impl KillPlanetConversation<SendPlanetKill> {
 }
 
 // WAITING PLANET KILL RESULT IMPLEMENTATION
-impl Conversation<ExplorerBag> for KillPlanetConversation<WaitingPlanetKillResult> {
+impl Conversation<ExplorerBagContent> for KillPlanetConversation<WaitingPlanetKillResult> {
     fn get_id(&self) -> ID {
         self.id
     }
@@ -187,8 +188,8 @@ impl Conversation<ExplorerBag> for KillPlanetConversation<WaitingPlanetKillResul
     /// [`ErrorState`] with [`CommonErrorTypes::WrongMessage`] if the trigger message is different then the expected [`PlanetToOrchestrator::KillPlanetResult`] .
     fn transition(
         self: Box<Self>,
-        msg_wrapped: Option<PossibleMessage<ExplorerBag>>,
-    ) -> Option<Box<dyn Conversation<ExplorerBag> + Send + Sync>> {
+        msg_wrapped: Option<PossibleMessage<ExplorerBagContent>>,
+    ) -> Option<Box<dyn Conversation<ExplorerBagContent> + Send + Sync>> {
         if let Some(PossibleMessage::PlanetToOrch(PlanetToOrchestrator::KillPlanetResult {
             planet_id,
         })) = msg_wrapped
@@ -208,7 +209,7 @@ impl Conversation<ExplorerBag> for KillPlanetConversation<WaitingPlanetKillResul
 
         //Wrong Message, close conversation
         let error_state = ErrorState::new(Box::new(CommonErrorTypes::WrongMessage), self.id);
-        Some(Box::new(error_state) as Box<dyn Conversation<ExplorerBag> + Send + Sync>)
+        Some(Box::new(error_state) as Box<dyn Conversation<ExplorerBagContent> + Send + Sync>)
     }
 
     fn get_priority(&self) -> i32 {

@@ -1,7 +1,7 @@
 use crate::galaxy_setup::OrchPlanSenderMap;
 use crate::globals::TIMEOUT;
 use crate::logging_utils::{log_internal, log_msg_to};
-use crate::orchestrator::ExplorerBag;
+use crate::orchestrator::ExplorerBagContent;
 use crate::payload;
 use common_game::logging::{ActorType, Channel, EventType};
 use common_game::protocols::orchestrator_explorer::{
@@ -119,6 +119,33 @@ impl<T> PossibleMessage<T> {
     /// Retrieves the ID of the entity that sent the message.
     pub fn get_entity_ids(&self) -> (Option<ID>, Option<ID>) {
         match self {
+            PossibleMessage::PlanetToOrch(
+                PlanetToOrchestrator::IncomingExplorerResponse {
+                    planet_id,
+                    explorer_id,
+                    ..
+                }
+                | PlanetToOrchestrator::OutgoingExplorerResponse {
+                    planet_id,
+                    explorer_id,
+                    ..
+                },
+            )
+            | PossibleMessage::ExplorerToOrch(
+                ExplorerToOrchestrator::MovedToPlanetResult {
+                    planet_id,
+                    explorer_id, ..
+                }
+            )
+            => (Some(*planet_id), Some(*explorer_id)),
+
+            PossibleMessage::ExplorerToOrch(ExplorerToOrchestrator::TravelToPlanetRequest {
+                dst_planet_id,
+                explorer_id,
+                ..
+            }) // TODO! I did not check if this requires dst_planet_id or curr_planet_id to match the conversation
+            => (Some(*dst_planet_id), Some(*explorer_id)),
+
             PossibleMessage::PlanetToOrch(msg) => (Some(msg.planet_id()), None),
             PossibleMessage::ExplorerToOrch(msg) => (None, Some(msg.explorer_id())),
         }
@@ -313,7 +340,7 @@ impl ErrorState {
     }
 }
 
-impl Conversation<ExplorerBag> for ErrorState {
+impl Conversation<ExplorerBagContent> for ErrorState {
     fn get_id(&self) -> ID {
         self.id
     }
@@ -326,8 +353,8 @@ impl Conversation<ExplorerBag> for ErrorState {
 
     fn transition(
         self: Box<Self>,
-        _msg_wrapped: Option<PossibleMessage<ExplorerBag>>,
-    ) -> Option<Box<dyn Conversation<ExplorerBag> + Send + Sync>> {
+        _msg_wrapped: Option<PossibleMessage<ExplorerBagContent>>,
+    ) -> Option<Box<dyn Conversation<ExplorerBagContent> + Send + Sync>> {
         log_internal(
             Channel::Warning,
             payload!(

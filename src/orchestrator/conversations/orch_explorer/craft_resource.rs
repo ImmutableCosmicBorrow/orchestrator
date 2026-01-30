@@ -1,11 +1,11 @@
 use crate::globals::get_explorer_timeout;
 use crate::logging_utils::log_internal;
-use crate::orchestrator::ExplorerBag;
 use crate::orchestrator::conversations::{
     CommonErrorTypes, Conversation, ErrorState, ErrorType, PossibleExpectedKinds, PossibleMessage,
     ToExplorerError, ToExplorerStruct,
 };
 use crate::payload;
+use common_explorer::ExplorerBagContent;
 use common_game::components::resource::BasicResourceType;
 use common_game::logging::Channel;
 use common_game::protocols::orchestrator_explorer::{
@@ -99,7 +99,7 @@ pub struct CraftResourceConversation<State> {
 }
 
 // SENDING CRAFT RESOURCE REQUEST IMPLEMENTATION
-impl Conversation<ExplorerBag> for CraftResourceConversation<SendingCraftResourceRequest> {
+impl Conversation<ExplorerBagContent> for CraftResourceConversation<SendingCraftResourceRequest> {
     fn get_id(&self) -> ID {
         self.id
     }
@@ -121,8 +121,8 @@ impl Conversation<ExplorerBag> for CraftResourceConversation<SendingCraftResourc
     /// [`CraftResourceConversation<WaitingCraftResourceResult>`] if the request was sent successfully.
     fn transition(
         self: Box<Self>,
-        _msg_wrapped: Option<PossibleMessage<ExplorerBag>>,
-    ) -> Option<Box<dyn Conversation<ExplorerBag> + Send + Sync>> {
+        _msg_wrapped: Option<PossibleMessage<ExplorerBagContent>>,
+    ) -> Option<Box<dyn Conversation<ExplorerBagContent> + Send + Sync>> {
         match self.state.to_explorer_struct.to_explorer(
             OrchestratorToExplorer::GenerateResourceRequest {
                 to_generate: self.state.to_craft,
@@ -148,7 +148,8 @@ impl Conversation<ExplorerBag> for CraftResourceConversation<SendingCraftResourc
                     }
                 };
                 let error_state = ErrorState::new(Box::new(error), self.id);
-                Some(Box::new(error_state) as Box<dyn Conversation<ExplorerBag> + Send + Sync>)
+                Some(Box::new(error_state)
+                    as Box<dyn Conversation<ExplorerBagContent> + Send + Sync>)
             }
         }
     }
@@ -170,7 +171,7 @@ impl CraftResourceConversation<SendingCraftResourceRequest> {
 }
 
 // WAITING CRAFT RESOURCE RESULT IMPLEMENTATION
-impl Conversation<ExplorerBag> for CraftResourceConversation<WaitingCraftResourceResult> {
+impl Conversation<ExplorerBagContent> for CraftResourceConversation<WaitingCraftResourceResult> {
     fn get_id(&self) -> ID {
         self.id
     }
@@ -194,8 +195,8 @@ impl Conversation<ExplorerBag> for CraftResourceConversation<WaitingCraftResourc
     /// [`ErrorState`] with [`CommonErrorTypes::WrongMessage`] if an unexpected message is received.
     fn transition(
         self: Box<Self>,
-        msg_wrapped: Option<PossibleMessage<ExplorerBag>>,
-    ) -> Option<Box<dyn Conversation<ExplorerBag> + Send + Sync>> {
+        msg_wrapped: Option<PossibleMessage<ExplorerBagContent>>,
+    ) -> Option<Box<dyn Conversation<ExplorerBagContent> + Send + Sync>> {
         if let Some(PossibleMessage::ExplorerToOrch(
             ExplorerToOrchestrator::GenerateResourceResponse {
                 explorer_id,
@@ -224,14 +225,15 @@ impl Conversation<ExplorerBag> for CraftResourceConversation<WaitingCraftResourc
                         resource: self.state.to_craft,
                     };
                     let error_state = ErrorState::new(Box::new(error_struct), self.id);
-                    Some(Box::new(error_state) as Box<dyn Conversation<ExplorerBag> + Send + Sync>)
+                    Some(Box::new(error_state)
+                        as Box<dyn Conversation<ExplorerBagContent> + Send + Sync>)
                 }
             };
         }
 
         //Wrong Message, close conversation
         let error_state = ErrorState::new(Box::new(CommonErrorTypes::WrongMessage), self.id);
-        Some(Box::new(error_state) as Box<dyn Conversation<ExplorerBag> + Send + Sync>)
+        Some(Box::new(error_state) as Box<dyn Conversation<ExplorerBagContent> + Send + Sync>)
     }
 
     fn get_priority(&self) -> i32 {

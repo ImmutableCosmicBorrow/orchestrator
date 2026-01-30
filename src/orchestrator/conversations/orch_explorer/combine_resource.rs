@@ -1,11 +1,11 @@
 use crate::globals::get_explorer_timeout;
 use crate::logging_utils::log_internal;
-use crate::orchestrator::ExplorerBag;
 use crate::orchestrator::conversations::{
     CommonErrorTypes, Conversation, ErrorState, ErrorType, PossibleExpectedKinds, PossibleMessage,
     ToExplorerError, ToExplorerStruct,
 };
 use crate::payload;
+use common_explorer::ExplorerBagContent;
 use common_game::components::resource::ComplexResourceType;
 use common_game::logging::Channel;
 use common_game::protocols::orchestrator_explorer::{
@@ -99,7 +99,9 @@ pub struct CombineResourceConversation<State> {
 }
 
 // SENDING COMBINE RESOURCE REQUEST IMPLEMENTATION
-impl Conversation<ExplorerBag> for CombineResourceConversation<SendingCombineResourceRequest> {
+impl Conversation<ExplorerBagContent>
+    for CombineResourceConversation<SendingCombineResourceRequest>
+{
     fn get_id(&self) -> ID {
         self.id
     }
@@ -121,8 +123,8 @@ impl Conversation<ExplorerBag> for CombineResourceConversation<SendingCombineRes
     /// [`CombineResourceConversation<WaitingCombineResourceResult>`] if the request was sent successfully.
     fn transition(
         self: Box<Self>,
-        _msg_wrapped: Option<PossibleMessage<ExplorerBag>>,
-    ) -> Option<Box<dyn Conversation<ExplorerBag> + Send + Sync>> {
+        _msg_wrapped: Option<PossibleMessage<ExplorerBagContent>>,
+    ) -> Option<Box<dyn Conversation<ExplorerBagContent> + Send + Sync>> {
         match self.state.to_explorer_struct.to_explorer(
             OrchestratorToExplorer::CombineResourceRequest {
                 to_generate: self.state.to_craft,
@@ -148,7 +150,8 @@ impl Conversation<ExplorerBag> for CombineResourceConversation<SendingCombineRes
                     }
                 };
                 let error_state = ErrorState::new(Box::new(error), self.id);
-                Some(Box::new(error_state) as Box<dyn Conversation<ExplorerBag> + Send + Sync>)
+                Some(Box::new(error_state)
+                    as Box<dyn Conversation<ExplorerBagContent> + Send + Sync>)
             }
         }
     }
@@ -170,7 +173,9 @@ impl CombineResourceConversation<SendingCombineResourceRequest> {
 }
 
 // WAITING COMBINE RESOURCE RESULT IMPLEMENTATION
-impl Conversation<ExplorerBag> for CombineResourceConversation<WaitingCombineResourceResult> {
+impl Conversation<ExplorerBagContent>
+    for CombineResourceConversation<WaitingCombineResourceResult>
+{
     fn get_id(&self) -> ID {
         self.id
     }
@@ -194,8 +199,8 @@ impl Conversation<ExplorerBag> for CombineResourceConversation<WaitingCombineRes
     /// [`ErrorState`] with [`CommonErrorTypes::WrongMessage`] if an unexpected message is received.
     fn transition(
         self: Box<Self>,
-        msg_wrapped: Option<PossibleMessage<ExplorerBag>>,
-    ) -> Option<Box<dyn Conversation<ExplorerBag> + Send + Sync>> {
+        msg_wrapped: Option<PossibleMessage<ExplorerBagContent>>,
+    ) -> Option<Box<dyn Conversation<ExplorerBagContent> + Send + Sync>> {
         if let Some(PossibleMessage::ExplorerToOrch(
             ExplorerToOrchestrator::CombineResourceResponse {
                 explorer_id,
@@ -224,14 +229,15 @@ impl Conversation<ExplorerBag> for CombineResourceConversation<WaitingCombineRes
                         resource: self.state.to_craft,
                     };
                     let error_state = ErrorState::new(Box::new(error_struct), self.id);
-                    Some(Box::new(error_state) as Box<dyn Conversation<ExplorerBag> + Send + Sync>)
+                    Some(Box::new(error_state)
+                        as Box<dyn Conversation<ExplorerBagContent> + Send + Sync>)
                 }
             };
         }
 
         //Wrong Message, close conversation
         let error_state = ErrorState::new(Box::new(CommonErrorTypes::WrongMessage), self.id);
-        Some(Box::new(error_state) as Box<dyn Conversation<ExplorerBag> + Send + Sync>)
+        Some(Box::new(error_state) as Box<dyn Conversation<ExplorerBagContent> + Send + Sync>)
     }
 
     fn get_priority(&self) -> i32 {

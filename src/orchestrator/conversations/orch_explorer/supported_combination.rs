@@ -1,6 +1,6 @@
 use crate::globals::get_explorer_timeout;
 use crate::logging_utils::log_internal;
-use crate::orchestrator::ExplorerBag;
+use crate::orchestrator::ExplorerBagContent;
 use crate::orchestrator::conversations::{
     CommonErrorTypes, Conversation, ErrorState, PossibleExpectedKinds, PossibleMessage,
     ToExplorerError, ToExplorerStruct,
@@ -84,7 +84,7 @@ pub(crate) struct SupportedCombinationConversation<State> {
 }
 
 // SENDING SUPPORTED COMBINATION REQUEST IMPLEMENTATION
-impl Conversation<ExplorerBag>
+impl Conversation<ExplorerBagContent>
     for SupportedCombinationConversation<SendingSupportedCombinationRequest>
 {
     fn get_id(&self) -> ID {
@@ -110,8 +110,8 @@ impl Conversation<ExplorerBag>
     /// The next state: [`SupportedCombinationConversation<WaitingSupportedCombinationResult>`] if the request was sent successfully.
     fn transition(
         self: Box<Self>,
-        _msg_wrapped: Option<PossibleMessage<ExplorerBag>>,
-    ) -> Option<Box<dyn Conversation<ExplorerBag> + Send + Sync>> {
+        _msg_wrapped: Option<PossibleMessage<ExplorerBagContent>>,
+    ) -> Option<Box<dyn Conversation<ExplorerBagContent> + Send + Sync>> {
         match self
             .state
             .to_explorer_struct
@@ -136,7 +136,8 @@ impl Conversation<ExplorerBag>
                     }
                 };
                 let error_state = ErrorState::new(Box::new(error), self.id);
-                Some(Box::new(error_state) as Box<dyn Conversation<ExplorerBag> + Send + Sync>)
+                Some(Box::new(error_state)
+                    as Box<dyn Conversation<ExplorerBagContent> + Send + Sync>)
             }
         }
     }
@@ -158,7 +159,7 @@ impl SupportedCombinationConversation<SendingSupportedCombinationRequest> {
 }
 
 // WAITING SUPPORTED COMBINATION RESULT IMPLEMENTATION
-impl Conversation<ExplorerBag>
+impl Conversation<ExplorerBagContent>
     for SupportedCombinationConversation<WaitingSupportedCombinationResult>
 {
     fn get_id(&self) -> ID {
@@ -182,8 +183,8 @@ impl Conversation<ExplorerBag>
     /// [`ErrorState`] with [`CommonErrorTypes::WrongMessage`] if the received message does not match the expected result kind.
     fn transition(
         self: Box<Self>,
-        msg_wrapped: Option<PossibleMessage<ExplorerBag>>,
-    ) -> Option<Box<dyn Conversation<ExplorerBag> + Send + Sync>> {
+        msg_wrapped: Option<PossibleMessage<ExplorerBagContent>>,
+    ) -> Option<Box<dyn Conversation<ExplorerBagContent> + Send + Sync>> {
         if let Some(PossibleMessage::ExplorerToOrch(
             ExplorerToOrchestrator::SupportedCombinationResult {
                 explorer_id,
@@ -215,7 +216,7 @@ impl Conversation<ExplorerBag>
 
         //Wrong Message, close conversation
         let error_state = ErrorState::new(Box::new(CommonErrorTypes::WrongMessage), self.id);
-        Some(Box::new(error_state) as Box<dyn Conversation<ExplorerBag> + Send + Sync>)
+        Some(Box::new(error_state) as Box<dyn Conversation<ExplorerBagContent> + Send + Sync>)
     }
 
     fn get_priority(&self) -> i32 {

@@ -22,9 +22,6 @@ pub(crate) enum MoveToPlanetErrors {
     /// A critical inconsistency where the planets have updated their channels,
     /// but the Orchestrator cannot find the sender for the new destination.
     NewSenderToPlanetNotFound(ID),
-    /// The explorer being moved could not be located in the Orchestrator's
-    /// internal tracking list.
-    ExplorerLocationNotFound(ID),
 }
 
 impl ErrorType for MoveToPlanetErrors {
@@ -53,9 +50,6 @@ impl ErrorType for MoveToPlanetErrors {
             MoveToPlanetErrors::NewSenderToPlanetNotFound(id) => format!(
                 "sender to dest planet {id} not found, planets already changed explorer channels but explorer did not"
             ),
-            MoveToPlanetErrors::ExplorerLocationNotFound(id) => {
-                format!("The location for explorer {id} is not found in the list")
-            }
         }
     }
 }

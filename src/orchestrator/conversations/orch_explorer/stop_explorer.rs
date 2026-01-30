@@ -1,6 +1,6 @@
 use crate::globals::get_explorer_timeout;
 use crate::logging_utils::log_internal;
-use crate::orchestrator::ExplorerBag;
+use crate::orchestrator::ExplorerBagContent;
 use crate::orchestrator::conversations::{
     CommonErrorTypes, Conversation, ErrorState, PossibleExpectedKinds, PossibleMessage,
     ToExplorerError, ToExplorerStruct,
@@ -67,7 +67,7 @@ pub(crate) struct StopExplorerConversation<State> {
 }
 
 // SENDING EXPLORER STOP IMPLEMENTATION
-impl Conversation<ExplorerBag> for StopExplorerConversation<SendingExplorerStop> {
+impl Conversation<ExplorerBagContent> for StopExplorerConversation<SendingExplorerStop> {
     fn get_id(&self) -> ID {
         self.id
     }
@@ -91,8 +91,8 @@ impl Conversation<ExplorerBag> for StopExplorerConversation<SendingExplorerStop>
     /// The next state: [`StopExplorerConversation<WaitingExplorerStopResult>`] if the stop command was sent successfully.
     fn transition(
         self: Box<Self>,
-        _msg_wrapped: Option<PossibleMessage<ExplorerBag>>,
-    ) -> Option<Box<dyn Conversation<ExplorerBag> + Send + Sync>> {
+        _msg_wrapped: Option<PossibleMessage<ExplorerBagContent>>,
+    ) -> Option<Box<dyn Conversation<ExplorerBagContent> + Send + Sync>> {
         match self
             .state
             .to_explorer_struct
@@ -116,7 +116,8 @@ impl Conversation<ExplorerBag> for StopExplorerConversation<SendingExplorerStop>
                     }
                 };
                 let error_state = ErrorState::new(Box::new(error), self.id);
-                Some(Box::new(error_state) as Box<dyn Conversation<ExplorerBag> + Send + Sync>)
+                Some(Box::new(error_state)
+                    as Box<dyn Conversation<ExplorerBagContent> + Send + Sync>)
             }
         }
     }
@@ -138,7 +139,7 @@ impl StopExplorerConversation<SendingExplorerStop> {
 }
 
 // WAITING EXPLORER STOP RESULT IMPLEMENTATION
-impl Conversation<ExplorerBag> for StopExplorerConversation<WaitingExplorerStopResult> {
+impl Conversation<ExplorerBagContent> for StopExplorerConversation<WaitingExplorerStopResult> {
     fn get_id(&self) -> ID {
         self.id
     }
@@ -160,8 +161,8 @@ impl Conversation<ExplorerBag> for StopExplorerConversation<WaitingExplorerStopR
     /// [`ErrorState`] with [`CommonErrorTypes::WrongMessage`] if the received message does not match the expected result kind.
     fn transition(
         self: Box<Self>,
-        msg_wrapped: Option<PossibleMessage<ExplorerBag>>,
-    ) -> Option<Box<dyn Conversation<ExplorerBag> + Send + Sync>> {
+        msg_wrapped: Option<PossibleMessage<ExplorerBagContent>>,
+    ) -> Option<Box<dyn Conversation<ExplorerBagContent> + Send + Sync>> {
         if let Some(PossibleMessage::ExplorerToOrch(
             ExplorerToOrchestrator::StopExplorerAIResult { explorer_id },
         )) = msg_wrapped
@@ -179,7 +180,7 @@ impl Conversation<ExplorerBag> for StopExplorerConversation<WaitingExplorerStopR
 
         //Wrong Message, close conversation
         let error_state = ErrorState::new(Box::new(CommonErrorTypes::WrongMessage), self.id);
-        Some(Box::new(error_state) as Box<dyn Conversation<ExplorerBag> + Send + Sync>)
+        Some(Box::new(error_state) as Box<dyn Conversation<ExplorerBagContent> + Send + Sync>)
     }
 
     fn get_priority(&self) -> i32 {

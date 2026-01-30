@@ -1,5 +1,5 @@
 use crate::logging_utils::log_internal;
-use crate::orchestrator::ExplorerBag;
+use crate::orchestrator::ExplorerBagContent;
 use crate::orchestrator::conversations::PossibleExpectedKinds::PlanetToOrchKind;
 use crate::orchestrator::conversations::{
     CommonErrorTypes, Conversation, ErrorState, PossibleExpectedKinds, PossibleMessage,
@@ -65,7 +65,7 @@ pub(crate) struct StartPlanetConversation<State> {
 }
 
 // SENDING PLANET START IMPLEMENTATION
-impl Conversation<ExplorerBag> for StartPlanetConversation<SendingPlanetStart> {
+impl Conversation<ExplorerBagContent> for StartPlanetConversation<SendingPlanetStart> {
     fn get_id(&self) -> ID {
         self.id
     }
@@ -89,8 +89,8 @@ impl Conversation<ExplorerBag> for StartPlanetConversation<SendingPlanetStart> {
     /// The next state: [`StartPlanetConversation<WaitingPlanetStartResult>`] if the start command was sent successfully.
     fn transition(
         self: Box<Self>,
-        _msg_wrapped: Option<PossibleMessage<ExplorerBag>>,
-    ) -> Option<Box<dyn Conversation<ExplorerBag> + Send + Sync>> {
+        _msg_wrapped: Option<PossibleMessage<ExplorerBagContent>>,
+    ) -> Option<Box<dyn Conversation<ExplorerBagContent> + Send + Sync>> {
         match self
             .state
             .to_planet_struct
@@ -110,7 +110,8 @@ impl Conversation<ExplorerBag> for StartPlanetConversation<SendingPlanetStart> {
                     ToPlanetError::SenderNotFound(id) => CommonErrorTypes::PlanetSenderNotFound(id),
                 };
                 let error_state = ErrorState::new(Box::new(error), self.id);
-                Some(Box::new(error_state) as Box<dyn Conversation<ExplorerBag> + Send + Sync>)
+                Some(Box::new(error_state)
+                    as Box<dyn Conversation<ExplorerBagContent> + Send + Sync>)
             }
         }
     }
@@ -131,7 +132,7 @@ impl StartPlanetConversation<SendingPlanetStart> {
 }
 
 // WAITING RESULT IMPLEMENTATION
-impl Conversation<ExplorerBag> for StartPlanetConversation<WaitingPlanetStartResult> {
+impl Conversation<ExplorerBagContent> for StartPlanetConversation<WaitingPlanetStartResult> {
     fn get_id(&self) -> ID {
         self.id
     }
@@ -153,8 +154,8 @@ impl Conversation<ExplorerBag> for StartPlanetConversation<WaitingPlanetStartRes
     /// [`ErrorState`] with [`CommonErrorTypes::WrongMessage`] if the trigger message is different from [`PlanetToOrchestrator::StartPlanetAIResult`]
     fn transition(
         self: Box<Self>,
-        msg_wrapped: Option<PossibleMessage<ExplorerBag>>,
-    ) -> Option<Box<dyn Conversation<ExplorerBag> + Send + Sync>> {
+        msg_wrapped: Option<PossibleMessage<ExplorerBagContent>>,
+    ) -> Option<Box<dyn Conversation<ExplorerBagContent> + Send + Sync>> {
         if let Some(PossibleMessage::PlanetToOrch(PlanetToOrchestrator::StartPlanetAIResult {
             planet_id,
         })) = msg_wrapped
@@ -172,7 +173,7 @@ impl Conversation<ExplorerBag> for StartPlanetConversation<WaitingPlanetStartRes
 
         //Wrong Message, close conversation
         let error_state = ErrorState::new(Box::new(CommonErrorTypes::WrongMessage), self.id);
-        Some(Box::new(error_state) as Box<dyn Conversation<ExplorerBag> + Send + Sync>)
+        Some(Box::new(error_state) as Box<dyn Conversation<ExplorerBagContent> + Send + Sync>)
     }
 
     fn get_priority(&self) -> i32 {

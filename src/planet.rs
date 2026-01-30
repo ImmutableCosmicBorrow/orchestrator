@@ -288,22 +288,22 @@ fn ensure_node_in_guard(
     id: ID,
     key: usize,
 ) -> Arc<PlanetNode> {
-    if let Some(existing) = guard.get(&id)
-        && existing.is_alive()
-    {
-        return Arc::clone(existing);
+    if let Some(existing) = guard.get(&id) {
+        if existing.is_alive() {
+            return Arc::clone(existing);
+        }
+        // Node exists but is dead - this is the replacement case worth warning about
+        log_internal(
+            Channel::Warning,
+            payload! {
+                event: "Replacing dead PlanetNode with fresh one",
+                planet_id: id,
+            },
+        );
     }
 
     let fresh = Arc::new(PlanetNode::new(id, key));
     guard.insert(id, Arc::clone(&fresh));
-
-    log_internal(
-        Channel::Warning,
-        payload! {
-            event: "Created a fresh PlanetNode (replacing dead or missing)",
-            planet_id: id,
-        },
-    );
 
     fresh
 }
@@ -317,10 +317,18 @@ pub fn ensure_node(map: &PlanetMap, id: ID) -> Arc<PlanetNode> {
 
     let mut guard = map_write(map);
 
-    if let Some(existing) = guard.get(&id)
-        && existing.is_alive()
-    {
-        return Arc::clone(existing);
+    if let Some(existing) = guard.get(&id) {
+        if existing.is_alive() {
+            return Arc::clone(existing);
+        }
+        // Node exists but is dead - this is the replacement case worth warning about
+        log_internal(
+            Channel::Warning,
+            payload! {
+                event: "Replacing dead PlanetNode with fresh one",
+                planet_id: id,
+            },
+        );
     }
 
     // Ensure side-car exists (does nothing if already created).
@@ -328,14 +336,6 @@ pub fn ensure_node(map: &PlanetMap, id: ID) -> Arc<PlanetNode> {
 
     let fresh = Arc::new(PlanetNode::new(id, key));
     guard.insert(id, Arc::clone(&fresh));
-
-    log_internal(
-        Channel::Warning,
-        payload! {
-            event: "Created a fresh PlanetNode (replacing dead or missing)",
-            planet_id: id,
-        },
-    );
 
     fresh
 }

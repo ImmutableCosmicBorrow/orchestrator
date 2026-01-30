@@ -1,5 +1,5 @@
 use crate::logging_utils::log_internal;
-use crate::orchestrator::ExplorerBag;
+use crate::orchestrator::ExplorerBagContent;
 use crate::orchestrator::conversations::PossibleExpectedKinds::PlanetToOrchKind;
 use crate::orchestrator::conversations::{
     CommonErrorTypes, Conversation, ErrorState, PossibleExpectedKinds, PossibleMessage,
@@ -82,7 +82,7 @@ pub(crate) struct SunrayConversation<State> {
 }
 
 // SEND SUNRAY IMPLEMENTATION
-impl Conversation<ExplorerBag> for SunrayConversation<SendSunray> {
+impl Conversation<ExplorerBagContent> for SunrayConversation<SendSunray> {
     fn get_id(&self) -> ID {
         self.id
     }
@@ -106,8 +106,8 @@ impl Conversation<ExplorerBag> for SunrayConversation<SendSunray> {
     /// The next state: [`SunrayConversation<WaitingSunrayAck>`] if the sunray was sent successfully.
     fn transition(
         self: Box<Self>,
-        _msg_wrapped: Option<PossibleMessage<ExplorerBag>>,
-    ) -> Option<Box<dyn Conversation<ExplorerBag> + Send + Sync>> {
+        _msg_wrapped: Option<PossibleMessage<ExplorerBagContent>>,
+    ) -> Option<Box<dyn Conversation<ExplorerBagContent> + Send + Sync>> {
         let sunray = self.state.forge_ref.generate_sunray();
         match self
             .state
@@ -127,7 +127,8 @@ impl Conversation<ExplorerBag> for SunrayConversation<SendSunray> {
                     ToPlanetError::SenderNotFound(id) => CommonErrorTypes::PlanetSenderNotFound(id),
                 };
                 let error_state = ErrorState::new(Box::new(error), self.id);
-                Some(Box::new(error_state) as Box<dyn Conversation<ExplorerBag> + Send + Sync>)
+                Some(Box::new(error_state)
+                    as Box<dyn Conversation<ExplorerBagContent> + Send + Sync>)
             }
         }
     }
@@ -149,7 +150,7 @@ impl SunrayConversation<SendSunray> {
 }
 
 // WAITING SUNRAY ACK IMPLEMENTATION
-impl Conversation<ExplorerBag> for SunrayConversation<WaitingSunrayAck> {
+impl Conversation<ExplorerBagContent> for SunrayConversation<WaitingSunrayAck> {
     fn get_id(&self) -> ID {
         self.id
     }
@@ -171,8 +172,8 @@ impl Conversation<ExplorerBag> for SunrayConversation<WaitingSunrayAck> {
     /// [`ErrorState`] with [`CommonErrorTypes::WrongMessage`] if the trigger message is different from the expected one.
     fn transition(
         self: Box<Self>,
-        msg_wrapped: Option<PossibleMessage<ExplorerBag>>,
-    ) -> Option<Box<dyn Conversation<ExplorerBag> + Send + Sync>> {
+        msg_wrapped: Option<PossibleMessage<ExplorerBagContent>>,
+    ) -> Option<Box<dyn Conversation<ExplorerBagContent> + Send + Sync>> {
         if let Some(PossibleMessage::PlanetToOrch(PlanetToOrchestrator::SunrayAck { planet_id })) =
             msg_wrapped
         {
@@ -189,7 +190,7 @@ impl Conversation<ExplorerBag> for SunrayConversation<WaitingSunrayAck> {
 
         //Wrong Message, close conversation
         let error_state = ErrorState::new(Box::new(CommonErrorTypes::WrongMessage), self.id);
-        Some(Box::new(error_state) as Box<dyn Conversation<ExplorerBag> + Send + Sync>)
+        Some(Box::new(error_state) as Box<dyn Conversation<ExplorerBagContent> + Send + Sync>)
     }
 
     fn get_priority(&self) -> i32 {
