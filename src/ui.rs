@@ -66,14 +66,4 @@ pub enum OrchestratorToUiUpdate {
     // asteroid/sunrays commands
     SendAutoSunray(ID),
     SendAutoAsteroid(ID),
-
-    // start/stop/reset AI commands - needs to be visualized
-    StartPlanetAI(ID),
-    StopPlanetAI(ID),
-    ResetPlanetAI(ID),
-    StartExplorerAI(ID),
-    StopExplorerAI(ID),
-    ResetExplorerAI(ID),
-    KillExplorerAI(ID),
-    KillPlanetAI(ID),
 }
