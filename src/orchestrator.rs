@@ -300,6 +300,7 @@ impl Orchestrator {
                 self.convo_scheduler
                     .add_conversation(Box::new(stop_ai_convo));
             }
+            event_senders::disable_asteroids();
         } else {
             log_internal(
                 Channel::Info,
@@ -318,6 +319,7 @@ impl Orchestrator {
                 self.convo_scheduler
                     .add_conversation(Box::new(start_ai_convo));
             }
+            event_senders::enable_asteroids();
         }
     }
 
