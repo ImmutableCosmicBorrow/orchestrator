@@ -200,7 +200,7 @@ impl Orchestrator {
 
         // Main loop
         loop {
-            let timeout = crossbeam_channel::after(Duration::from_millis(100));
+            let timeout = crossbeam_channel::after(get_game_step() + Duration::from_millis(1000));
             select! {
                 recv(self.planets_receiver) -> msg => {
                     match msg {
@@ -867,7 +867,7 @@ impl Orchestrator {
                 self.explorer_to_orchestrator_sender.clone(),
                 rx_orchestrator_to_explorer,
                 rx_planet_to_explorer,
-                Duration::from_millis(get_game_step()),
+                get_game_step(),
             )),
             ExplorerType::Rob => {
                 todo!()
