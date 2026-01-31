@@ -468,7 +468,7 @@ impl Orchestrator {
         convo_factory::create_asteroid_conversation(
             &self.convo_scheduler,
             &self.planets_senders,
-            self.ui_sender.clone(),
+            &self.ui_sender,
             &self.forge,
             &self.explorers_location,
             &self.explorer_senders,
@@ -480,7 +480,7 @@ impl Orchestrator {
         convo_factory::create_sunray_conversation(
             &self.convo_scheduler,
             &self.planets_senders,
-            self.ui_sender.clone(),
+            &self.ui_sender,
             &self.forge,
             planet_id,
         );
@@ -536,6 +536,7 @@ impl Orchestrator {
         crate::orchestrator::event_senders::init_background_event_scheduler(
             self.planets_senders.clone(),
             self.forge.clone(),
+            self.ui_sender.clone(),
             self.explorers_location.clone(),
             self.explorer_senders.clone(),
             self.convo_scheduler.clone(),
