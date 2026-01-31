@@ -350,6 +350,7 @@ pub(crate) fn create_supported_combinations_conversation(
 pub(crate) fn create_asteroid_conversation(
     convo_scheduler: &ConvoScheduler<ExplorerBagContent>,
     planets_senders: &SendersToPlanet,
+    ui_sender: Sender<OrchestratorToUiUpdate>,
     forge: &Arc<Forge>,
     explorers_location: &ExplorersLocationRef,
     explorer_senders: &SendersToExplorer,
@@ -369,12 +370,17 @@ pub(crate) fn create_asteroid_conversation(
 
     convo_scheduler.add_conversation(Box::new(new_conv)
         as Box<dyn conversations::Conversation<ExplorerBagContent> + Send + Sync>);
+
+    
+    ui_sender.send(OrchestratorToUiUpdate::SendAutoAsteroid(planet_id)).unwrap();
+
     id
 }
 
 pub(crate) fn create_sunray_conversation(
     convo_scheduler: &ConvoScheduler<ExplorerBagContent>,
     planets_senders: &SendersToPlanet,
+    ui_sender: Sender<OrchestratorToUiUpdate>,
     forge: &Arc<Forge>,
     planet_id: ID,
 ) -> ID {
@@ -390,5 +396,8 @@ pub(crate) fn create_sunray_conversation(
 
     convo_scheduler.add_conversation(Box::new(new_conv)
         as Box<dyn conversations::Conversation<ExplorerBagContent> + Send + Sync>);
+    
+    ui_sender.send(OrchestratorToUiUpdate::SendAutoSunray(planet_id)).unwrap();
+
     id
 }

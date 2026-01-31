@@ -468,6 +468,7 @@ impl Orchestrator {
         convo_factory::create_asteroid_conversation(
             &self.convo_scheduler,
             &self.planets_senders,
+            self.ui_sender.clone(),
             &self.forge,
             &self.explorers_location,
             &self.explorer_senders,
@@ -479,6 +480,7 @@ impl Orchestrator {
         convo_factory::create_sunray_conversation(
             &self.convo_scheduler,
             &self.planets_senders,
+            self.ui_sender.clone(),
             &self.forge,
             planet_id,
         );
