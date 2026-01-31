@@ -481,6 +481,6 @@ mod tests {
         let conv = make_send_conv(senders);
 
         // Sending states should not have timeout - they're not waiting for messages
-        assert_eq!(conv.get_timeout(), Some(Duration::from_millis(TIMEOUT)));
+        assert_eq!(conv.get_timeout(), Some(TIMEOUT));
     }
 }

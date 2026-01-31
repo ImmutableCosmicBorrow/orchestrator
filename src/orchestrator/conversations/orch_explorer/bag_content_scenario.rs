@@ -190,7 +190,7 @@ impl Conversation<ExplorerBagContent> for BagContentConversation<WaitingBagConte
 
     // Longer timeout, since it involves a communication with an Explorer
     fn get_timeout(&self) -> Option<Duration> {
-        Some(Duration::from_millis(get_explorer_timeout()))
+        Some(get_explorer_timeout())
     }
 }
 

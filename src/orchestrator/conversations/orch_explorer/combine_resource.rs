@@ -12,6 +12,7 @@ use common_game::protocols::orchestrator_explorer::{
     ExplorerToOrchestrator, ExplorerToOrchestratorKind, OrchestratorToExplorer,
 };
 use common_game::utils::ID;
+use std::ops::Mul;
 use std::time::Duration;
 
 ///**Combine Resource Conversation**
@@ -246,7 +247,7 @@ impl Conversation<ExplorerBagContent>
 
     // Longer timeout, since it involves an Explorer - Planet communication
     fn get_timeout(&self) -> Option<Duration> {
-        Some(Duration::from_millis(2 * get_explorer_timeout()))
+        Some(get_explorer_timeout().mul(2))
     }
 }
 

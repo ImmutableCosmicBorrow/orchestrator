@@ -59,7 +59,7 @@ pub trait Conversation<T: Debug + Eq + Hash>: Send + Sync {
     /// The default timeout is `TIMEOUT` and does not depend on the game step.
     /// Override this in states that should not time out, or time out after a different period.
     fn get_timeout(&self) -> Option<Duration> {
-        Some(Duration::from_millis(TIMEOUT))
+        Some(TIMEOUT)
     }
 
     /// Called when the conversation times out.
