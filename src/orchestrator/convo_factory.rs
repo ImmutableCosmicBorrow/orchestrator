@@ -43,6 +43,16 @@ pub(crate) fn create_neighbors_request_conversation(
     convo_scheduler.add_conversation(Box::new(new_conv)
         as Box<dyn conversations::Conversation<ExplorerBagContent> + Send + Sync>);
 
+    log_internal(
+        Channel::Trace,
+        payload!(
+            event: "ScheduleConversation",
+            conversation_id: id,
+            kind: "NeighborsDiscovery",
+            explorer_id: explorer_id
+        ),
+    );
+
     /*self.handle_message(PossibleMessage::ExplorerToOrch(
         ExplorerToOrchestrator::NeighborsRequest {
             explorer_id,
@@ -82,6 +92,18 @@ pub(crate) fn create_travel_to_planet_request_conversation(
 
     convo_scheduler.add_conversation(Box::new(new_conv));
 
+    log_internal(
+        Channel::Trace,
+        payload!(
+            event: "ScheduleConversation",
+            conversation_id: id,
+            kind: "MoveToPlanet",
+            explorer_id: explorer_id,
+            from_planet: current_planet_id,
+            to_planet: dst_planet_id
+        ),
+    );
+
     id
 }
 
@@ -104,6 +126,16 @@ pub(crate) fn create_internal_state_conversation(
     convo_scheduler.add_conversation(Box::new(new_conv)
         as Box<dyn conversations::Conversation<ExplorerBagContent> + Send + Sync>);
 
+    log_internal(
+        Channel::Trace,
+        payload!(
+            event: "ScheduleConversation",
+            conversation_id: id,
+            kind: "InternalState",
+            planet_id: planet_id
+        ),
+    );
+
     id
 }
 
@@ -125,6 +157,17 @@ pub(crate) fn create_bag_content_conversation(
 
     convo_scheduler.add_conversation(Box::new(new_conv)
         as Box<dyn conversations::Conversation<ExplorerBagContent> + Send + Sync>);
+
+    log_internal(
+        Channel::Trace,
+        payload!(
+            event: "ScheduleConversation",
+            conversation_id: id,
+            kind: "BagContent",
+            explorer_id: explorer_id
+        ),
+    );
+
     id
 }
 
@@ -146,6 +189,18 @@ pub(crate) fn create_craft_resource_conversation(
 
     convo_scheduler.add_conversation(Box::new(new_conv)
         as Box<dyn conversations::Conversation<ExplorerBagContent> + Send + Sync>);
+
+    log_internal(
+        Channel::Trace,
+        payload!(
+            event: "ScheduleConversation",
+            conversation_id: id,
+            kind: "CraftResource",
+            explorer_id: explorer_id,
+            resource_type: format!("{:?}", resource_type)
+        ),
+    );
+
     id
 }
 
@@ -167,6 +222,18 @@ pub(crate) fn create_combine_resource_conversation(
 
     convo_scheduler.add_conversation(Box::new(new_conv)
         as Box<dyn conversations::Conversation<ExplorerBagContent> + Send + Sync>);
+
+    log_internal(
+        Channel::Trace,
+        payload!(
+            event: "ScheduleConversation",
+            conversation_id: id,
+            kind: "CombineResource",
+            explorer_id: explorer_id,
+            resource_type: format!("{:?}", resource_type)
+        ),
+    );
+
     id
 }
 
@@ -185,6 +252,17 @@ pub(crate) fn create_start_explorer_conversation(
 
     convo_scheduler.add_conversation(Box::new(new_conv)
         as Box<dyn conversations::Conversation<ExplorerBagContent> + Send + Sync>);
+
+    log_internal(
+        Channel::Trace,
+        payload!(
+            event: "ScheduleConversation",
+            conversation_id: id,
+            kind: "StartExplorer",
+            explorer_id: explorer_id
+        ),
+    );
+
     id
 }
 
@@ -203,6 +281,17 @@ pub(crate) fn create_stop_explorer_conversation(
 
     convo_scheduler.add_conversation(Box::new(new_conv)
         as Box<dyn conversations::Conversation<ExplorerBagContent> + Send + Sync>);
+
+    log_internal(
+        Channel::Trace,
+        payload!(
+            event: "ScheduleConversation",
+            conversation_id: id,
+            kind: "StopExplorer",
+            explorer_id: explorer_id
+        ),
+    );
+
     id
 }
 
@@ -230,6 +319,19 @@ pub(crate) fn create_kill_explorer_conversation(
 
     convo_scheduler.add_conversation(Box::new(new_conv)
         as Box<dyn conversations::Conversation<ExplorerBagContent> + Send + Sync>);
+
+    log_internal(
+        Channel::Trace,
+        payload!(
+            event: "ScheduleConversation",
+            conversation_id: id,
+            kind: "KillExplorer",
+            explorer_id: explorer_id,
+            planet_id: planet_id,
+            handle_outgoing: handle_outgoing
+        ),
+    );
+
     id
 }
 
@@ -248,6 +350,17 @@ pub(crate) fn create_reset_explorer_conversation(
 
     convo_scheduler.add_conversation(Box::new(new_conv)
         as Box<dyn conversations::Conversation<ExplorerBagContent> + Send + Sync>);
+
+    log_internal(
+        Channel::Trace,
+        payload!(
+            event: "ScheduleConversation",
+            conversation_id: id,
+            kind: "ResetExplorer",
+            explorer_id: explorer_id
+        ),
+    );
+
     id
 }
 
@@ -265,6 +378,17 @@ pub(crate) fn create_start_planet_conversation(
 
     convo_scheduler.add_conversation(Box::new(new_conv)
         as Box<dyn conversations::Conversation<ExplorerBagContent> + Send + Sync>);
+
+    log_internal(
+        Channel::Trace,
+        payload!(
+            event: "ScheduleConversation",
+            conversation_id: id,
+            kind: "StartPlanet",
+            planet_id: planet_id
+        ),
+    );
+
     id
 }
 
@@ -282,6 +406,17 @@ pub(crate) fn create_stop_planet_conversation(
 
     convo_scheduler.add_conversation(Box::new(new_conv)
         as Box<dyn conversations::Conversation<ExplorerBagContent> + Send + Sync>);
+
+    log_internal(
+        Channel::Trace,
+        payload!(
+            event: "ScheduleConversation",
+            conversation_id: id,
+            kind: "StopPlanet",
+            planet_id: planet_id
+        ),
+    );
+
     id
 }
 
@@ -305,6 +440,17 @@ pub(crate) fn create_kill_planet_conversation(
 
     convo_scheduler.add_conversation(Box::new(new_conv)
         as Box<dyn conversations::Conversation<ExplorerBagContent> + Send + Sync>);
+
+    log_internal(
+        Channel::Trace,
+        payload!(
+            event: "ScheduleConversation",
+            conversation_id: id,
+            kind: "KillPlanet",
+            planet_id: planet_id
+        ),
+    );
+
     id
 }
 
@@ -328,6 +474,17 @@ pub(crate) fn create_supported_resources_conversation(
 
     convo_scheduler.add_conversation(Box::new(new_conv)
         as Box<dyn conversations::Conversation<ExplorerBagContent> + Send + Sync>);
+
+    log_internal(
+        Channel::Trace,
+        payload!(
+            event: "ScheduleConversation",
+            conversation_id: id,
+            kind: "SupportedResources",
+            explorer_id: explorer_id
+        ),
+    );
+
     id
 }
 
@@ -347,6 +504,17 @@ pub(crate) fn create_supported_combinations_conversation(
 
     convo_scheduler.add_conversation(Box::new(new_conv)
         as Box<dyn conversations::Conversation<ExplorerBagContent> + Send + Sync>);
+
+    log_internal(
+        Channel::Trace,
+        payload!(
+            event: "ScheduleConversation",
+            conversation_id: id,
+            kind: "SupportedCombination",
+            explorer_id: explorer_id
+        ),
+    );
+
     id
 }
 

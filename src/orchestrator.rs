@@ -18,9 +18,6 @@ use crate::orchestrator::conversations::ToPlanetStruct;
 use crate::orchestrator::conversations::orch_explorer::kill_explorer::{
     KillExplorerConversation, SendingKillExplorer,
 };
-use crate::orchestrator::conversations::orch_explorer::move_to_planet::{
-    MoveToPlanetConversation, SendManualMoveRequest,
-};
 use common_explorer::ExplorerAI;
 pub(crate) use common_explorer::ExplorerBagContent;
 use common_game::components::forge::Forge;
