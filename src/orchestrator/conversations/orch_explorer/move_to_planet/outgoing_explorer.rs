@@ -84,6 +84,7 @@ impl Conversation<ExplorerBagContent> for MoveToPlanetConversation<SendOutgoingR
                     self.state.explorer_struct,
                     self.state.planet_explorer_channels,
                     self.state.dst_planet_id,
+                    self.state.curr_planet_struct.planet_id,
                     self.state.explorers_location_ref,
                 );
                 //Transition to WaitingOutgoingResponse
@@ -148,7 +149,7 @@ impl Conversation<ExplorerBagContent> for MoveToPlanetConversation<WaitingOutgoi
     /// Returns the IDs of the destination planet and the explorer departing.
     fn get_entities_ids(&self) -> (Option<ID>, Option<ID>) {
         (
-            Some(self.state.dst_planet_id),
+            Some(self.state.curr_planet_id),
             Some(self.state.explorer_struct.explorer_id),
         )
     }
