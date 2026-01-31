@@ -188,21 +188,32 @@ impl Conversation<ExplorerBagContent> for BagContentConversation<WaitingBagConte
 
             // Send explorer snapshot to UI if sender is available
             if let Some(ref sender) = self.state.ui_sender {
-                let _ = sender.send(OrchestratorToUiUpdate::ExplorerSnapshot(
+                let res = sender.send(OrchestratorToUiUpdate::ExplorerSnapshot(
                     explorer_id,
                     bag_content,
                 ));
+                
+                if res.is_err() {
+                    log_internal(
+                        Channel::Warning,
+                        payload!(
+                            action : "Failed to send ExplorerBagContent to UI",
+                            explorer_id : explorer_id,
+                            conversation_id : self.id
+                        ),
+                    );
+                }else{
+                    log_internal(
+                        Channel::Info,
+                        payload!(
+                            action : "Sent ExplorerBagContent to UI",
+                            explorer_id : explorer_id,
+                            conversation_id : self.id,
+                            bag_content : bag_content_log
+                        ),
+                    );
+                }
             }
-
-            log_internal(
-                Channel::Debug,
-                payload!(
-                    action : "Explorer sent its bag content, closing conversation",
-                    explorer_id : explorer_id,
-                    bag_content : bag_content_log,
-                    conversation_id : self.id
-                ),
-            );
             return None;
         }
 
