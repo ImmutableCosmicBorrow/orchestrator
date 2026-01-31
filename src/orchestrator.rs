@@ -182,7 +182,7 @@ impl Orchestrator {
                 *id,
             );
         }
-
+        /*
         // Send ExplorerStart to all Explorers
         for (id, _) in self.explorer_senders.lock().unwrap().iter() {
             convo_factory::create_start_explorer_conversation(
@@ -191,7 +191,7 @@ impl Orchestrator {
                 *id,
             );
         }
-
+        */
         // Start message processing thread
         self.process_messages();
 
