@@ -25,14 +25,14 @@ use std::time::Duration;
 ///
 /// The conversation starts in the [`SendingExplorerReset`] state, which sends an
 /// [`OrchestratorToExplorer::ResetExplorerAI`] when the [`Conversation::transition`] method is called.
-struct SendingExplorerReset {
+pub(crate) struct SendingExplorerReset {
     /// A struct containing fields to send messages to the specific explorer
     to_explorer_struct: ToExplorerStruct,
 }
 
 impl SendingExplorerReset {
     /// Constructor for [`SendingExplorerReset`] state struct
-    fn new(to_explorer_struct: ToExplorerStruct) -> Self {
+    pub(crate) fn new(to_explorer_struct: ToExplorerStruct) -> Self {
         Self { to_explorer_struct }
     }
 }
@@ -57,7 +57,7 @@ impl WaitingExplorerResetResult {
 ///
 /// This is the generic FSM struct that takes the generic type `State` to ensure only methods
 /// of that specific state can be called during the conversation.
-struct ResetExplorerConversation<State> {
+pub(crate) struct ResetExplorerConversation<State> {
     /// Conversation ID
     id: ID,
     /// Optional expected message to trigger the transition
@@ -129,7 +129,7 @@ impl Conversation<ExplorerBagContent> for ResetExplorerConversation<SendingExplo
 
 impl ResetExplorerConversation<SendingExplorerReset> {
     /// The constructor for [`ResetExplorerConversation`] in the [`SendingExplorerReset`] state
-    fn new(id: ID, state: SendingExplorerReset) -> Self {
+    pub(crate) fn new(id: ID, state: SendingExplorerReset) -> Self {
         Self {
             id,
             expected_message: None,

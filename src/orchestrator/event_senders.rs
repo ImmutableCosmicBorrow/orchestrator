@@ -5,11 +5,13 @@
 //! - Graceful shutdown support
 
 use crate::logging_utils::log_internal;
-use crate::orchestrator::conversations::{self, SendersToExplorer, SendersToPlanet};
+use crate::orchestrator::conversations::{SendersToExplorer, SendersToPlanet};
 use crate::orchestrator::queue::ConvoScheduler;
-use crate::orchestrator::{ExplorerBagContent, ExplorersLocationRef};
+use crate::orchestrator::{ExplorerBagContent, ExplorersLocationRef, convo_factory};
 use crate::payload;
 use crate::planet::PlanetMap;
+use crate::ui::OrchestratorToUiUpdate;
+use crossbeam_channel::Sender;
 
 use common_game::components::forge::Forge;
 use common_game::logging::Channel;
@@ -440,69 +442,9 @@ struct UniverseCtx {
 struct ConversationCtx {
     planets_senders: SendersToPlanet,
     forge: Arc<Forge>,
+    ui_sender: Sender<OrchestratorToUiUpdate>,
     explorer_senders: SendersToExplorer,
     convo_scheduler: ConvoScheduler<ExplorerBagContent>,
-}
-
-//
-// ──────────────────────────────────────────────────────────────────────────
-// Conversation helpers (context + raw values)
-// ──────────────────────────────────────────────────────────────────────────
-//
-
-fn send_asteroid(universe: &UniverseCtx, convo: &ConversationCtx, planet_id: ID) {
-    let to_planet = conversations::ToPlanetStruct::new(convo.planets_senders.clone(), planet_id);
-
-    let state = conversations::orch_planet::SendingAsteroid::new(
-        to_planet,
-        convo.forge.clone(),
-        universe.explorers_location.clone(),
-        convo.explorer_senders.clone(),
-    );
-
-    let convo_id = crate::globals::get_id_manager().get_next_conversation_id();
-    let conversation = conversations::orch_planet::AsteroidConversation::new(convo_id, state);
-
-    convo
-        .convo_scheduler
-        .add_conversation(Box::new(conversation)
-            as Box<dyn conversations::Conversation<ExplorerBagContent> + Send + Sync>);
-
-    // Log scheduling of asteroid conversation
-    log_internal(
-        Channel::Trace,
-        payload!(
-            event: "ScheduleConversation",
-            conversation_id: convo_id,
-            kind: "Asteroid",
-            planet_id: planet_id
-        ),
-    );
-}
-
-fn send_sunray(convo: &ConversationCtx, planet_id: ID) {
-    let to_planet = conversations::ToPlanetStruct::new(convo.planets_senders.clone(), planet_id);
-
-    let state = conversations::orch_planet::SendSunray::new(to_planet, convo.forge.clone());
-
-    let convo_id = crate::globals::get_id_manager().get_next_conversation_id();
-    let conversation = conversations::orch_planet::SunrayConversation::new(convo_id, state);
-
-    convo
-        .convo_scheduler
-        .add_conversation(Box::new(conversation)
-            as Box<dyn conversations::Conversation<ExplorerBagContent> + Send + Sync>);
-
-    // Log scheduling of sunray conversation
-    log_internal(
-        Channel::Trace,
-        payload!(
-            event: "ScheduleConversation",
-            conversation_id: convo_id,
-            kind: "Sunray",
-            planet_id: planet_id
-        ),
-    );
 }
 
 //
@@ -604,7 +546,15 @@ fn maybe_send_asteroid(
             Channel::Info,
             payload!(action: "Sending asteroid", planet_id: planet),
         );
-        send_asteroid(universe, convo, planet);
+        convo_factory::create_asteroid_conversation(
+            &convo.convo_scheduler,
+            &convo.planets_senders,
+            &convo.ui_sender,
+            &convo.forge,
+            &universe.explorers_location,
+            &convo.explorer_senders,
+            planet,
+        );
     } else {
         log_internal(
             Channel::Warning,
@@ -634,7 +584,13 @@ fn maybe_send_sunray(
             Channel::Info,
             payload!(action: "Sending sunray", planet_id: planet),
         );
-        send_sunray(convo, planet);
+        convo_factory::create_sunray_conversation(
+            &convo.convo_scheduler,
+            &convo.planets_senders,
+            &convo.ui_sender,
+            &convo.forge,
+            planet,
+        );
     } else {
         log_internal(
             Channel::Warning,
@@ -711,6 +667,7 @@ fn scheduler_loop(universe: &UniverseCtx, convo: &ConversationCtx) {
 pub fn init_background_event_scheduler(
     planets_senders: SendersToPlanet,
     forge: Arc<Forge>,
+    ui_sender: Sender<OrchestratorToUiUpdate>,
     explorers_location: ExplorersLocationRef,
     explorer_senders: SendersToExplorer,
     convo_scheduler: ConvoScheduler<ExplorerBagContent>,
@@ -733,6 +690,7 @@ pub fn init_background_event_scheduler(
     let convo = ConversationCtx {
         planets_senders,
         forge,
+        ui_sender,
         explorer_senders,
         convo_scheduler,
     };

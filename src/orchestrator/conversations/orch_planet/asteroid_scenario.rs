@@ -72,7 +72,7 @@ struct WaitingAsteroidAck {
 
 impl WaitingAsteroidAck {
     ///The constructor for [`WaitingAsteroidAck`] state struct
-    fn new(
+    pub(crate) fn new(
         to_planet_struct: ToPlanetStruct,
         explorers_senders: SendersToExplorer,
         explorers_location_ref: ExplorersLocationRef,

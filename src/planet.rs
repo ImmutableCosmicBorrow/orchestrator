@@ -343,6 +343,12 @@ pub fn ensure_node(map: &PlanetMap, id: ID) -> Arc<PlanetNode> {
 /// Connect two nodes with an undirected edge (A <-> B).
 /// Public signature unchanged.
 /// Lock order: PlanetMap(write) -> Connections(write)
+///
+/// # Errors
+///
+/// Returns [`ConnectError::SameNode`] if `a == b`, [`ConnectError::MissingEndpoint`] if
+/// either endpoint is not present in the map, or [`ConnectError::EndpointDead`] if one of
+/// the endpoints is not alive.
 pub fn connect_undirected(map: &PlanetMap, a: ID, b: ID) -> Result<(), ConnectError> {
     if a == b {
         return Err(ConnectError::SameNode);

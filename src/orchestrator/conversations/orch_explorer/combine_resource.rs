@@ -47,7 +47,7 @@ impl ErrorType for CraftingFailed {
 ///
 /// The conversation starts in the [`SendingCombineResourceRequest`] state, which sends an
 /// [`OrchestratorToExplorer::CombineResourceRequest`] when the [`Conversation::transition`] method is called.
-struct SendingCombineResourceRequest {
+pub struct SendingCombineResourceRequest {
     /// A struct containing fields to send messages to the specific explorer
     to_explorer_struct: ToExplorerStruct,
     /// The complex resource type intended to be crafted
@@ -56,7 +56,7 @@ struct SendingCombineResourceRequest {
 
 impl SendingCombineResourceRequest {
     /// Constructor for [`SendingCombineResourceRequest`] state struct
-    fn new(to_explorer_struct: ToExplorerStruct, to_craft: ComplexResourceType) -> Self {
+    pub fn new(to_explorer_struct: ToExplorerStruct, to_craft: ComplexResourceType) -> Self {
         Self {
             to_explorer_struct,
             to_craft,
@@ -90,7 +90,7 @@ impl WaitingCombineResourceResult {
 ///
 /// This is the generic FSM struct that takes the generic type `State` to ensure only methods
 /// of that specific state can be called during the conversation.
-struct CombineResourceConversation<State> {
+pub struct CombineResourceConversation<State> {
     /// Conversation ID
     id: ID,
     /// Optional expected message to trigger the transition
@@ -164,7 +164,7 @@ impl Conversation<ExplorerBagContent>
 
 impl CombineResourceConversation<SendingCombineResourceRequest> {
     /// The constructor for [`CombineResourceConversation`] in the [`SendingCombineResourceRequest`] state
-    fn new(id: ID, state: SendingCombineResourceRequest) -> Self {
+    pub fn new(id: ID, state: SendingCombineResourceRequest) -> Self {
         Self {
             id,
             expected_message: None,
