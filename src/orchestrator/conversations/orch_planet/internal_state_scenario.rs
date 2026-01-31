@@ -184,8 +184,6 @@ impl Conversation<ExplorerBagContent> for InternalStateConversation<WaitingInter
                 ));
             }
 
-            println!(" --------- ID:{:?} {:?}", planet_id, planet_state.clone());
-
             log_internal(
                 Channel::Debug,
                 payload!(
