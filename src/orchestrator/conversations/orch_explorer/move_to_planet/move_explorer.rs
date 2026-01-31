@@ -270,5 +270,12 @@ impl MoveToPlanetConversation<WaitMoveToPlanetResponse> {
             .lock()
             .unwrap()
             .insert(explorer_id, dst_planet_id);
+
+        log_internal(Channel::Info, payload!(
+            action : "Updated Explorer location in global reference",
+            explorer_id : explorer_id,
+            new_planet_id : dst_planet_id,
+            conversation_id : self.id
+        ));
     }
 }
