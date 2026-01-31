@@ -91,7 +91,7 @@ pub(crate) fn create_travel_to_planet_request_conversation(
     convo_scheduler.add_conversation(Box::new(new_conv));
 
     log_internal(
-        Channel::Trace,
+        Channel::Info,
         payload!(
             event: "ScheduleConversation",
             conversation_id: id,
