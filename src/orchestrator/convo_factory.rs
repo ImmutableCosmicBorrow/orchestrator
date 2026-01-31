@@ -9,7 +9,7 @@ use crate::orchestrator::conversations::SendersToExplorer;
 use crate::orchestrator::conversations::ToExplorerStruct;
 use crate::orchestrator::conversations::ToPlanetStruct;
 use crate::orchestrator::conversations::orch_explorer::move_to_planet::MoveToPlanetConversation;
-use crate::orchestrator::conversations::orch_explorer::move_to_planet::WaitingTravelRequest;
+use crate::orchestrator::conversations::orch_explorer::move_to_planet::SendManualMoveRequest;
 use crate::orchestrator::conversations::orch_planet::internal_state_scenario::SendingInternalStateRequest;
 use crate::orchestrator::log_internal;
 use crate::payload;
@@ -66,7 +66,6 @@ pub(crate) fn create_neighbors_request_conversation(
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn create_travel_to_planet_request_conversation(
     convo_scheduler: &ConvoScheduler<ExplorerBagContent>,
-    galaxy: &PlanetMap,
     planet_explorer_channels: &PlanetExplorerChannels,
     explorer_senders: &SendersToExplorer,
     planets_senders: &SendersToPlanet,
@@ -78,17 +77,16 @@ pub(crate) fn create_travel_to_planet_request_conversation(
     let to_explorer_struct = ToExplorerStruct::new(explorer_senders.clone(), explorer_id);
     let curr_planet_struct = ToPlanetStruct::new(planets_senders.clone(), current_planet_id);
     let dst_planet_struct = ToPlanetStruct::new(planets_senders.clone(), dst_planet_id);
-    let state = WaitingTravelRequest::new(
-        galaxy.clone(),
-        planet_explorer_channels.clone(),
+    let state = SendManualMoveRequest::new(
+        explorers_location.clone(),
         curr_planet_struct,
         dst_planet_struct,
         to_explorer_struct,
-        explorers_location.clone(),
+        planet_explorer_channels.clone(),
     );
 
     let id = get_id_manager().get_next_conversation_id();
-    let new_conv = MoveToPlanetConversation::<WaitingTravelRequest>::new(id, state);
+    let new_conv = MoveToPlanetConversation::<SendManualMoveRequest>::new(id, state);
 
     convo_scheduler.add_conversation(Box::new(new_conv));
 

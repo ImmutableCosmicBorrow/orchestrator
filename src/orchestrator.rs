@@ -309,7 +309,6 @@ impl Orchestrator {
     ) {
         convo_factory::create_travel_to_planet_request_conversation(
             &self.convo_scheduler,
-            &self.galaxy,
             &self.planet_explorer_channels,
             &self.explorer_senders,
             &self.planets_senders,
@@ -568,7 +567,6 @@ impl Orchestrator {
                     dst_planet_id,
                 } => Some(convo_factory::create_travel_to_planet_request_conversation(
                     &self.convo_scheduler,
-                    &self.galaxy,
                     &self.planet_explorer_channels,
                     &self.explorer_senders,
                     &self.planets_senders,
@@ -917,7 +915,6 @@ impl Orchestrator {
 
         convo_factory::create_travel_to_planet_request_conversation(
             &self.convo_scheduler,
-            &self.galaxy,
             &self.planet_explorer_channels,
             &self.explorer_senders,
             &self.planets_senders,
