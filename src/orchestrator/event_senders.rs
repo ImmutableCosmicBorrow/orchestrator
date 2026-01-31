@@ -142,12 +142,12 @@ mod regimes {
     }
 
     // These values are multipliers, and they get applied to the game step.
-    // For example, with a game_step of 1s, Calm regime goes from 5s minimum  to 10s maximum delay.
+    // For example, with a game_step of 1s, Calm regime goes from 20s minimum  to 150s maximum delay.
     static ASTEROID_REGIMES: [RegimeValues; 3] = [
         // Calm
         RegimeValues {
-            min_delay: 5.0,
-            max_delay: 15.0,
+            min_delay: 20.0,
+            max_delay: 150.0,
         },
         // Active
         RegimeValues {
