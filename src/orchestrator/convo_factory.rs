@@ -3,8 +3,6 @@ use crate::globals::get_id_manager;
 use crate::orchestrator::ConvoScheduler;
 use crate::orchestrator::ExplorersLocationRef;
 use crate::orchestrator::PlanetExplorerChannels;
-use crate::payload;
-use crate::orchestrator::log_internal;
 use crate::orchestrator::SendersToPlanet;
 use crate::orchestrator::conversations;
 use crate::orchestrator::conversations::SendersToExplorer;
@@ -13,10 +11,12 @@ use crate::orchestrator::conversations::ToPlanetStruct;
 use crate::orchestrator::conversations::orch_explorer::move_to_planet::MoveToPlanetConversation;
 use crate::orchestrator::conversations::orch_explorer::move_to_planet::WaitingTravelRequest;
 use crate::orchestrator::conversations::orch_planet::internal_state_scenario::SendingInternalStateRequest;
+use crate::orchestrator::log_internal;
+use crate::payload;
 use crate::planet::PlanetMap;
-use common_game::logging::Channel;
 use common_explorer::ExplorerBagContent;
 use common_game::components::forge::Forge;
+use common_game::logging::Channel;
 use common_game::utils::ID;
 use crossbeam_channel::Sender;
 use std::sync::Arc;
@@ -373,16 +373,20 @@ pub(crate) fn create_asteroid_conversation(
 
     convo_scheduler.add_conversation(Box::new(new_conv)
         as Box<dyn conversations::Conversation<ExplorerBagContent> + Send + Sync>);
-    
-    ui_sender.send(OrchestratorToUiUpdate::SendAutoAsteroid(planet_id)).unwrap();
 
+    ui_sender
+        .send(OrchestratorToUiUpdate::SendAutoAsteroid(planet_id))
+        .unwrap();
 
-    log_internal(Channel::Trace, payload!(
-        event: "ScheduleConversation",
-        conversation_id: id,
-        kind: "Asteroid",
-        planet_id: planet_id
-    ),);
+    log_internal(
+        Channel::Trace,
+        payload!(
+            event: "ScheduleConversation",
+            conversation_id: id,
+            kind: "Asteroid",
+            planet_id: planet_id
+        ),
+    );
     id
 }
 
@@ -405,8 +409,10 @@ pub(crate) fn create_sunray_conversation(
 
     convo_scheduler.add_conversation(Box::new(new_conv)
         as Box<dyn conversations::Conversation<ExplorerBagContent> + Send + Sync>);
-    
-    ui_sender.send(OrchestratorToUiUpdate::SendAutoSunray(planet_id)).unwrap();
+
+    ui_sender
+        .send(OrchestratorToUiUpdate::SendAutoSunray(planet_id))
+        .unwrap();
 
     // Log scheduling of sunray conversation
     log_internal(

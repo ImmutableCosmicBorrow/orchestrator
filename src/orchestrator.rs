@@ -21,12 +21,6 @@ use crate::orchestrator::conversations::orch_explorer::kill_explorer::{
 use crate::orchestrator::conversations::orch_explorer::move_to_planet::{
     MoveToPlanetConversation, SendManualMoveRequest,
 };
-use crate::orchestrator::conversations::orch_explorer::start_explorer::{
-    SendingExplorerStart, StartExplorerConversation,
-};
-use crate::orchestrator::conversations::orch_explorer::stop_explorer::{
-    SendingExplorerStop, StopExplorerConversation,
-};
 use common_explorer::ExplorerAI;
 pub(crate) use common_explorer::ExplorerBagContent;
 use common_game::components::forge::Forge;
@@ -501,15 +495,7 @@ impl Orchestrator {
                 ),
             );
             for explorer_id in self.explorer_senders.lock().unwrap().keys() {
-                let to_explorer =
-                    ToExplorerStruct::new(self.explorer_senders.clone(), *explorer_id);
-                let state = SendingExplorerStop::new(to_explorer);
-                let stop_ai_convo = StopExplorerConversation::new(
-                    get_id_manager().get_next_conversation_id(),
-                    state,
-                );
-                self.convo_scheduler
-                    .add_conversation(Box::new(stop_ai_convo));
+                self.stop_explorer_ai(*explorer_id);
             }
         } else {
             log_internal(
@@ -519,15 +505,7 @@ impl Orchestrator {
                 ),
             );
             for explorer_id in self.explorer_senders.lock().unwrap().keys() {
-                let to_explorer =
-                    ToExplorerStruct::new(self.explorer_senders.clone(), *explorer_id);
-                let state = SendingExplorerStart::new(to_explorer);
-                let start_ai_convo = StartExplorerConversation::new(
-                    get_id_manager().get_next_conversation_id(),
-                    state,
-                );
-                self.convo_scheduler
-                    .add_conversation(Box::new(start_ai_convo));
+                self.start_explorer_ai(*explorer_id);
             }
         }
     }
@@ -939,20 +917,18 @@ impl Orchestrator {
         // Tell the Planet that an Explorer is coming
         // TODO! now I am using the same ToPlanetStruct for current planet and destination planet
         // because explorer does not have a current planet, but I don't know if it is the correct way to handle this
-        let to_planet = ToPlanetStruct::new(self.planets_senders.clone(), into_planet);
-        let to_explorer = ToExplorerStruct::new(self.explorer_senders.clone(), id);
-        let state = SendManualMoveRequest::new(
-            self.explorers_location.clone(),
-            to_planet.clone(),
-            to_planet,
-            to_explorer,
-            self.planet_explorer_channels.clone(),
+
+        convo_factory::create_travel_to_planet_request_conversation(
+            &self.convo_scheduler,
+            &self.galaxy,
+            &self.planet_explorer_channels,
+            &self.explorer_senders,
+            &self.planets_senders,
+            &self.explorers_location,
+            id,
+            into_planet,
+            into_planet,
         );
-        let convo = MoveToPlanetConversation::<SendManualMoveRequest>::new(
-            get_id_manager().get_next_conversation_id(),
-            state,
-        );
-        self.convo_scheduler.add_conversation(Box::new(convo));
 
         log_internal(
             Channel::Info,

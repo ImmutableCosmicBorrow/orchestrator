@@ -8,10 +8,10 @@ use crate::logging_utils::log_internal;
 use crate::orchestrator::conversations::{SendersToExplorer, SendersToPlanet};
 use crate::orchestrator::queue::ConvoScheduler;
 use crate::orchestrator::{ExplorerBagContent, ExplorersLocationRef, convo_factory};
-use crate::ui::OrchestratorToUiUpdate;
-use crossbeam_channel::Sender;
 use crate::payload;
 use crate::planet::PlanetMap;
+use crate::ui::OrchestratorToUiUpdate;
+use crossbeam_channel::Sender;
 
 use common_game::components::forge::Forge;
 use common_game::logging::Channel;
@@ -532,7 +532,15 @@ fn maybe_send_asteroid(
             Channel::Info,
             payload!(action: "Sending asteroid", planet_id: planet),
         );
-        convo_factory::create_asteroid_conversation(&convo.convo_scheduler, &convo.planets_senders, &convo.ui_sender, &convo.forge, &universe.explorers_location, &convo.explorer_senders, planet);
+        convo_factory::create_asteroid_conversation(
+            &convo.convo_scheduler,
+            &convo.planets_senders,
+            &convo.ui_sender,
+            &convo.forge,
+            &universe.explorers_location,
+            &convo.explorer_senders,
+            planet,
+        );
     } else {
         log_internal(
             Channel::Warning,
@@ -562,7 +570,13 @@ fn maybe_send_sunray(
             Channel::Info,
             payload!(action: "Sending sunray", planet_id: planet),
         );
-        convo_factory::create_sunray_conversation(&convo.convo_scheduler, &convo.planets_senders, &convo.ui_sender, &convo.forge, planet);
+        convo_factory::create_sunray_conversation(
+            &convo.convo_scheduler,
+            &convo.planets_senders,
+            &convo.ui_sender,
+            &convo.forge,
+            planet,
+        );
     } else {
         log_internal(
             Channel::Warning,
