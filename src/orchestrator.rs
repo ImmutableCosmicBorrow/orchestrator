@@ -322,7 +322,7 @@ impl Orchestrator {
     }
 
     fn start_background_event_senders(&self) {
-        crate::orchestrator::event_senders::init_background_event_scheduler(
+        event_senders::init_background_event_scheduler(
             self.planets_senders.clone(),
             self.forge.clone(),
             self.explorers_location.clone(),
@@ -331,8 +331,8 @@ impl Orchestrator {
             self.galaxy.clone(),
         );
 
-        crate::orchestrator::event_senders::enable_sunrays();
-        crate::orchestrator::event_senders::enable_asteroids();
+        event_senders::enable_sunrays();
+        event_senders::enable_asteroids();
     }
 
     fn create_neighbors_request_conversation(&mut self, explorer_id: ID) -> ID {
@@ -594,7 +594,14 @@ impl Orchestrator {
                 todo!()
             }
             ExplorerType::Jaco => {
-                todo!()
+                let nomad = explorer_jacopo::Nomad::new(
+                    id,
+                    self.explorer_to_orchestrator_sender.clone(),
+                    rx_orchestrator_to_explorer,
+                    rx_planet_to_explorer,
+                    get_game_step(),
+                );
+                Box::new(nomad)
             }
         };
 

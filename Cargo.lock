@@ -325,25 +325,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "crossbeam-deque"
-version = "0.8.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9dd111b7b7f7d55b72c0a6ae361660ee5853c9af73f70c3c2ef6858b950e2e51"
-dependencies = [
- "crossbeam-epoch",
- "crossbeam-utils",
-]
-
-[[package]]
-name = "crossbeam-epoch"
-version = "0.9.18"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5b82ac4a3c2ca9c3460964f020e1402edd5753411d7737aa39c3714ad1b5420e"
-dependencies = [
- "crossbeam-utils",
-]
-
-[[package]]
 name = "crossbeam-utils"
 version = "0.8.21"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -383,12 +364,6 @@ checksum = "442039f5147480ba31067cb00ada1adae6892028e40e45fc5de7b7df6dcc1b5f"
 dependencies = [
  "const-random",
 ]
-
-[[package]]
-name = "either"
-version = "1.15.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "48c757948c5ede0e46177b7add2e67155f70e33c07fea8284df6576da70b3719"
 
 [[package]]
 name = "encoding_rs"
@@ -459,6 +434,19 @@ dependencies = [
  "serde",
  "serde_core",
  "typeid",
+]
+
+[[package]]
+name = "explorer_jacopo"
+version = "0.1.0"
+source = "git+https://github.com/ImmutableCosmicBorrow/explorer_jacopo.git#1f749ff42e648835aec70130331a093a5fc9a1c3"
+dependencies = [
+ "common-explorer",
+ "common-game",
+ "crossbeam-channel",
+ "env_logger",
+ "log",
+ "rand 0.10.0-rc.8",
 ]
 
 [[package]]
@@ -703,7 +691,7 @@ checksum = "5e5032e24019045c762d3c0f28f5b6b8bbf38563a65908389bf7978758920897"
 [[package]]
 name = "luna4"
 version = "2.0.0"
-source = "git+https://github.com/luna4-ap2025/Planet_Luna4#19238c7f2af908e13d5c63da917a62dafd59e6d1"
+source = "git+https://github.com/luna4-ap2025/Planet_Luna4#365e7bd96f83bec7c6765264be5f4a8efc7fa3d5"
 dependencies = [
  "common-game",
  "crossbeam-channel",
@@ -759,15 +747,14 @@ dependencies = [
  "crossbeam-channel",
  "enterprise",
  "env_logger",
+ "explorer_jacopo",
  "explorer_nico",
  "luna4",
  "orbitron",
  "priority-queue",
  "rand 0.9.2",
- "rayon",
  "rustrelli",
  "rusty-crab-ap2025",
- "strum 0.27.2",
  "trip",
 ]
 
@@ -950,26 +937,6 @@ name = "rand_core"
 version = "0.10.0-rc-6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "70765ff7112b0fb2d272d24d9a2f907fc206211304328fe58b2db15a5649ef28"
-
-[[package]]
-name = "rayon"
-version = "1.11.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "368f01d005bf8fd9b1206fb6fa653e6c4a81ceb1466406b81792d87c5677a58f"
-dependencies = [
- "either",
- "rayon-core",
-]
-
-[[package]]
-name = "rayon-core"
-version = "1.13.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "22e18b0f0062d30d4230b2e85ff77fdfe4326feb054b9783a3460d8435c8ab91"
-dependencies = [
- "crossbeam-deque",
- "crossbeam-utils",
-]
 
 [[package]]
 name = "regex"
