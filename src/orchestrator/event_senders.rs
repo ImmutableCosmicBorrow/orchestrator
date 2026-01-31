@@ -130,48 +130,52 @@ fn sleep_with_stop_check(total: Duration) -> bool {
 //
 
 mod regimes {
+    use crate::globals::get_game_step;
+    use std::cmp::max;
     use std::time::Duration;
 
     struct RegimeValues {
-        min_delay: Duration,
-        max_delay: Duration,
+        min_delay: f32,
+        max_delay: f32,
     }
 
-    //TODO: These values are placeholders and should be adjusted based on game design.
+    // These values are multipliers, and they get applied to the game step.
+    // For example, with a game_step of 1s, Calm regime goes from 5s minimum  to 10s maximum delay.
     static ASTEROID_REGIMES: [RegimeValues; 3] = [
         // Calm
         RegimeValues {
-            min_delay: Duration::from_secs(5),
-            max_delay: Duration::from_secs(15),
+            min_delay: 5.0,
+            max_delay: 15.0,
         },
         // Active
         RegimeValues {
-            min_delay: Duration::from_secs(2),
-            max_delay: Duration::from_secs(10),
+            min_delay: 2.0,
+            max_delay: 10.0,
         },
         // Frenzy
         RegimeValues {
-            min_delay: Duration::from_secs(1),
-            max_delay: Duration::from_secs(5),
+            min_delay: 1.0,
+            max_delay: 5.0,
         },
     ];
 
-    //TODO: These values are placeholders and should be adjusted based on game design.
+    // These values are multipliers, and they get applied to the game step.
+    // For example, with a game_step of 1s, Calm regime goes from 5s minimum  to 10s maximum delay.
     static SUNRAY_REGIMES: [RegimeValues; 3] = [
         // Calm
         RegimeValues {
-            min_delay: Duration::from_secs(1),
-            max_delay: Duration::from_secs(5),
+            min_delay: 1.0,
+            max_delay: 5.0,
         },
         // Active
         RegimeValues {
-            min_delay: Duration::from_millis(500),
-            max_delay: Duration::from_secs(2),
+            min_delay: 0.5,
+            max_delay: 2.0,
         },
         // Frenzy
         RegimeValues {
-            min_delay: Duration::from_millis(100),
-            max_delay: Duration::from_secs(1),
+            min_delay: 0.1,
+            max_delay: 1.0,
         },
     ];
 
@@ -190,12 +194,22 @@ mod regimes {
 
         pub fn asteroid_delay(&self) -> (Duration, Duration) {
             let regime = &ASTEROID_REGIMES[self.asteroid_level];
-            (regime.min_delay, regime.max_delay)
+            // Ensure a reasonable step even when the game_step is zero, or very small
+            let step = max(Duration::from_millis(500), get_game_step());
+            (
+                step.mul_f32(regime.min_delay),
+                step.mul_f32(regime.max_delay),
+            )
         }
 
         pub fn sunray_delay(&self) -> (Duration, Duration) {
             let regime = &SUNRAY_REGIMES[self.sunray_level];
-            (regime.min_delay, regime.max_delay)
+            // Ensure a reasonable step even when the game_step is zero, or very small
+            let step = max(Duration::from_millis(500), get_game_step());
+            (
+                step.mul_f32(regime.min_delay),
+                step.mul_f32(regime.max_delay),
+            )
         }
 
         pub fn increment_asteroid_level(&mut self) {
