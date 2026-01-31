@@ -151,7 +151,7 @@ impl Conversation<ExplorerBagContent> for MoveToPlanetConversation<WaitingIncomi
     /// Returns the IDs of the current planet and the explorer whose movement is being validated.
     fn get_entities_ids(&self) -> (Option<ID>, Option<ID>) {
         (
-            Some(self.state.curr_planet_struct.planet_id),
+            Some(self.state.dst_planet_id),
             Some(self.state.explorer_struct.explorer_id),
         )
     }

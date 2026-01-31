@@ -212,7 +212,8 @@ impl SendOutgoingRequest {
         }
     }
 }
-
+// TODO: check why the OutgoingExplorerResponse does not match with a conversation. Problem might be either here or in find_matching_conversation
+// TODO: also check expected entities id of state WaitingOutgoingResponse, but they should be correct
 /// **`WaitingOutgoingResponse`**
 ///
 /// A waiting state where the Orchestrator expects the source planet to confirm
@@ -224,6 +225,8 @@ pub(crate) struct WaitingOutgoingResponse {
     planet_explorer_channels: PlanetExplorerChannels,
     /// Target destination ID.
     dst_planet_id: ID,
+    /// Current Planet ID.
+    curr_planet_id: ID,
     /// Global explorer location registry.
     explorers_location_ref: ExplorersLocationRef,
 }
@@ -233,12 +236,14 @@ impl WaitingOutgoingResponse {
         explorer_struct: ToExplorerStruct,
         planet_explorer_channels: PlanetExplorerChannels,
         dst_planet_id: ID,
+        curr_planet_id: ID,
         explorers_location_ref: ExplorersLocationRef,
     ) -> Self {
         Self {
             explorer_struct,
             planet_explorer_channels,
             dst_planet_id,
+            curr_planet_id,
             explorers_location_ref,
         }
     }
