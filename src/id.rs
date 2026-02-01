@@ -197,7 +197,7 @@ impl IdManager {
         Self::is_explorer_id(id) && ((id & (1 << Self::ROB_SHIFT)) != 0)
     }
 
-    pub fn explorer_name_from_id(id: ID) -> &'static str {
+    pub fn explorer_name_from_id(&self, id: ID) -> &'static str {
         if Self::is_nico_id(id) {
             "Nico"
         } else if Self::is_jaco_id(id) {
