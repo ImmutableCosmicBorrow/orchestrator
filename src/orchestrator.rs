@@ -39,7 +39,7 @@ use crate::ui::{OrchestratorToUiUpdate, UiToOrchestratorCommand};
 
 pub type ExplorersLocationRef = Arc<Mutex<HashMap<ID, ID>>>;
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub enum ExplorerType {
     Rob,
     Nico,
@@ -68,6 +68,7 @@ pub struct Orchestrator {
     planet_threads: std::sync::Arc<std::sync::Mutex<HashMap<ID, JoinHandle<()>>>>,
     explorer_threads: HashMap<ID, JoinHandle<()>>,
     manual_mode: bool,
+    channel_logger: Arc<ChannelFileLogger>,
 }
 
 impl Orchestrator {
@@ -127,6 +128,7 @@ impl Orchestrator {
             planet_threads: Arc::new(Mutex::new(planet_threads)), // threads were spawned in galaxy_loader/create_planet_with_channels
             explorer_threads: HashMap::new(),
             manual_mode: false,
+            channel_logger: Arc::new(ChannelFileLogger::new()),
         };
 
         // Check where to spawn Explorers
@@ -205,6 +207,8 @@ impl Orchestrator {
                 recv(self.planets_receiver) -> msg => {
                     match msg {
                         Ok(msg) => {
+                            // Log to separate channel_messages.log file
+                            self.channel_logger.log_planet_to_orch(&msg);
                             log_msg_from(
                                 Channel::Trace,
                                 EventType::MessagePlanetToOrchestrator,
@@ -216,6 +220,7 @@ impl Orchestrator {
                             self.handle_message(PossibleMessage::PlanetToOrch(msg));
                         }
                         Err(e) => {
+                            self.channel_logger.log_error("Planets receiver", &e.to_string());
                             log_internal(
                                 Channel::Warning,
                                 payload!(
@@ -229,6 +234,8 @@ impl Orchestrator {
                 recv(self.explorers_receiver) -> msg => {
                     match msg {
                         Ok(msg) => {
+                            // Log to separate channel_messages.log file
+                            self.channel_logger.log_explorer_to_orch(&msg);
                             log_msg_from(
                                 Channel::Trace,
                                 EventType::MessageExplorerToOrchestrator,
@@ -240,6 +247,7 @@ impl Orchestrator {
                             self.handle_message(PossibleMessage::ExplorerToOrch(msg));
                         }
                         Err(e) => {
+                            self.channel_logger.log_error("Explorers receiver", &e.to_string());
                             log_internal(
                                 Channel::Warning,
                                 payload!(
@@ -254,9 +262,12 @@ impl Orchestrator {
                 recv(&self.ui_receiver) -> msg => {
                     match msg {
                         Ok(msg) => {
+                            // Log to separate channel_messages.log file
+                            self.channel_logger.log_ui_to_orch(&msg);
                             self.handle_ui_message(msg);
                         }
                         Err(e) => {
+                            self.channel_logger.log_error("UI receiver", &e.to_string());
                             log_internal(
                                 Channel::Warning,
                                 payload!(
@@ -944,6 +955,74 @@ impl Orchestrator {
                 explorer_id : id,
             ),
         );
+    }
+}
+
+/// A dedicated file logger for channel messages.
+/// Logs messages to `channel_messages.log` in the current directory.
+pub struct ChannelFileLogger {
+    file: std::sync::Mutex<std::fs::File>,
+}
+
+impl ChannelFileLogger {
+    /// Creates a new `ChannelFileLogger` that writes to `channel_messages.log`.
+    ///
+    /// # Panics
+    /// Panics if the log file cannot be opened.
+    pub fn new() -> Self {
+        let file = std::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open("channel_messages.log")
+            .expect("Failed to open channel_messages.log");
+        Self {
+            file: std::sync::Mutex::new(file),
+        }
+    }
+
+    /// Logs a message with a category and timestamp to the file.
+    pub fn log(&self, category: &str, message: &str) {
+        use std::io::Write;
+        let timestamp = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_millis())
+            .unwrap_or(0);
+        if let Ok(mut file) = self.file.lock() {
+            let _ = writeln!(file, "[{timestamp}] [{category}] {message}");
+            let _ = file.flush();
+        }
+    }
+
+    /// Logs an explorer-to-orchestrator message.
+    pub fn log_explorer_to_orch<T: std::fmt::Debug>(&self, msg: &ExplorerToOrchestrator<T>) {
+        self.log(
+            "EXPLORER->ORCH",
+            &format!("explorer_id={} msg={msg:?}", msg.explorer_id()),
+        );
+    }
+
+    /// Logs a planet-to-orchestrator message.
+    pub fn log_planet_to_orch(&self, msg: &PlanetToOrchestrator) {
+        self.log(
+            "PLANET->ORCH",
+            &format!("planet_id={} msg={msg:?}", msg.planet_id()),
+        );
+    }
+
+    /// Logs a UI-to-orchestrator message.
+    pub fn log_ui_to_orch(&self, msg: &UiToOrchestratorCommand) {
+        self.log("UI->ORCH", &format!("msg={msg:?}"));
+    }
+
+    /// Logs an error message.
+    pub fn log_error(&self, context: &str, error: &str) {
+        self.log("ERROR", &format!("{context}: {error}"));
+    }
+}
+
+impl Default for ChannelFileLogger {
+    fn default() -> Self {
+        Self::new()
     }
 }
 

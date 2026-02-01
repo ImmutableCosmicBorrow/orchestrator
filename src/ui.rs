@@ -12,6 +12,7 @@ use common_game::{
 use crate::planet::PlanetMap;
 
 // Commands you can send to the orchestrator
+#[derive(Debug)]
 pub enum UiToOrchestratorCommand {
     //rendering commands
     GetGalaxy,
