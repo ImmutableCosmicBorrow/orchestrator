@@ -20,7 +20,7 @@ use std::time::Duration;
 
 pub(crate) mod orch_explorer;
 pub(crate) mod orch_planet;
-mod util;
+pub(crate) mod util;
 
 //TODO: implement timeouts in conversations
 

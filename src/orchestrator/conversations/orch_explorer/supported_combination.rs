@@ -272,8 +272,8 @@ mod tests {
         >::new(CONV_ID, state))
     }
 
-    #[allow(clippy::unnecessary_box_returns)]
-    /*fn make_wait_conv() -> Box<SupportedCombinationConversation<WaitingSupportedCombinationResult>>
+    /*#[allow(clippy::unnecessary_box_returns)]
+    fn make_wait_conv() -> Box<SupportedCombinationConversation<WaitingSupportedCombinationResult>>
     {
         Box::new(SupportedCombinationConversation::<
             WaitingSupportedCombinationResult,

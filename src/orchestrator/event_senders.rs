@@ -42,6 +42,14 @@ pub fn enable_asteroids() {
 
 pub fn disable_asteroids() {
     ASTEROID_ENABLED.store(false, Ordering::Release);
+    // Reset thread-local asteroid planning state so re-enabling doesn't
+    // immediately trigger the "not-planning" zero-delay path.
+    ASTEROID_STATE.with(|st| {
+        let mut s = st.borrow_mut();
+        s.planning = true;
+        s.next_planet = 0;
+        s.regime = regimes::CurrentRegime::new();
+    });
 }
 
 pub fn enable_sunrays() {
@@ -50,6 +58,13 @@ pub fn enable_sunrays() {
 
 pub fn disable_sunrays() {
     SUNRAY_ENABLED.store(false, Ordering::Release);
+    // Reset thread-local sunray planning state similarly.
+    SUNRAY_STATE.with(|st| {
+        let mut s = st.borrow_mut();
+        s.planning = true;
+        s.next_planet = 0;
+        s.regime = regimes::CurrentRegime::new();
+    });
 }
 
 //
@@ -140,6 +155,7 @@ mod regimes {
         min_delay: f32,
         max_delay: f32,
     }
+ 
 
     // These values are multipliers, and they get applied to the game step.
     // For example, with a game_step of 1s, Calm regime goes from 20s minimum  to 150s maximum delay.
