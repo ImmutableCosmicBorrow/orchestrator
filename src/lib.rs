@@ -1,6 +1,6 @@
 mod galaxy_setup;
 mod globals;
-mod id;
+pub mod id;
 mod logging_utils;
 mod orchestrator;
 pub mod planet;

@@ -47,6 +47,7 @@ impl IdManager {
     const JACO_SHIFT: u32 = 5;
     const ROB_SHIFT: u32 = 4;
 
+    #[must_use]
     pub fn new() -> Self {
         IdManager {
             planet: Arc::new(Mutex::new(1)),
@@ -64,36 +65,43 @@ impl IdManager {
         id
     }
 
+    #[must_use]
     pub fn get_next_trip_id(&self) -> ID {
         let id = self.get_next_planet_id();
         1 << Self::PLANET_SHIFT | 1 << Self::TRIP_SHIFT | (id & Self::PLANET_MASK)
     }
 
+    #[must_use]
     pub fn get_next_rustrelli_id(&self) -> ID {
         let id = self.get_next_planet_id();
         1 << Self::PLANET_SHIFT | 1 << Self::RUSTRELLI_SHIFT | (id & Self::PLANET_MASK)
     }
 
+    #[must_use]
     pub fn get_next_luna4_id(&self) -> ID {
         let id = self.get_next_planet_id();
         1 << Self::PLANET_SHIFT | 1 << Self::LUNA4_SHIFT | (id & Self::PLANET_MASK)
     }
 
+    #[must_use]
     pub fn get_next_rusty_crab_id(&self) -> ID {
         let id = self.get_next_planet_id();
         1 << Self::PLANET_SHIFT | 1 << Self::RUSTY_CRAB_SHIFT | (id & Self::PLANET_MASK)
     }
 
+    #[must_use]
     pub fn get_next_enterprise_id(&self) -> ID {
         let id = self.get_next_planet_id();
         1 << Self::PLANET_SHIFT | 1 << Self::ENTERPRISE_SHIFT | (id & Self::PLANET_MASK)
     }
 
+    #[must_use]
     pub fn get_next_orbitron_id(&self) -> ID {
         let id = self.get_next_planet_id();
         1 << Self::PLANET_SHIFT | 1 << Self::ORBITRON_SHIFT | (id & Self::PLANET_MASK)
     }
 
+    #[must_use]
     pub fn get_next_houston_id(&self) -> ID {
         let id = self.get_next_planet_id();
         1 << Self::PLANET_SHIFT | 1 << Self::HOUSTON_SHIFT | (id & Self::PLANET_MASK)
@@ -108,6 +116,7 @@ impl IdManager {
         1 << Self::EXPLORER_SHIFT | id
     }
 
+    #[must_use]
     pub fn get_next_explorer_id_by_type(&self, explorer_type: ExplorerType) -> ID {
         match explorer_type {
             ExplorerType::Nico => self.get_next_nico_id(),
@@ -116,16 +125,19 @@ impl IdManager {
         }
     }
 
+    #[must_use]
     pub fn get_next_nico_id(&self) -> ID {
         let id = self.get_next_explorer_id();
         1 << Self::EXPLORER_SHIFT | 1 << Self::NICO_SHIFT | (id & Self::EXPLORER_MASK)
     }
 
+    #[must_use]
     pub fn get_next_jaco_id(&self) -> ID {
         let id = self.get_next_explorer_id();
         1 << Self::EXPLORER_SHIFT | 1 << Self::JACO_SHIFT | (id & Self::EXPLORER_MASK)
     }
 
+    #[must_use]
     pub fn get_next_rob_id(&self) -> ID {
         let id = self.get_next_explorer_id();
         1 << Self::EXPLORER_SHIFT | 1 << Self::ROB_SHIFT | (id & Self::EXPLORER_MASK)
@@ -133,6 +145,14 @@ impl IdManager {
 
     //------ Conversation ID Generation -----//
 
+    /// Generate the next unique conversation ID
+    /// 
+    /// The conversation ID is created by setting the `CONVERSATION_SHIFT` bit
+    /// and appending a unique number to ensure uniqueness across conversations.
+    /// 
+    /// # Panics
+    /// This function will panic if the internal mutex is poisoned.
+    #[must_use]
     pub fn get_next_conversation_id(&self) -> ID {
         let mut id_lock = self.conversation.lock().unwrap();
         let id = *id_lock;
@@ -142,6 +162,7 @@ impl IdManager {
 
     //----- Planet ID checks -----//
 
+    #[must_use]
     pub fn is_planet_id(id: ID) -> bool {
         !Self::is_conversation_id(id) && ((id & (1 << Self::PLANET_SHIFT)) != 0)
     }
@@ -149,54 +170,66 @@ impl IdManager {
     // Helper functions to identify planet types
     // IMPORTANT: These check both the PLANET_SHIFT bit AND the specific planet type bit
     // to avoid misidentifying other entity types that might coincidentally have the type bit set
+    #[must_use]
     pub fn is_trip_id(id: ID) -> bool {
         Self::is_planet_id(id) && ((id & (1 << Self::TRIP_SHIFT)) != 0)
     }
 
+    #[must_use]
     pub fn is_rustrelli_id(id: ID) -> bool {
         Self::is_planet_id(id) && ((id & (1 << Self::RUSTRELLI_SHIFT)) != 0)
     }
 
+    #[must_use]
     pub fn is_luna4_id(id: ID) -> bool {
         Self::is_planet_id(id) && ((id & (1 << Self::LUNA4_SHIFT)) != 0)
     }
 
+    #[must_use]
     pub fn is_rusty_crab_id(id: ID) -> bool {
         Self::is_planet_id(id) && ((id & (1 << Self::RUSTY_CRAB_SHIFT)) != 0)
     }
 
+    #[must_use]
     pub fn is_enterprise_id(id: ID) -> bool {
         Self::is_planet_id(id) && ((id & (1 << Self::ENTERPRISE_SHIFT)) != 0)
     }
 
+    #[must_use]
     pub fn is_orbitron_id(id: ID) -> bool {
         Self::is_planet_id(id) && ((id & (1 << Self::ORBITRON_SHIFT)) != 0)
     }
 
+    #[must_use]
     pub fn is_houston_id(id: ID) -> bool {
         Self::is_planet_id(id) && ((id & (1 << Self::HOUSTON_SHIFT)) != 0)
     }
 
     //----- Explorer ID checks -----//
 
+    #[must_use]
     pub fn is_explorer_id(id: ID) -> bool {
         !Self::is_conversation_id(id)
             && !Self::is_planet_id(id)
             && ((id & (1 << Self::EXPLORER_SHIFT)) != 0)
     }
 
+    #[must_use]
     pub fn is_nico_id(id: ID) -> bool {
         Self::is_explorer_id(id) && ((id & (1 << Self::NICO_SHIFT)) != 0)
     }
 
+    #[must_use]
     pub fn is_jaco_id(id: ID) -> bool {
         Self::is_explorer_id(id) && ((id & (1 << Self::JACO_SHIFT)) != 0)
     }
 
+    #[must_use]
     pub fn is_rob_id(id: ID) -> bool {
         Self::is_explorer_id(id) && ((id & (1 << Self::ROB_SHIFT)) != 0)
     }
 
+    #[must_use]
     pub fn explorer_name_from_id(id: ID) -> &'static str {
         if Self::is_nico_id(id) {
             "Nico"
@@ -211,6 +244,7 @@ impl IdManager {
 
     //----- Conversation ID checks -----//
 
+    #[must_use]
     pub fn is_conversation_id(id: ID) -> bool {
         (id & (1 << Self::CONVERSATION_SHIFT)) != 0
     }
