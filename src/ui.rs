@@ -29,8 +29,8 @@ pub enum UiToOrchestratorCommand {
     // explorer commands: move and resource crafting/combining
     ///Explorer ID, current planet, dst planet
     ManualMoveExplorer(ID, ID, ID),
-    ManualExplorerCraftsRes(ID, BasicResourceType),
-    ManualExplorerCombineRes(ID, ComplexResourceType),
+    ExplorerGenerateResource(ID, BasicResourceType),
+    ExplorerCombineResource(ID, ComplexResourceType),
     SupportedCombinations(ID),
     SupportedResources(ID),
 
@@ -58,10 +58,7 @@ pub enum OrchestratorToUiUpdate {
     PlanetSnapshot(ID, DummyPlanetState),
     ExplorerSnapshot(ID, ExplorerBagContent),
 
-    // explorer commands: move and resource crafting/combining
-    AutoMoveExplorer(ID, ID, ID),
-    AutoExplorerCraftsRes(ID, BasicResourceType),
-    AutoExplorerCombineRes(ID, ComplexResourceType),
+    // explorer commands: resource crafting/combining
     SupportedCombinations(ID, HashSet<ComplexResourceType>),
     SupportedResources(ID, HashSet<BasicResourceType>),
 

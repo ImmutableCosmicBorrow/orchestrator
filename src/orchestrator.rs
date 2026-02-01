@@ -339,13 +339,13 @@ impl Orchestrator {
         );
     }
 
-    /// Create craft resource conversation.
-    pub fn craft_resource(
+    /// Create generate resource conversation.
+    pub fn generate_resource(
         &self,
         explorer_id: ID,
         resource_type: common_game::components::resource::BasicResourceType,
     ) {
-        convo_factory::create_craft_resource_conversation(
+        convo_factory::create_generate_resource_conversation(
             &self.convo_scheduler,
             &self.explorer_senders,
             explorer_id,
@@ -679,10 +679,10 @@ impl Orchestrator {
             }
 
             // Explorer Resource Commands
-            ManualExplorerCraftsRes(explorer_id, resource_type) => {
-                self.craft_resource(explorer_id, resource_type);
+            ExplorerGenerateResource(explorer_id, resource_type) => {
+                self.generate_resource(explorer_id, resource_type);
             }
-            ManualExplorerCombineRes(explorer_id, resource_type) => {
+            ExplorerCombineResource(explorer_id, resource_type) => {
                 self.combine_resource(explorer_id, resource_type);
             }
 

@@ -169,7 +169,7 @@ pub(crate) fn create_bag_content_conversation(
     id
 }
 
-pub(crate) fn create_craft_resource_conversation(
+pub(crate) fn create_generate_resource_conversation(
     convo_scheduler: &ConvoScheduler<ExplorerBagContent>,
     explorer_senders: &SendersToExplorer,
     explorer_id: ID,
