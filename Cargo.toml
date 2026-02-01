@@ -29,6 +29,7 @@ rusty-crab-ap2025 = "=2.0.0-beta.3"
 common-explorer = {git = "https://github.com/ImmutableCosmicBorrow/common-explorer/"}
 explorer_nico = {git = "https://github.com/ImmutableCosmicBorrow/explorer_nico"}
 explorer_jacopo =  {git = "https://github.com/ImmutableCosmicBorrow/explorer_jacopo.git"}
+explorer_rob =  {git = "https://github.com/ImmutableCosmicBorrow/explorer_rob.git"}
 
 [patch.'https://github.com/unitn-ap-2025/common']
 common-game = "=3.0.0"

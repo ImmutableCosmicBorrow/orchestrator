@@ -871,9 +871,13 @@ impl Orchestrator {
                 rx_planet_to_explorer,
                 get_game_step(),
             )),
-            ExplorerType::Rob => {
-                todo!()
-            }
+            ExplorerType::Rob => Box::new(explorer_rob::Voyager::new(
+                id,
+                self.explorer_to_orchestrator_sender.clone(),
+                rx_orchestrator_to_explorer,
+                rx_planet_to_explorer,
+                get_game_step(),
+            )),
             ExplorerType::Jaco => {
                 let nomad = explorer_jacopo::Nomad::new(
                     id,

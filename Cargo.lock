@@ -444,6 +444,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "explorer_rob"
+version = "0.1.0"
+source = "git+https://github.com/ImmutableCosmicBorrow/explorer_rob.git#37964fe877f9c0315c1229ef5d230f30e7b2c9c4"
+dependencies = [
+ "common-explorer",
+ "common-game",
+ "crossbeam-channel",
+]
+
+[[package]]
 name = "fern"
 version = "0.7.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -704,6 +714,7 @@ dependencies = [
  "env_logger",
  "explorer_jacopo",
  "explorer_nico",
+ "explorer_rob",
  "luna4",
  "orbitron",
  "priority-queue",

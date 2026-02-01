@@ -155,7 +155,6 @@ mod regimes {
         min_delay: f32,
         max_delay: f32,
     }
- 
 
     // These values are multipliers, and they get applied to the game step.
     // For example, with a game_step of 1s, Calm regime goes from 20s minimum  to 150s maximum delay.

@@ -194,7 +194,6 @@ impl Conversation<ExplorerBagContent> for KillPlanetConversation<WaitingPlanetKi
             planet_id,
         })) = msg_wrapped
         {
-            //TODO: Kill planet
             log_internal(
                 Channel::Info,
                 payload!(
