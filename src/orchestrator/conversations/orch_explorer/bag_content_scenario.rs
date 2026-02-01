@@ -204,7 +204,7 @@ impl Conversation<ExplorerBagContent> for BagContentConversation<WaitingBagConte
                     );
                 } else {
                     log_internal(
-                        Channel::Info,
+                        Channel::Debug,
                         payload!(
                             action : "Sent ExplorerBagContent to UI",
                             explorer_id : explorer_id,
