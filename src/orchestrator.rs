@@ -1011,9 +1011,38 @@ impl ChannelFileLogger {
 
     /// Logs a UI-to-orchestrator message.
     pub fn log_ui_to_orch(&self, msg: &UiToOrchestratorCommand) {
-        self.log("UI->ORCH", &format!("msg={msg:?}"));
+        match msg {
+            UiToOrchestratorCommand::GetGalaxy
+            | UiToOrchestratorCommand::GetExplorersPosition
+            | UiToOrchestratorCommand::AddPlanet(_, _)
+            | UiToOrchestratorCommand::GetPlanetSnapshot(_)
+            | UiToOrchestratorCommand::GetExplorerSnapshot(_)
+            | UiToOrchestratorCommand::AddExplorer(_, _)
+            | UiToOrchestratorCommand::SwitchGameMode
+            | UiToOrchestratorCommand::EndGame
+            | UiToOrchestratorCommand::PauseGame
+            | UiToOrchestratorCommand::ResumeGame
+            | UiToOrchestratorCommand::ManualMoveExplorer(_, _, _)
+            | UiToOrchestratorCommand::SendManualAsteroid(_)
+            | UiToOrchestratorCommand::SendManualSunray(_)
+            | UiToOrchestratorCommand::StartPlanetAI(_)
+            | UiToOrchestratorCommand::StopPlanetAI(_)
+            | UiToOrchestratorCommand::ResetPlanetAI(_)
+            | UiToOrchestratorCommand::StartExplorerAI(_)
+            | UiToOrchestratorCommand::StopExplorerAI(_)
+            | UiToOrchestratorCommand::ResetExplorerAI(_)
+            | UiToOrchestratorCommand::KillExplorer(_)
+            | UiToOrchestratorCommand::KillPlanet(_) => {
+                // Do not log these commands for brevity
+            }
+            _ => {
+                self.log(
+                    "UI->ORCH",
+                    &format!("msg={msg:?}"),
+                );
+            }
+        }
     }
-
     /// Logs an error message.
     pub fn log_error(&self, context: &str, error: &str) {
         self.log("ERROR", &format!("{context}: {error}"));
