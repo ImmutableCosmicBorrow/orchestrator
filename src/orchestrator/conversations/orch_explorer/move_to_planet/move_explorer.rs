@@ -74,7 +74,7 @@ impl Conversation<ExplorerBagContent> for MoveToPlanetConversation<SendMoveReque
             if let Some(sender) = self.get_new_planet_sender(self.state.dst_planet_id) {
                 Some(sender)
             } else {
-                let error = Box::new(CommonErrorTypes::ExplorerSenderNotFound(
+                let error = Box::new(CommonErrorTypes::PlanetSenderNotFound(
                     self.state.dst_planet_id,
                 ));
                 let error_state = ErrorState::new(error, self.id);
