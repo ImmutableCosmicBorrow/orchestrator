@@ -52,9 +52,6 @@ pub fn run(
         spawn_planet,
     );
 
-    // Initialize and start logger
-    logging_utils::start_logger();
-
     orchestrator.run();
 
     (orchestrator, ui_to_orch_sender, orch_to_ui_receiver)

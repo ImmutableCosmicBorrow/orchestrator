@@ -192,7 +192,7 @@ impl Conversation<ExplorerBagContent> for BagContentConversation<WaitingBagConte
                     explorer_id,
                     bag_content,
                 ));
-                
+
                 if res.is_err() {
                     log_internal(
                         Channel::Warning,
@@ -202,7 +202,7 @@ impl Conversation<ExplorerBagContent> for BagContentConversation<WaitingBagConte
                             conversation_id : self.id
                         ),
                     );
-                }else{
+                } else {
                     log_internal(
                         Channel::Info,
                         payload!(

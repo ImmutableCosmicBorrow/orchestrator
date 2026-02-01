@@ -439,7 +439,7 @@ dependencies = [
 [[package]]
 name = "explorer_jacopo"
 version = "0.1.0"
-source = "git+https://github.com/ImmutableCosmicBorrow/explorer_jacopo.git#1f749ff42e648835aec70130331a093a5fc9a1c3"
+source = "git+https://github.com/ImmutableCosmicBorrow/explorer_jacopo.git#ade63d48d4ccb59e610ecafc431a74440ef7fe1b"
 dependencies = [
  "common-explorer",
  "common-game",
