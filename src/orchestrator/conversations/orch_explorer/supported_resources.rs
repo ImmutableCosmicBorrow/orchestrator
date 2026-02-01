@@ -243,7 +243,7 @@ impl SupportedResourcesConversation<WaitingSupportedResourcesResult> {
     }
 }
 
-/*#[cfg(test)]
+#[cfg(test)]
 mod tests {
     use super::*;
     use common_game::components::resource::BasicResourceType;
@@ -265,7 +265,7 @@ mod tests {
             explorer_id: EXPLORER_ID,
             explorers_senders: senders_to_explorers,
         };
-        let state = SendingSupportedResourcesRequest::new(to_explorer);
+        let state = SendingSupportedResourcesRequest::new(to_explorer, None);
         let conv = Box::new(SupportedResourcesConversation::<
             SendingSupportedResourcesRequest,
         >::new(CONV_ID, state));
@@ -289,7 +289,7 @@ mod tests {
             explorer_id: EXPLORER_ID,
             explorers_senders: senders_to_explorers,
         };
-        let state = SendingSupportedResourcesRequest::new(to_explorer);
+        let state = SendingSupportedResourcesRequest::new(to_explorer, None);
         let conv = Box::new(SupportedResourcesConversation::<
             SendingSupportedResourcesRequest,
         >::new(CONV_ID, state));
@@ -310,7 +310,7 @@ mod tests {
             explorer_id: EXPLORER_ID,
             explorers_senders: senders_to_explorers,
         };
-        let state = SendingSupportedResourcesRequest::new(to_explorer);
+        let state = SendingSupportedResourcesRequest::new(to_explorer, None);
         let conv = Box::new(SupportedResourcesConversation::<
             SendingSupportedResourcesRequest,
         >::new(CONV_ID, state));
@@ -328,7 +328,7 @@ mod tests {
     fn wait_correct_message() {
         let conv = Box::new(SupportedResourcesConversation::<
             WaitingSupportedResourcesResult,
-        >::new(CONV_ID, EXPLORER_ID));
+        >::new(CONV_ID, EXPLORER_ID, None));
 
         let mut supported_resources = HashSet::new();
         // Replace these with actual valid BasicResourceType variants as appropriate
@@ -351,7 +351,7 @@ mod tests {
     fn wait_wrong_message() {
         let conv = Box::new(SupportedResourcesConversation::<
             WaitingSupportedResourcesResult,
-        >::new(CONV_ID, EXPLORER_ID));
+        >::new(CONV_ID, EXPLORER_ID, None));
         let wrong_msg =
             PossibleMessage::ExplorerToOrch(ExplorerToOrchestrator::StopExplorerAIResult {
                 explorer_id: EXPLORER_ID,
@@ -374,7 +374,7 @@ mod tests {
             explorer_id: EXPLORER_ID,
             explorers_senders: senders_to_explorers,
         };
-        let state = SendingSupportedResourcesRequest::new(to_explorer);
+        let state = SendingSupportedResourcesRequest::new(to_explorer, None);
         let conv =
             SupportedResourcesConversation::<SendingSupportedResourcesRequest>::new(CONV_ID, state);
         assert_eq!(conv.get_id(), CONV_ID);
@@ -388,6 +388,7 @@ mod tests {
         let conv = SupportedResourcesConversation::<WaitingSupportedResourcesResult>::new(
             CONV_ID,
             EXPLORER_ID,
+            None,
         );
         assert_eq!(conv.get_id(), CONV_ID);
         assert_eq!(conv.get_entities_ids(), (None, Some(EXPLORER_ID)));
@@ -400,4 +401,3 @@ mod tests {
         assert_eq!(conv.get_priority(), 2);
     }
 }
-*/

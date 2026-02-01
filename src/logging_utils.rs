@@ -48,7 +48,16 @@ pub fn log_internal(channel: Channel, payload: Payload) {
 }
 
 /// Creates and starts the logger. Uses the `RUST_LOG` environmental variable, or `default_level` if not found. Returns the logger handle
+/// # Panics
+/// Panics if the log file cannot be opened
 pub fn start_logger() {
     let env = Env::default().filter_or("RUST_LOG", "info");
-    Builder::from_env(env).init();
+    let file = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open("orchestrator.log")
+        .expect("failed to open log file");
+    Builder::from_env(env)
+        .target(env_logger::Target::Pipe(Box::new(file)))
+        .init();
 }

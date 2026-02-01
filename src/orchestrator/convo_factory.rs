@@ -474,7 +474,7 @@ pub(crate) fn create_supported_resources_conversation(
         as Box<dyn conversations::Conversation<ExplorerBagContent> + Send + Sync>);
 
     log_internal(
-        Channel::Trace,
+        Channel::Info,
         payload!(
             event: "ScheduleConversation",
             conversation_id: id,
