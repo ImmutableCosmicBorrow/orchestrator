@@ -26,6 +26,17 @@ impl Default for IdManager {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PlanetKind {
+    Trip,
+    Rustrelli,
+    Luna4,
+    RustyCrab,
+    Enterprise,
+    Orbitron,
+    Houston,
+}
+
 impl IdManager {
     const CONVERSATION_SHIFT: u32 = 16;
 
@@ -106,6 +117,30 @@ impl IdManager {
         let id = self.get_next_planet_id();
         1 << Self::PLANET_SHIFT | 1 << Self::HOUSTON_SHIFT | (id & Self::PLANET_MASK)
     }
+
+    #[must_use]
+    pub fn planet_kind(id: ID) -> PlanetKind {
+        use PlanetKind::{Enterprise, Houston, Luna4, Orbitron, Rustrelli, RustyCrab, Trip};
+
+        if IdManager::is_trip_id(id) {
+            Trip
+        } else if IdManager::is_rustrelli_id(id) {
+            Rustrelli
+        } else if IdManager::is_luna4_id(id) {
+            Luna4
+        } else if IdManager::is_rusty_crab_id(id) {
+            RustyCrab
+        } else if IdManager::is_enterprise_id(id) {
+            Enterprise
+        } else if IdManager::is_orbitron_id(id) {
+            Orbitron
+        } else if IdManager::is_houston_id(id) {
+            Houston
+        } else {
+            panic!("Invalid planet id (no known planet subtype bit set): {id}");
+        }
+    }
+
 
     //------ Explorer ID Generation -----//
 
@@ -241,6 +276,7 @@ impl IdManager {
             "Unknown Explorer"
         }
     }
+
 
     //----- Conversation ID checks -----//
 

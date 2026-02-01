@@ -7,6 +7,7 @@ use common_game::logging::Channel;
 use common_game::protocols::orchestrator_planet::{OrchestratorToPlanet, PlanetToOrchestrator};
 use common_game::protocols::planet_explorer::ExplorerToPlanet;
 use common_game::utils::ID;
+use crate::id::PlanetKind;
 
 use crossbeam_channel::unbounded;
 use crossbeam_channel::{Receiver, Sender};
@@ -23,38 +24,6 @@ pub(crate) type ExplPlanSenderMap = HashMap<ID, Sender<ExplorerToPlanet>>;
 /// Holds handles so the orchestrator can join or inspect planet threads if needed.
 pub(crate) type PlanetThreadMap = HashMap<ID, JoinHandle<()>>;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum PlanetKind {
-    Trip,
-    Rustrelli,
-    Luna4,
-    RustyCrab,
-    Enterprise,
-    Orbitron,
-    Houston,
-}
-
-fn planet_kind(id: ID) -> PlanetKind {
-    use PlanetKind::{Enterprise, Houston, Luna4, Orbitron, Rustrelli, RustyCrab, Trip};
-
-    if IdManager::is_trip_id(id) {
-        Trip
-    } else if IdManager::is_rustrelli_id(id) {
-        Rustrelli
-    } else if IdManager::is_luna4_id(id) {
-        Luna4
-    } else if IdManager::is_rusty_crab_id(id) {
-        RustyCrab
-    } else if IdManager::is_enterprise_id(id) {
-        Enterprise
-    } else if IdManager::is_orbitron_id(id) {
-        Orbitron
-    } else if IdManager::is_houston_id(id) {
-        Houston
-    } else {
-        panic!("Invalid planet id (no known planet subtype bit set): {id}");
-    }
-}
 
 // Option: spawn planet threads at creation time.
 // Returns a JoinHandle<()> for the spawned planet thread.
@@ -70,7 +39,7 @@ pub(crate) fn spawn_planet_with_channels(
     let (tx_expl_in, rx_expl_in) = unbounded::<ExplorerToPlanet>();
     expl_sender_map.insert(planet_id, tx_expl_in);
 
-    let planet_res = match planet_kind(planet_id) {
+    let planet_res = match IdManager::planet_kind(planet_id) {
         PlanetKind::Trip => crate::planet_factory::create_trip_planet(
             planet_id,
             rx_orch_in,
