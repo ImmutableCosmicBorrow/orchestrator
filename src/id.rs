@@ -119,6 +119,9 @@ impl IdManager {
     }
 
     #[must_use]
+    ///
+    /// # Panics
+    ///  if the ID does not correspond to a known planet kind
     pub fn planet_kind(id: ID) -> PlanetKind {
         use PlanetKind::{Enterprise, Houston, Luna4, Orbitron, Rustrelli, RustyCrab, Trip};
 
@@ -140,7 +143,6 @@ impl IdManager {
             panic!("Invalid planet id (no known planet subtype bit set): {id}");
         }
     }
-
 
     //------ Explorer ID Generation -----//
 
@@ -181,10 +183,10 @@ impl IdManager {
     //------ Conversation ID Generation -----//
 
     /// Generate the next unique conversation ID
-    /// 
+    ///
     /// The conversation ID is created by setting the `CONVERSATION_SHIFT` bit
     /// and appending a unique number to ensure uniqueness across conversations.
-    /// 
+    ///
     /// # Panics
     /// This function will panic if the internal mutex is poisoned.
     #[must_use]
@@ -276,7 +278,6 @@ impl IdManager {
             "Unknown Explorer"
         }
     }
-
 
     //----- Conversation ID checks -----//
 
