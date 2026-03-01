@@ -12,7 +12,7 @@ use crate::planet::{self, PlanetMap};
 use crate::{get_id_manager, payload};
 
 use crate::globals::{get_game_step, set_game_step};
-use crate::logging_utils::{log_internal, log_msg_from};
+use crate::logging_utils::{LogTarget, log_internal, log_msg_from};
 use crate::orchestrator::conversations::ToExplorerStruct;
 use crate::orchestrator::conversations::ToPlanetStruct;
 use crate::orchestrator::conversations::orch_explorer::kill_explorer::{
@@ -68,7 +68,6 @@ pub struct Orchestrator {
     planet_threads: std::sync::Arc<std::sync::Mutex<HashMap<ID, JoinHandle<()>>>>,
     explorer_threads: HashMap<ID, JoinHandle<()>>,
     manual_mode: bool,
-    channel_logger: Arc<ChannelFileLogger>,
 }
 
 impl Orchestrator {
@@ -128,7 +127,6 @@ impl Orchestrator {
             planet_threads: Arc::new(Mutex::new(planet_threads)), // threads were spawned in galaxy_loader/create_planet_with_channels
             explorer_threads: HashMap::new(),
             manual_mode: false,
-            channel_logger: Arc::new(ChannelFileLogger::new()),
         };
 
         // Check where to spawn Explorers
@@ -142,6 +140,7 @@ impl Orchestrator {
                     .next()
                     .expect("Planet senders hashmap is empty");
                 log_internal(
+                    LogTarget::General,
                     Channel::Warning,
                     payload!(
                         action : "Parameter spawn_planet was Some, but Planet was not found. Spawning Explorer(s) in a random Planet instead",
@@ -205,78 +204,14 @@ impl Orchestrator {
             let timeout = crossbeam_channel::after(get_game_step() + Duration::from_millis(1000));
             select! {
                 recv(self.planets_receiver) -> msg => {
-                    match msg {
-                        Ok(msg) => {
-                            // Log to separate channel_messages.log file
-                            self.channel_logger.log_planet_to_orch(&msg);
-                            log_msg_from(
-                                Channel::Trace,
-                                EventType::MessagePlanetToOrchestrator,
-                                (ActorType::Planet, msg.planet_id()),
-                                payload!(
-                                    msg : format!("{msg:?}"),
-                                )
-                            );
-                            self.handle_message(PossibleMessage::PlanetToOrch(msg));
-                        }
-                        Err(e) => {
-                            self.channel_logger.log_error("Planets receiver", &e.to_string());
-                            log_internal(
-                                Channel::Warning,
-                                payload!(
-                                    action : "Error while receiving from Planets",
-                                    error : e
-                                )
-                            );
-                        }
-                    }
+                    self.handle_planets_message(msg);
                 }
                 recv(self.explorers_receiver) -> msg => {
-                    match msg {
-                        Ok(msg) => {
-                            // Log to separate channel_messages.log file
-                            self.channel_logger.log_explorer_to_orch(&msg);
-                            log_msg_from(
-                                Channel::Trace,
-                                EventType::MessageExplorerToOrchestrator,
-                                (ActorType::Planet, msg.explorer_id()),
-                                payload!(
-                                    msg : format!("{msg:?}"),
-                                )
-                            );
-                            self.handle_message(PossibleMessage::ExplorerToOrch(msg));
-                        }
-                        Err(e) => {
-                            self.channel_logger.log_error("Explorers receiver", &e.to_string());
-                            log_internal(
-                                Channel::Warning,
-                                payload!(
-                                    action : "Error while receiving from Explorers",
-                                    error : e
-                                )
-                            );
-                        }
-                    }
+                    self.handle_explorers_message(msg);
                 }
 
                 recv(&self.ui_receiver) -> msg => {
-                    match msg {
-                        Ok(msg) => {
-                            // Log to separate channel_messages.log file
-                            self.channel_logger.log_ui_to_orch(&msg);
-                            self.handle_ui_message(msg);
-                        }
-                        Err(e) => {
-                            self.channel_logger.log_error("UI receiver", &e.to_string());
-                            log_internal(
-                                Channel::Warning,
-                                payload!(
-                                    action : "Error while receiving from UI",
-                                    error : e
-                                )
-                            );
-                        }
-                    }
+                    self.handle_ui_receiver_message(msg);
                 }
 
                 // Periodic check to determine if there are any explorers left.
@@ -284,6 +219,7 @@ impl Orchestrator {
                 recv(timeout) -> _ => {
                     if self.explorers_location.lock().unwrap().is_empty() {
                         log_internal(
+                            LogTarget::General,
                             Channel::Info,
                             payload!(
                                 action : "No explorers left. Shutting down orchestrator",
@@ -292,6 +228,95 @@ impl Orchestrator {
                         std::process::exit(0);
                     }
                 }
+            }
+        }
+    }
+
+    fn handle_planets_message(
+        &mut self,
+        msg: Result<PlanetToOrchestrator, crossbeam_channel::RecvError>,
+    ) {
+        match msg {
+            Ok(msg) => {
+                log_msg_from(
+                    LogTarget::ChannelMessages,
+                    Channel::Trace,
+                    EventType::MessagePlanetToOrchestrator,
+                    (ActorType::Planet, msg.planet_id()),
+                    payload!(
+                        msg : format!("{msg:?}"),
+                    ),
+                );
+                self.handle_message(PossibleMessage::PlanetToOrch(msg));
+            }
+            Err(e) => {
+                log_internal(
+                    LogTarget::General,
+                    Channel::Warning,
+                    payload!(
+                        action : "Error while receiving from Planets",
+                        error : e
+                    ),
+                );
+            }
+        }
+    }
+
+    fn handle_explorers_message(
+        &mut self,
+        msg: Result<ExplorerToOrchestrator<ExplorerBagContent>, crossbeam_channel::RecvError>,
+    ) {
+        match msg {
+            Ok(msg) => {
+                log_msg_from(
+                    LogTarget::ChannelMessages,
+                    Channel::Trace,
+                    EventType::MessageExplorerToOrchestrator,
+                    (ActorType::Explorer, msg.explorer_id()),
+                    payload!(
+                        msg : format!("{msg:?}"),
+                    ),
+                );
+                self.handle_message(PossibleMessage::ExplorerToOrch(msg));
+            }
+            Err(e) => {
+                log_internal(
+                    LogTarget::General,
+                    Channel::Warning,
+                    payload!(
+                        action : "Error while receiving from Explorers",
+                        error : e
+                    ),
+                );
+            }
+        }
+    }
+
+    fn handle_ui_receiver_message(
+        &mut self,
+        msg: Result<UiToOrchestratorCommand, crossbeam_channel::RecvError>,
+    ) {
+        match msg {
+            Ok(msg) => {
+                log_internal(
+                    LogTarget::ChannelMessages,
+                    Channel::Trace,
+                    payload!(
+                        event : "UI->ORCH",
+                        msg : format!("{msg:?}"),
+                    ),
+                );
+                self.handle_ui_message(msg);
+            }
+            Err(e) => {
+                log_internal(
+                    LogTarget::General,
+                    Channel::Warning,
+                    payload!(
+                        action : "Error while receiving from UI",
+                        error : e
+                    ),
+                );
             }
         }
     }
@@ -496,6 +521,7 @@ impl Orchestrator {
         self.manual_mode = !self.manual_mode;
         if self.manual_mode {
             log_internal(
+                LogTarget::General,
                 Channel::Info,
                 payload!(
                     action : "Orchestrator switched to MANUAL mode",
@@ -507,6 +533,7 @@ impl Orchestrator {
             event_senders::disable_asteroids();
         } else {
             log_internal(
+                LogTarget::General,
                 Channel::Info,
                 payload!(
                     action : "Orchestrator switched to AUTOMATIC mode",
@@ -544,6 +571,7 @@ impl Orchestrator {
 
         if let Some(id) = convo_id {
             log_internal(
+                LogTarget::Conversations,
                 Channel::Trace,
                 payload!(
                     event: "Message matched conversation",
@@ -590,6 +618,7 @@ impl Orchestrator {
                 )),
                 _ => {
                     log_internal(
+                        LogTarget::General,
                         Channel::Warning,
                         payload!(
                             action: "Received ExplorerToOrchestrator message that does not start a conversation. Ignoring.",
@@ -602,6 +631,7 @@ impl Orchestrator {
             },
             PossibleMessage::PlanetToOrch(_) => {
                 log_internal(
+                    LogTarget::General,
                     Channel::Warning,
                     payload!(
                         action: "Received PlanetToOrchestrator message that does not start a conversation. Ignoring.",
@@ -656,6 +686,7 @@ impl Orchestrator {
             }
             EndGame => {
                 log_internal(
+                    LogTarget::General,
                     Channel::Info,
                     payload!(
                         action : "Received EndGame command from UI. Shutting down orchestrator",
@@ -667,6 +698,7 @@ impl Orchestrator {
                 crate::orchestrator::event_senders::disable_asteroids();
                 crate::orchestrator::event_senders::disable_sunrays();
                 log_internal(
+                    LogTarget::General,
                     Channel::Info,
                     payload!(
                         action : "Received PauseGame command from UI. Pausing background events",
@@ -677,6 +709,7 @@ impl Orchestrator {
                 crate::orchestrator::event_senders::enable_asteroids();
                 crate::orchestrator::event_senders::enable_sunrays();
                 log_internal(
+                    LogTarget::General,
                     Channel::Info,
                     payload!(
                         action : "Received ResumeGame command from UI. Resuming background events",
@@ -833,6 +866,7 @@ impl Orchestrator {
                     // Otherwise, add the conversation back in the convo_scheduler
                     if should_transition {
                         log_internal(
+                            LogTarget::Conversations,
                             Channel::Trace,
                             payload!(
                                 event: "Conversation Transition",
@@ -907,6 +941,7 @@ impl Orchestrator {
 
             if let Err(e) = result {
                 log_internal(
+                    LogTarget::General,
                     Channel::Warning,
                     payload!(
                         action: "Explorer thread ended with an error",
@@ -916,6 +951,7 @@ impl Orchestrator {
                 );
             } else {
                 log_internal(
+                    LogTarget::General,
                     Channel::Debug,
                     payload!(
                         action : "Explorer thread ended correctly",
@@ -949,6 +985,7 @@ impl Orchestrator {
         );
 
         log_internal(
+            LogTarget::General,
             Channel::Info,
             payload!(
                 action: "Created Explorer",
@@ -958,102 +995,7 @@ impl Orchestrator {
     }
 }
 
-/// A dedicated file logger for channel messages.
-/// Logs messages to `channel_messages.log` in the current directory.
-pub struct ChannelFileLogger {
-    file: std::sync::Mutex<std::fs::File>,
-}
 
-impl ChannelFileLogger {
-    /// Creates a new `ChannelFileLogger` that writes to `channel_messages.log`.
-    ///
-    /// # Panics
-    /// Panics if the log file cannot be opened.
-    pub fn new() -> Self {
-        let file = std::fs::OpenOptions::new()
-            .create(true)
-            .append(true)
-            .open("channel_messages.log")
-            .expect("Failed to open channel_messages.log");
-        Self {
-            file: std::sync::Mutex::new(file),
-        }
-    }
-
-    /// Logs a message with a category and timestamp to the file.
-    pub fn log(&self, category: &str, message: &str) {
-        use std::io::Write;
-        let timestamp = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map(|d| d.as_millis())
-            .unwrap_or(0);
-        if let Ok(mut file) = self.file.lock() {
-            let _ = writeln!(file, "[{timestamp}] [{category}] {message}");
-            let _ = file.flush();
-        }
-    }
-
-    /// Logs an explorer-to-orchestrator message.
-    pub fn log_explorer_to_orch<T: std::fmt::Debug>(&self, msg: &ExplorerToOrchestrator<T>) {
-        self.log(
-            "EXPLORER->ORCH",
-            &format!("explorer_id={} msg={msg:?}", msg.explorer_id()),
-        );
-    }
-
-    /// Logs a planet-to-orchestrator message.
-    pub fn log_planet_to_orch(&self, msg: &PlanetToOrchestrator) {
-        self.log(
-            "PLANET->ORCH",
-            &format!("planet_id={} msg={msg:?}", msg.planet_id()),
-        );
-    }
-
-    /// Logs a UI-to-orchestrator message.
-    pub fn log_ui_to_orch(&self, msg: &UiToOrchestratorCommand) {
-        match msg {
-            UiToOrchestratorCommand::GetGalaxy
-            | UiToOrchestratorCommand::GetExplorersPosition
-            | UiToOrchestratorCommand::AddPlanet(_, _)
-            | UiToOrchestratorCommand::GetPlanetSnapshot(_)
-            | UiToOrchestratorCommand::GetExplorerSnapshot(_)
-            | UiToOrchestratorCommand::AddExplorer(_, _)
-            | UiToOrchestratorCommand::SwitchGameMode
-            | UiToOrchestratorCommand::EndGame
-            | UiToOrchestratorCommand::PauseGame
-            | UiToOrchestratorCommand::ResumeGame
-            | UiToOrchestratorCommand::ManualMoveExplorer(_, _, _)
-            | UiToOrchestratorCommand::SendManualAsteroid(_)
-            | UiToOrchestratorCommand::SendManualSunray(_)
-            | UiToOrchestratorCommand::StartPlanetAI(_)
-            | UiToOrchestratorCommand::StopPlanetAI(_)
-            | UiToOrchestratorCommand::ResetPlanetAI(_)
-            | UiToOrchestratorCommand::StartExplorerAI(_)
-            | UiToOrchestratorCommand::StopExplorerAI(_)
-            | UiToOrchestratorCommand::ResetExplorerAI(_)
-            | UiToOrchestratorCommand::KillExplorer(_)
-            | UiToOrchestratorCommand::KillPlanet(_) => {
-                // Do not log these commands for brevity
-            }
-            _ => {
-                self.log(
-                    "UI->ORCH",
-                    &format!("msg={msg:?}"),
-                );
-            }
-        }
-    }
-    /// Logs an error message.
-    pub fn log_error(&self, context: &str, error: &str) {
-        self.log("ERROR", &format!("{context}: {error}"));
-    }
-}
-
-impl Default for ChannelFileLogger {
-    fn default() -> Self {
-        Self::new()
-    }
-}
 
 impl PlanetExplorerChannels {
     pub fn new() -> Self {

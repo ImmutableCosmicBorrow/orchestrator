@@ -1,5 +1,5 @@
 use crate::id::IdManager;
-use crate::logging_utils::log_internal;
+use crate::logging_utils::{LogTarget, log_internal};
 use crate::payload;
 use crate::planet::{PlanetMap, add_planet_with_neighbors};
 
@@ -94,6 +94,7 @@ pub(crate) fn spawn_planet_with_channels(
 
     if let Err(ref e) = planet_res {
         log_internal(
+            LogTarget::General,
             Channel::Error,
             payload!(
                 action : "Planet creation failed",
@@ -103,6 +104,7 @@ pub(crate) fn spawn_planet_with_channels(
         );
     } else {
         log_internal(
+            LogTarget::General,
             Channel::Info,
             payload!(
                 action : "Created Planet",
@@ -120,6 +122,7 @@ pub(crate) fn spawn_planet_with_channels(
 
         if let Err(e) = res {
             log_internal(
+                LogTarget::General,
                 Channel::Error,
                 payload!(
                     action : "Planet encountered an error during its main loop",

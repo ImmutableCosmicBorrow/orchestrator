@@ -4,7 +4,7 @@ use std::collections::{HashMap, HashSet};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, OnceLock, RwLock};
 
-use crate::logging_utils::log_internal;
+use crate::logging_utils::{LogTarget, log_internal};
 use crate::payload;
 use common_game::logging::Channel;
 use common_game::utils::ID;
@@ -111,6 +111,7 @@ fn conns_for_map(map: &PlanetMap) -> ConnHandle {
         Ok(g) => g,
         Err(poison) => {
             log_internal(
+                LogTarget::General,
                 Channel::Warning,
                 payload! {
                     event: "mutex_poison_recovered",
@@ -213,6 +214,7 @@ pub(crate) fn map_read(
         Ok(g) => g,
         Err(poison) => {
             log_internal(
+                LogTarget::General,
                 Channel::Warning,
                 payload! {
                     event: "rwlock_poison_recovered",
@@ -233,6 +235,7 @@ pub(crate) fn map_write(
         Ok(g) => g,
         Err(poison) => {
             log_internal(
+                LogTarget::General,
                 Channel::Warning,
                 payload! {
                     event: "rwlock_poison_recovered",
@@ -251,6 +254,7 @@ fn conns_read(conns: &ConnHandle) -> std::sync::RwLockReadGuard<'_, ConnectionSt
         Ok(g) => g,
         Err(poison) => {
             log_internal(
+                LogTarget::General,
                 Channel::Warning,
                 payload! {
                     event: "rwlock_poison_recovered",
@@ -269,6 +273,7 @@ fn conns_write(conns: &ConnHandle) -> std::sync::RwLockWriteGuard<'_, Connection
         Ok(g) => g,
         Err(poison) => {
             log_internal(
+                LogTarget::General,
                 Channel::Warning,
                 payload! {
                     event: "rwlock_poison_recovered",
@@ -294,6 +299,7 @@ fn ensure_node_in_guard(
         }
         // Node exists but is dead - this is the replacement case worth warning about
         log_internal(
+            LogTarget::General,
             Channel::Warning,
             payload! {
                 event: "Replacing dead PlanetNode with fresh one",
@@ -323,6 +329,7 @@ pub fn ensure_node(map: &PlanetMap, id: ID) -> Arc<PlanetNode> {
         }
         // Node exists but is dead - this is the replacement case worth warning about
         log_internal(
+            LogTarget::General,
             Channel::Warning,
             payload! {
                 event: "Replacing dead PlanetNode with fresh one",
