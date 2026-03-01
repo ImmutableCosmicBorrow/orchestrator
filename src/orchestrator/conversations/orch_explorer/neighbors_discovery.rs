@@ -1,5 +1,5 @@
 use crate::globals::get_explorer_timeout;
-use crate::logging_utils::log_internal;
+use crate::logging_utils::{LogTarget, log_internal};
 use crate::orchestrator::ExplorerBagContent;
 use crate::orchestrator::conversations::PossibleExpectedKinds::ExplorerToOrchKind;
 use crate::orchestrator::conversations::{
@@ -120,6 +120,7 @@ impl Conversation<ExplorerBagContent> for NeighborsDiscoveryConversation<Sending
             }) {
             Ok(()) => {
                 log_internal(
+                    LogTarget::Conversations,
                     Channel::Debug,
                     payload!(
                         action : "Correctly sent its neighbors to Explorer, closing conversation",

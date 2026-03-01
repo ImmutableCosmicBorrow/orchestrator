@@ -1,4 +1,4 @@
-use crate::logging_utils::log_internal;
+use crate::logging_utils::{LogTarget, log_internal};
 use crate::orchestrator::conversations::PossibleExpectedKinds::PlanetToOrchKind;
 use crate::orchestrator::conversations::{
     CommonErrorTypes, Conversation, ErrorState, KillExplorersList, PossibleExpectedKinds,
@@ -195,6 +195,7 @@ impl Conversation<ExplorerBagContent> for KillPlanetConversation<WaitingPlanetKi
         })) = msg_wrapped
         {
             log_internal(
+                LogTarget::Conversations,
                 Channel::Info,
                 payload!(
                     action : "Killed Planet",

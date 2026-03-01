@@ -1,4 +1,4 @@
-use crate::logging_utils::log_internal;
+use crate::logging_utils::{LogTarget, log_internal};
 use crate::orchestrator::ExplorerBagContent;
 use crate::orchestrator::conversations::PossibleExpectedKinds::PlanetToOrchKind;
 use crate::orchestrator::conversations::{
@@ -195,6 +195,7 @@ impl Conversation<ExplorerBagContent> for AdvDeadExplorer<WaitingDeadAdvResponse
         {
             return if res.is_ok() {
                 log_internal(
+                    LogTarget::Conversations,
                     Channel::Debug,
                     payload!(
                         action : "Planet correctly handled dead explorer, closing conversation",

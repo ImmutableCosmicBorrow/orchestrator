@@ -1,6 +1,6 @@
 use crate::galaxy_setup::OrchPlanSenderMap;
 use crate::globals::TIMEOUT;
-use crate::logging_utils::{log_internal, log_msg_to};
+use crate::logging_utils::{LogTarget, log_internal, log_msg_to};
 use crate::orchestrator::ExplorerBagContent;
 use crate::payload;
 use common_game::logging::{ActorType, Channel, EventType};
@@ -67,6 +67,7 @@ pub trait Conversation<T: Debug + Eq + Hash>: Send + Sync {
     /// (e.g., logging, cleanup, graceful degradation).
     fn on_timeout(self: Box<Self>) {
         log_internal(
+            LogTarget::Conversations,
             Channel::Error,
             payload!(
                 error : format!(
@@ -184,6 +185,7 @@ impl ToPlanetStruct {
 
         if let Some(s) = sender {
             log_msg_to(
+                LogTarget::Conversations,
                 Channel::Trace,
                 EventType::MessageOrchestratorToPlanet,
                 (ActorType::Planet, self.planet_id),
@@ -223,6 +225,7 @@ impl ToExplorerStruct {
 
         if let Some(s) = sender {
             log_msg_to(
+                LogTarget::Conversations,
                 Channel::Trace,
                 EventType::MessageOrchestratorToExplorer,
                 (ActorType::Explorer, self.explorer_id),
@@ -356,6 +359,7 @@ impl Conversation<ExplorerBagContent> for ErrorState {
         _msg_wrapped: Option<PossibleMessage<ExplorerBagContent>>,
     ) -> Option<Box<dyn Conversation<ExplorerBagContent> + Send + Sync>> {
         log_internal(
+            LogTarget::Conversations,
             Channel::Warning,
             payload!(
                 warning : "A Conversation reached an error and will be closed.",

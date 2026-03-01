@@ -1,4 +1,4 @@
-use crate::logging_utils::log_internal;
+use crate::logging_utils::{LogTarget, log_internal};
 use crate::orchestrator::ExplorerBagContent;
 use crate::orchestrator::conversations::PossibleExpectedKinds::PlanetToOrchKind;
 use crate::orchestrator::conversations::{
@@ -185,6 +185,7 @@ impl Conversation<ExplorerBagContent> for InternalStateConversation<WaitingInter
             }
 
             log_internal(
+                LogTarget::Conversations,
                 Channel::Debug,
                 payload!(
                     action : "Planet sent its internal state",

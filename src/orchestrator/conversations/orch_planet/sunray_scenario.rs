@@ -1,4 +1,4 @@
-use crate::logging_utils::log_internal;
+use crate::logging_utils::{LogTarget, log_internal};
 use crate::orchestrator::ExplorerBagContent;
 use crate::orchestrator::conversations::PossibleExpectedKinds::PlanetToOrchKind;
 use crate::orchestrator::conversations::{
@@ -178,6 +178,7 @@ impl Conversation<ExplorerBagContent> for SunrayConversation<WaitingSunrayAck> {
             msg_wrapped
         {
             log_internal(
+                LogTarget::AsteroidsSunrays,
                 Channel::Debug,
                 payload!(
                     action : "Planet received the Sunray, closing conversation",
@@ -207,6 +208,7 @@ impl Conversation<ExplorerBagContent> for SunrayConversation<WaitingSunrayAck> {
     /// Logs a warning - the conversation is simply terminated.
     fn on_timeout(self: Box<Self>) {
         log_internal(
+            LogTarget::AsteroidsSunrays,
             Channel::Warning,
             payload!(
                 action : "Sunray conversation timed out waiting for planet acknowledgment",

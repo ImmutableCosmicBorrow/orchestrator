@@ -1,4 +1,4 @@
-use crate::logging_utils::log_internal;
+use crate::logging_utils::{LogTarget, log_internal};
 use crate::orchestrator::ExplorerBagContent;
 use crate::orchestrator::conversations::PossibleExpectedKinds::PlanetToOrchKind;
 use crate::orchestrator::conversations::{
@@ -161,6 +161,7 @@ impl Conversation<ExplorerBagContent> for StartPlanetConversation<WaitingPlanetS
         })) = msg_wrapped
         {
             log_internal(
+                LogTarget::Conversations,
                 Channel::Info,
                 payload!(
                     action : "Started Planet, closing conversation",

@@ -1,5 +1,5 @@
 use crate::globals::get_explorer_timeout;
-use crate::logging_utils::log_internal;
+use crate::logging_utils::{LogTarget, log_internal};
 use crate::orchestrator::ExplorerBagContent;
 use crate::orchestrator::conversations::{
     CommonErrorTypes, Conversation, ErrorState, PossibleExpectedKinds, PossibleMessage,
@@ -204,6 +204,7 @@ impl Conversation<ExplorerBagContent>
             }
 
             log_internal(
+                LogTarget::Conversations,
                 Channel::Info,
                 payload!(
                     action : "Explorer sent supported combinations in its current Planet, closing conversation",

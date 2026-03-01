@@ -1,5 +1,5 @@
 use crate::globals::get_explorer_timeout;
-use crate::logging_utils::log_internal;
+use crate::logging_utils::{LogTarget, log_internal};
 use crate::orchestrator::conversations::{
     CommonErrorTypes, Conversation, ErrorState, PossibleExpectedKinds, PossibleMessage,
     ToExplorerError, ToExplorerStruct,
@@ -195,6 +195,7 @@ impl Conversation<ExplorerBagContent> for BagContentConversation<WaitingBagConte
 
                 if res.is_err() {
                     log_internal(
+                        LogTarget::Conversations,
                         Channel::Warning,
                         payload!(
                             action : "Failed to send ExplorerBagContent to UI",
@@ -204,6 +205,7 @@ impl Conversation<ExplorerBagContent> for BagContentConversation<WaitingBagConte
                     );
                 } else {
                     log_internal(
+                        LogTarget::Conversations,
                         Channel::Debug,
                         payload!(
                             action : "Sent ExplorerBagContent to UI",
