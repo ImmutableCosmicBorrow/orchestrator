@@ -559,7 +559,7 @@ fn maybe_send_asteroid(
     if let Some((_delay, planet)) = asteroid_delay(planet_ids, &universe.explorers_location) {
         log_internal(
             LogTarget::AsteroidsSunrays,
-            Channel::Info,
+            Channel::Trace,
             payload!(action: "Sending asteroid", planet_id: planet),
         );
         convo_factory::create_asteroid_conversation(
@@ -599,7 +599,7 @@ fn maybe_send_sunray(
     if let Some((_delay, planet)) = sunray_delay(planet_ids, &universe.explorers_location) {
         log_internal(
             LogTarget::AsteroidsSunrays,
-            Channel::Info,
+            Channel::Trace,
             payload!(action: "Sending sunray", planet_id: planet),
         );
         convo_factory::create_sunray_conversation(

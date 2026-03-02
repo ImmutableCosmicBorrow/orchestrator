@@ -93,7 +93,7 @@ pub(crate) fn create_travel_to_planet_request_conversation(
 
     log_internal(
         LogTarget::Conversations,
-        Channel::Info,
+        Channel::Trace,
         payload!(
             event: "ScheduleConversation",
             conversation_id: id,
@@ -488,7 +488,7 @@ pub(crate) fn create_supported_resources_conversation(
 
     log_internal(
         LogTarget::Conversations,
-        Channel::Info,
+        Channel::Trace,
         payload!(
             event: "ScheduleConversation",
             conversation_id: id,

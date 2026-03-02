@@ -211,7 +211,6 @@ impl Conversation<ExplorerBagContent>
         {
             return match generated {
                 Ok(()) => {
-                    //TODO: SEND THIS TO UI
                     log_internal(
                         LogTarget::Conversations,
                         Channel::Debug,

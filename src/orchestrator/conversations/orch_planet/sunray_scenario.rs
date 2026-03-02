@@ -179,7 +179,7 @@ impl Conversation<ExplorerBagContent> for SunrayConversation<WaitingSunrayAck> {
         {
             log_internal(
                 LogTarget::AsteroidsSunrays,
-                Channel::Debug,
+                Channel::Trace,
                 payload!(
                     action : "Planet received the Sunray, closing conversation",
                     planet_id : planet_id,

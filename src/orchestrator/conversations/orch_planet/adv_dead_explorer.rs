@@ -196,7 +196,7 @@ impl Conversation<ExplorerBagContent> for AdvDeadExplorer<WaitingDeadAdvResponse
             return if res.is_ok() {
                 log_internal(
                     LogTarget::Conversations,
-                    Channel::Debug,
+                    Channel::Trace,
                     payload!(
                         action : "Planet correctly handled dead explorer, closing conversation",
                         planet_id : planet_id,

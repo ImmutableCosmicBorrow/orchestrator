@@ -78,7 +78,7 @@ impl Conversation<ExplorerBagContent> for MoveToPlanetConversation<WaitingTravel
                 //logging
                 log_internal(
                     LogTarget::Conversations,
-                    Channel::Debug,
+                    Channel::Trace,
                     payload!(
                         action : "Destination planet can be reached, transitioning to SendIncomingRequest".to_string(),
                         explorer_id : self.state.explorer_struct.explorer_id,

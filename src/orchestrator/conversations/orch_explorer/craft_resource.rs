@@ -207,7 +207,6 @@ impl Conversation<ExplorerBagContent> for CraftResourceConversation<WaitingCraft
         {
             return match generated {
                 Ok(()) => {
-                    //TODO: SEND THIS TO UI
                     log_internal(
                         LogTarget::Conversations,
                         Channel::Debug,

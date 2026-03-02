@@ -72,7 +72,7 @@ impl Conversation<ExplorerBagContent> for MoveToPlanetConversation<SendOutgoingR
             Ok(()) => {
                 log_msg_to(
                     LogTarget::Conversations,
-                    Channel::Debug,
+                    Channel::Trace,
                     EventType::MessageOrchestratorToPlanet,
                     (ActorType::Planet, self.state.curr_planet_struct.planet_id),
                     payload!(

@@ -169,7 +169,7 @@ impl Conversation<ExplorerBagContent> for StopExplorerConversation<WaitingExplor
         {
             log_internal(
                 LogTarget::Conversations,
-                Channel::Debug,
+                Channel::Info,
                 payload!(
                     action : "Stopped Explorer, closing conversation",
                     explorer_id : explorer_id,

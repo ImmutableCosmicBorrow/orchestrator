@@ -105,7 +105,7 @@ pub(crate) fn spawn_planet_with_channels(
     } else {
         log_internal(
             LogTarget::General,
-            Channel::Info,
+            Channel::Debug,
             payload!(
                 action : "Created Planet",
                 planet_id : planet_id,

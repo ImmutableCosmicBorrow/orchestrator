@@ -214,7 +214,7 @@ impl Conversation<ExplorerBagContent> for AsteroidConversation<WaitingAsteroidAc
 
             log_internal(
                 LogTarget::AsteroidsSunrays,
-                Channel::Debug,
+                Channel::Info,
                 payload!(
                     action : "Planet received an asteroid and did not defend, so it will be killed",
                     planet_id : planet_id,

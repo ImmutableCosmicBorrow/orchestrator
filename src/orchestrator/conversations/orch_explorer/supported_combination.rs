@@ -205,7 +205,7 @@ impl Conversation<ExplorerBagContent>
 
             log_internal(
                 LogTarget::Conversations,
-                Channel::Info,
+                Channel::Debug,
                 payload!(
                     action : "Explorer sent supported combinations in its current Planet, closing conversation",
                     explorer_id : explorer_id,

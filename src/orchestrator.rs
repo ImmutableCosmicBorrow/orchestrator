@@ -216,7 +216,7 @@ impl Orchestrator {
 
                 // Periodic check to determine if there are any explorers left.
                 // If none remain, shut the game down.
-                recv(timeout) -> _ => {
+                recv(timeout) -> _ => { //  TODO: send message to UI
                     if self.explorers_location.lock().unwrap().is_empty() {
                         log_internal(
                             LogTarget::General,
@@ -240,7 +240,7 @@ impl Orchestrator {
             Ok(msg) => {
                 log_msg_from(
                     LogTarget::ChannelMessages,
-                    Channel::Trace,
+                    Channel::Debug,
                     EventType::MessagePlanetToOrchestrator,
                     (ActorType::Planet, msg.planet_id()),
                     payload!(
@@ -270,7 +270,7 @@ impl Orchestrator {
             Ok(msg) => {
                 log_msg_from(
                     LogTarget::ChannelMessages,
-                    Channel::Trace,
+                    Channel::Debug,
                     EventType::MessageExplorerToOrchestrator,
                     (ActorType::Explorer, msg.explorer_id()),
                     payload!(
@@ -300,7 +300,7 @@ impl Orchestrator {
             Ok(msg) => {
                 log_internal(
                     LogTarget::ChannelMessages,
-                    Channel::Trace,
+                    Channel::Debug,
                     payload!(
                         event : "UI->ORCH",
                         msg : format!("{msg:?}"),
@@ -675,12 +675,15 @@ impl Orchestrator {
             GetExplorerSnapshot(explorer_id) => {
                 self.ask_bag_content(explorer_id); //the conversation will send the update to UI
             }
+
             AddPlanet(planet_id, connected_planets) => {
                 planet::add_planet_with_neighbors(&self.galaxy, planet_id, connected_planets);
             }
+            
             AddExplorer(explorer_type, into_planet) => {
                 self.add_explorer(explorer_type, into_planet);
             }
+            
             SwitchGameMode => {
                 self.change_mode();
             }
