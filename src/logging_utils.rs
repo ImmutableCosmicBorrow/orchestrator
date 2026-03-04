@@ -1,6 +1,6 @@
+use colored::Colorize;
 use common_game::logging::{ActorType, Channel, EventType, LogEvent, Participant, Payload};
 use common_game::utils::ID;
-use colored::Colorize;
 
 #[macro_export]
 macro_rules! payload {
@@ -107,11 +107,14 @@ pub fn log_internal(target: LogTarget, channel: Channel, payload: Payload) {
 
 // ── Logger initialisation ───────────────────────────────────────────────
 
-fn open_log_file(path: &str) -> std::fs::File {
+fn open_log_file(dir: &str, filename: &str) -> std::fs::File {
+    std::fs::create_dir_all(dir)
+        .unwrap_or_else(|e| panic!("failed to create log directory {dir}: {e}"));
+    let path = format!("{dir}/{filename}");
     std::fs::OpenOptions::new()
         .create(true)
         .append(true)
-        .open(path)
+        .open(&path)
         .unwrap_or_else(|e| panic!("failed to open log file {path}: {e}"))
 }
 
@@ -120,11 +123,12 @@ fn open_log_file(path: &str) -> std::fs::File {
 /// Log routing:
 /// | target prefix             | file                          |
 /// |---------------------------|-------------------------------|
-/// | `orch::asteroids_sunrays` | `log/asteroids_sunrays.log`   |
-/// | `orch::conversations`     | `log/conversations.log`       |
-/// | `orch::general`           | `log/general.log`             |
-/// | `orch::channel_messages`  | `log/channel_messages.log`    |
-/// | anything else             | `log/common_game.log`         |
+/// | `orch::asteroids_sunrays` | `log/asteroids_sunrays/<timestamp>.log` |
+/// | `orch::conversations`     | `log/conversations/<timestamp>.log`     |
+/// | `orch::general`           | `log/general/<timestamp>.log`           |
+/// | `orch::channel_messages`  | `log/channel_messages/<timestamp>.log`  |
+/// | anything else             | `log/common_game/<timestamp>.log`       |
+/// | *(all targets)*           | `log/all/<timestamp>.log`               |
 ///
 /// All messages are also printed to **stderr** for terminal visibility.
 ///
@@ -134,6 +138,9 @@ fn open_log_file(path: &str) -> std::fs::File {
 /// Panics if the log directory or any log file cannot be created/opened.
 pub fn start_logger() {
     std::fs::create_dir_all("log").expect("failed to create log/ directory");
+
+    let now = chrono::Local::now();
+    let log_filename = format!("{}.log", now.format("%Y_%m_%d_%H:%M:%S"));
 
     let level = std::env::var("RUST_LOG")
         .ok()
@@ -154,28 +161,33 @@ pub fn start_logger() {
     let asteroids_sunrays = fern::Dispatch::new()
         .format(format)
         .filter(|meta| meta.target().starts_with(TARGET_ASTEROIDS_SUNRAYS))
-        .chain(open_log_file("log/asteroids_sunrays.log"));
+        .chain(open_log_file("log/asteroids_sunrays", &log_filename));
 
     let conversations = fern::Dispatch::new()
         .format(format)
         .filter(|meta| meta.target().starts_with(TARGET_CONVERSATIONS))
-        .chain(open_log_file("log/conversations.log"));
+        .chain(open_log_file("log/conversations", &log_filename));
 
     let general = fern::Dispatch::new()
         .format(format)
         .filter(|meta| meta.target().starts_with(TARGET_GENERAL))
-        .chain(open_log_file("log/general.log"));
+        .chain(open_log_file("log/general", &log_filename));
 
     let channel_messages = fern::Dispatch::new()
         .format(format)
         .filter(|meta| meta.target().starts_with(TARGET_CHANNEL_MESSAGES))
-        .chain(open_log_file("log/channel_messages.log"));
+        .chain(open_log_file("log/channel_messages", &log_filename));
 
     // Everything that does NOT come from orchestrator targets (e.g. common_game, planet crates, explorer crates)
     let common_game = fern::Dispatch::new()
         .format(format)
         .filter(|meta| !meta.target().starts_with("orch::"))
-        .chain(open_log_file("log/common_game.log"));
+        .chain(open_log_file("log/common_game", &log_filename));
+
+    // Shared file: all messages regardless of target
+    let shared = fern::Dispatch::new()
+        .format(format)
+        .chain(open_log_file("log/all", &log_filename));
 
     // Terminal output: all orchestrator logs go to stderr as well, with color
     let terminal = fern::Dispatch::new()
@@ -207,6 +219,7 @@ pub fn start_logger() {
         .chain(general)
         .chain(channel_messages)
         .chain(common_game)
+        .chain(shared)
         .chain(terminal)
         .apply()
         .expect("failed to initialize logger");
