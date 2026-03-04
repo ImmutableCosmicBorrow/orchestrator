@@ -11,7 +11,7 @@ use crate::orchestrator::conversations::ToPlanetStruct;
 use crate::orchestrator::conversations::orch_explorer::move_to_planet::MoveToPlanetConversation;
 use crate::orchestrator::conversations::orch_explorer::move_to_planet::SendManualMoveRequest;
 use crate::orchestrator::conversations::orch_planet::internal_state_scenario::SendingInternalStateRequest;
-use crate::orchestrator::log_internal;
+use crate::orchestrator::{LogTarget, log_internal};
 use crate::payload;
 use crate::planet::PlanetMap;
 use common_explorer::ExplorerBagContent;
@@ -44,6 +44,7 @@ pub(crate) fn create_neighbors_request_conversation(
         as Box<dyn conversations::Conversation<ExplorerBagContent> + Send + Sync>);
 
     log_internal(
+        LogTarget::Conversations,
         Channel::Trace,
         payload!(
             event: "ScheduleConversation",
@@ -91,7 +92,8 @@ pub(crate) fn create_travel_to_planet_request_conversation(
     convo_scheduler.add_conversation(Box::new(new_conv));
 
     log_internal(
-        Channel::Info,
+        LogTarget::Conversations,
+        Channel::Trace,
         payload!(
             event: "ScheduleConversation",
             conversation_id: id,
@@ -125,6 +127,7 @@ pub(crate) fn create_internal_state_conversation(
         as Box<dyn conversations::Conversation<ExplorerBagContent> + Send + Sync>);
 
     log_internal(
+        LogTarget::Conversations,
         Channel::Trace,
         payload!(
             event: "ScheduleConversation",
@@ -157,6 +160,7 @@ pub(crate) fn create_bag_content_conversation(
         as Box<dyn conversations::Conversation<ExplorerBagContent> + Send + Sync>);
 
     log_internal(
+        LogTarget::Conversations,
         Channel::Trace,
         payload!(
             event: "ScheduleConversation",
@@ -189,6 +193,7 @@ pub(crate) fn create_generate_resource_conversation(
         as Box<dyn conversations::Conversation<ExplorerBagContent> + Send + Sync>);
 
     log_internal(
+        LogTarget::Conversations,
         Channel::Trace,
         payload!(
             event: "ScheduleConversation",
@@ -222,6 +227,7 @@ pub(crate) fn create_combine_resource_conversation(
         as Box<dyn conversations::Conversation<ExplorerBagContent> + Send + Sync>);
 
     log_internal(
+        LogTarget::Conversations,
         Channel::Trace,
         payload!(
             event: "ScheduleConversation",
@@ -252,6 +258,7 @@ pub(crate) fn create_start_explorer_conversation(
         as Box<dyn conversations::Conversation<ExplorerBagContent> + Send + Sync>);
 
     log_internal(
+        LogTarget::Conversations,
         Channel::Trace,
         payload!(
             event: "ScheduleConversation",
@@ -281,6 +288,7 @@ pub(crate) fn create_stop_explorer_conversation(
         as Box<dyn conversations::Conversation<ExplorerBagContent> + Send + Sync>);
 
     log_internal(
+        LogTarget::Conversations,
         Channel::Trace,
         payload!(
             event: "ScheduleConversation",
@@ -319,6 +327,7 @@ pub(crate) fn create_kill_explorer_conversation(
         as Box<dyn conversations::Conversation<ExplorerBagContent> + Send + Sync>);
 
     log_internal(
+        LogTarget::Conversations,
         Channel::Trace,
         payload!(
             event: "ScheduleConversation",
@@ -350,6 +359,7 @@ pub(crate) fn create_reset_explorer_conversation(
         as Box<dyn conversations::Conversation<ExplorerBagContent> + Send + Sync>);
 
     log_internal(
+        LogTarget::Conversations,
         Channel::Trace,
         payload!(
             event: "ScheduleConversation",
@@ -378,6 +388,7 @@ pub(crate) fn create_start_planet_conversation(
         as Box<dyn conversations::Conversation<ExplorerBagContent> + Send + Sync>);
 
     log_internal(
+        LogTarget::Conversations,
         Channel::Trace,
         payload!(
             event: "ScheduleConversation",
@@ -406,6 +417,7 @@ pub(crate) fn create_stop_planet_conversation(
         as Box<dyn conversations::Conversation<ExplorerBagContent> + Send + Sync>);
 
     log_internal(
+        LogTarget::Conversations,
         Channel::Trace,
         payload!(
             event: "ScheduleConversation",
@@ -440,6 +452,7 @@ pub(crate) fn create_kill_planet_conversation(
         as Box<dyn conversations::Conversation<ExplorerBagContent> + Send + Sync>);
 
     log_internal(
+        LogTarget::Conversations,
         Channel::Trace,
         payload!(
             event: "ScheduleConversation",
@@ -474,7 +487,8 @@ pub(crate) fn create_supported_resources_conversation(
         as Box<dyn conversations::Conversation<ExplorerBagContent> + Send + Sync>);
 
     log_internal(
-        Channel::Info,
+        LogTarget::Conversations,
+        Channel::Trace,
         payload!(
             event: "ScheduleConversation",
             conversation_id: id,
@@ -504,6 +518,7 @@ pub(crate) fn create_supported_combinations_conversation(
         as Box<dyn conversations::Conversation<ExplorerBagContent> + Send + Sync>);
 
     log_internal(
+        LogTarget::Conversations,
         Channel::Trace,
         payload!(
             event: "ScheduleConversation",
@@ -545,6 +560,7 @@ pub(crate) fn create_asteroid_conversation(
         .unwrap();
 
     log_internal(
+        LogTarget::AsteroidsSunrays,
         Channel::Trace,
         payload!(
             event: "ScheduleConversation",
@@ -582,6 +598,7 @@ pub(crate) fn create_sunray_conversation(
 
     // Log scheduling of sunray conversation
     log_internal(
+        LogTarget::AsteroidsSunrays,
         Channel::Trace,
         payload!(
             event: "ScheduleConversation",

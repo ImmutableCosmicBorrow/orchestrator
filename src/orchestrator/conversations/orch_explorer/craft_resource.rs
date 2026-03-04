@@ -1,5 +1,5 @@
 use crate::globals::get_explorer_timeout;
-use crate::logging_utils::log_internal;
+use crate::logging_utils::{LogTarget, log_internal};
 use crate::orchestrator::conversations::{
     CommonErrorTypes, Conversation, ErrorState, ErrorType, PossibleExpectedKinds, PossibleMessage,
     ToExplorerError, ToExplorerStruct,
@@ -207,8 +207,8 @@ impl Conversation<ExplorerBagContent> for CraftResourceConversation<WaitingCraft
         {
             return match generated {
                 Ok(()) => {
-                    //TODO: SEND THIS TO UI
                     log_internal(
+                        LogTarget::Conversations,
                         Channel::Debug,
                         payload!(
                             action : "Explorer generated a resource correctly, closing conversation",

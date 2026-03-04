@@ -4,7 +4,7 @@
 //! - External control only via thread-safe flags
 //! - Graceful shutdown support
 
-use crate::logging_utils::log_internal;
+use crate::logging_utils::{LogTarget, log_internal};
 use crate::orchestrator::conversations::{SendersToExplorer, SendersToPlanet};
 use crate::orchestrator::queue::ConvoScheduler;
 use crate::orchestrator::{ExplorerBagContent, ExplorersLocationRef, convo_factory};
@@ -558,7 +558,8 @@ fn maybe_send_asteroid(
 
     if let Some((_delay, planet)) = asteroid_delay(planet_ids, &universe.explorers_location) {
         log_internal(
-            Channel::Info,
+            LogTarget::AsteroidsSunrays,
+            Channel::Trace,
             payload!(action: "Sending asteroid", planet_id: planet),
         );
         convo_factory::create_asteroid_conversation(
@@ -572,6 +573,7 @@ fn maybe_send_asteroid(
         );
     } else {
         log_internal(
+            LogTarget::AsteroidsSunrays,
             Channel::Warning,
             payload!(action: "No planets available to send asteroid to"),
         );
@@ -596,7 +598,8 @@ fn maybe_send_sunray(
 
     if let Some((_delay, planet)) = sunray_delay(planet_ids, &universe.explorers_location) {
         log_internal(
-            Channel::Info,
+            LogTarget::AsteroidsSunrays,
+            Channel::Trace,
             payload!(action: "Sending sunray", planet_id: planet),
         );
         convo_factory::create_sunray_conversation(
@@ -608,6 +611,7 @@ fn maybe_send_sunray(
         );
     } else {
         log_internal(
+            LogTarget::AsteroidsSunrays,
             Channel::Warning,
             payload!(action: "No planets available to send sunray to"),
         );

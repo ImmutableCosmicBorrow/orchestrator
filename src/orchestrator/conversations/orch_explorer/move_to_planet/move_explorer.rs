@@ -1,5 +1,5 @@
 use crate::globals::get_explorer_timeout;
-use crate::logging_utils::log_internal;
+use crate::logging_utils::{LogTarget, log_internal};
 use crate::orchestrator::conversations::orch_explorer::move_to_planet::{
     MoveToPlanetConversation, SendMoveRequest, WaitMoveToPlanetResponse,
 };
@@ -203,6 +203,7 @@ impl Conversation<ExplorerBagContent> for MoveToPlanetConversation<WaitMoveToPla
             // Explorer is moving, need to change its location in Orchestrator reference
             if self.state.is_explorer_moving {
                 log_internal(
+                    LogTarget::Conversations,
                     Channel::Info,
                     payload!(
                         action : "Explorer correctly moved to Planet",
@@ -214,6 +215,7 @@ impl Conversation<ExplorerBagContent> for MoveToPlanetConversation<WaitMoveToPla
 
                 self.move_explorer_location(explorer_id, planet_id);
                 log_internal(
+                    LogTarget::Conversations,
                     Channel::Debug,
                     payload!(
                         action : "Changed Explorer location in List, closing conversation",
@@ -225,6 +227,7 @@ impl Conversation<ExplorerBagContent> for MoveToPlanetConversation<WaitMoveToPla
             } else {
                 // Explorer responded correctly but move was disallowed previously
                 log_internal(
+                    LogTarget::Conversations,
                     Channel::Warning,
                     payload!(
                         action : "Explorer cannot move (destination not a neighbor), closing conversation",
@@ -272,6 +275,7 @@ impl MoveToPlanetConversation<WaitMoveToPlanetResponse> {
             .insert(explorer_id, dst_planet_id);
 
         log_internal(
+            LogTarget::Conversations,
             Channel::Info,
             payload!(
                 action : "Updated Explorer location in global reference",

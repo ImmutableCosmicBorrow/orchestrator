@@ -1,5 +1,5 @@
 use crate::globals::get_explorer_timeout;
-use crate::logging_utils::log_internal;
+use crate::logging_utils::{LogTarget, log_internal};
 use crate::orchestrator::ExplorerBagContent;
 use crate::orchestrator::conversations::{
     CommonErrorTypes, Conversation, ErrorState, PossibleExpectedKinds, PossibleMessage,
@@ -168,6 +168,7 @@ impl Conversation<ExplorerBagContent> for ResetExplorerConversation<WaitingExplo
         )) = msg_wrapped
         {
             log_internal(
+                LogTarget::Conversations,
                 Channel::Info,
                 payload!(
                     action : "Reset explorer, closing conversation",
