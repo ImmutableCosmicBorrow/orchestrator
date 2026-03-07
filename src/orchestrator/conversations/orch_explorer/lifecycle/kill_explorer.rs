@@ -1,6 +1,6 @@
 use crate::globals::get_explorer_timeout;
 use crate::logging_utils::{LogTarget, log_internal};
-use crate::orchestrator::conversations::orch_planet::adv_dead_explorer::{
+use crate::orchestrator::conversations::orch_planet::galaxy_events::adv_dead_explorer::{
     AdvDeadExplorer, SendingDeadExpAdv,
 };
 use crate::orchestrator::conversations::{

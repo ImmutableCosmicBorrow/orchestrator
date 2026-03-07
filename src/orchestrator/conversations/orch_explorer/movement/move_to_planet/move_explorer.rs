@@ -1,6 +1,6 @@
 use crate::globals::get_explorer_timeout;
 use crate::logging_utils::{LogTarget, log_internal};
-use crate::orchestrator::conversations::orch_explorer::move_to_planet::{
+use crate::orchestrator::conversations::orch_explorer::movement::move_to_planet::{
     MoveToPlanetConversation, SendMoveRequest, WaitMoveToPlanetResponse,
 };
 use crate::orchestrator::conversations::{

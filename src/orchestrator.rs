@@ -15,9 +15,6 @@ use crate::globals::{get_game_step, set_game_step};
 use crate::logging_utils::{LogTarget, log_internal, log_msg_from};
 use crate::orchestrator::conversations::ToExplorerStruct;
 use crate::orchestrator::conversations::ToPlanetStruct;
-use crate::orchestrator::conversations::orch_explorer::kill_explorer::{
-    KillExplorerConversation, SendingKillExplorer,
-};
 use common_explorer::ExplorerAI;
 pub(crate) use common_explorer::ExplorerBagContent;
 use common_game::components::forge::Forge;
@@ -28,6 +25,9 @@ use common_game::protocols::orchestrator_explorer::{
 use common_game::protocols::orchestrator_planet::PlanetToOrchestrator;
 use common_game::protocols::planet_explorer::{ExplorerToPlanet, PlanetToExplorer};
 use common_game::utils::ID;
+use conversations::orch_explorer::lifecycle::kill_explorer::{
+    KillExplorerConversation, SendingKillExplorer,
+};
 use crossbeam_channel::{Receiver, Sender, select, unbounded};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};

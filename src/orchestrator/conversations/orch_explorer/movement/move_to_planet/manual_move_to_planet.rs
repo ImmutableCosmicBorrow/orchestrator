@@ -1,4 +1,4 @@
-use crate::orchestrator::conversations::orch_explorer::move_to_planet::{
+use crate::orchestrator::conversations::orch_explorer::movement::move_to_planet::{
     MoveToPlanetConversation, SendIncomingRequest, SendManualMoveRequest,
 };
 use crate::orchestrator::conversations::{Conversation, PossibleExpectedKinds, PossibleMessage};

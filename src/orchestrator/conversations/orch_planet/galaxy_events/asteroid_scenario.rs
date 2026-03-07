@@ -1,5 +1,5 @@
 use crate::logging_utils::{LogTarget, log_internal};
-use crate::orchestrator::conversations::orch_planet::kill_planet::{
+use crate::orchestrator::conversations::orch_planet::lifecycle::kill_planet::{
     KillPlanetConversation, SendPlanetKill,
 };
 use crate::orchestrator::conversations::{
