@@ -1,5 +1,5 @@
-use crate::logging_utils::log_internal;
-use crate::orchestrator::conversations::orch_planet::kill_planet::{
+use crate::logging_utils::{LogTarget, log_internal};
+use crate::orchestrator::conversations::orch_planet::lifecycle::kill_planet::{
     KillPlanetConversation, SendPlanetKill,
 };
 use crate::orchestrator::conversations::{
@@ -201,6 +201,7 @@ impl Conversation<ExplorerBagContent> for AsteroidConversation<WaitingAsteroidAc
         {
             if rocket.is_some() {
                 log_internal(
+                    LogTarget::AsteroidsSunrays,
                     Channel::Debug,
                     payload!(
                         action : "Planet received an asteroid and defends with a rocket, closing conversation",
@@ -212,7 +213,8 @@ impl Conversation<ExplorerBagContent> for AsteroidConversation<WaitingAsteroidAc
             }
 
             log_internal(
-                Channel::Debug,
+                LogTarget::AsteroidsSunrays,
+                Channel::Info,
                 payload!(
                     action : "Planet received an asteroid and did not defend, so it will be killed",
                     planet_id : planet_id,

@@ -1,8 +1,8 @@
 use crate::globals::get_explorer_timeout;
-use crate::logging_utils::log_internal;
+use crate::logging_utils::{LogTarget, log_internal};
 use crate::orchestrator::conversations::PossibleExpectedKinds::ExplorerToOrchKind;
-use crate::orchestrator::conversations::orch_explorer::move_to_planet::WaitingTravelRequest;
-use crate::orchestrator::conversations::orch_explorer::move_to_planet::{
+use crate::orchestrator::conversations::orch_explorer::movement::move_to_planet::WaitingTravelRequest;
+use crate::orchestrator::conversations::orch_explorer::movement::move_to_planet::{
     MoveToPlanetConversation, SendIncomingRequest, SendMoveRequest,
 };
 use crate::orchestrator::conversations::{
@@ -77,7 +77,8 @@ impl Conversation<ExplorerBagContent> for MoveToPlanetConversation<WaitingTravel
                 );
                 //logging
                 log_internal(
-                    Channel::Debug,
+                    LogTarget::Conversations,
+                    Channel::Trace,
                     payload!(
                         action : "Destination planet can be reached, transitioning to SendIncomingRequest".to_string(),
                         explorer_id : self.state.explorer_struct.explorer_id,

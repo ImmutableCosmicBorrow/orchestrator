@@ -1,7 +1,7 @@
-use crate::logging_utils::log_msg_to;
-use crate::orchestrator::conversations::orch_explorer::move_to_planet::WaitingOutgoingResponse;
-use crate::orchestrator::conversations::orch_explorer::move_to_planet::errors::MoveToPlanetErrors;
-use crate::orchestrator::conversations::orch_explorer::move_to_planet::{
+use crate::logging_utils::{LogTarget, log_msg_to};
+use crate::orchestrator::conversations::orch_explorer::movement::move_to_planet::WaitingOutgoingResponse;
+use crate::orchestrator::conversations::orch_explorer::movement::move_to_planet::errors::MoveToPlanetErrors;
+use crate::orchestrator::conversations::orch_explorer::movement::move_to_planet::{
     MoveToPlanetConversation, SendMoveRequest, SendOutgoingRequest,
 };
 use crate::orchestrator::conversations::{
@@ -71,7 +71,8 @@ impl Conversation<ExplorerBagContent> for MoveToPlanetConversation<SendOutgoingR
         ) {
             Ok(()) => {
                 log_msg_to(
-                    Channel::Debug,
+                    LogTarget::Conversations,
+                    Channel::Trace,
                     EventType::MessageOrchestratorToPlanet,
                     (ActorType::Planet, self.state.curr_planet_struct.planet_id),
                     payload!(

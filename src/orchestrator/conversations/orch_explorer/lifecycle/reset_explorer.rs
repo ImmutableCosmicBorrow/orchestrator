@@ -1,81 +1,63 @@
 use crate::globals::get_explorer_timeout;
-use crate::logging_utils::log_internal;
+use crate::logging_utils::{LogTarget, log_internal};
 use crate::orchestrator::ExplorerBagContent;
 use crate::orchestrator::conversations::{
     CommonErrorTypes, Conversation, ErrorState, PossibleExpectedKinds, PossibleMessage,
     ToExplorerError, ToExplorerStruct,
 };
 use crate::payload;
-use crate::ui::OrchestratorToUiUpdate;
 use common_game::logging::Channel;
 use common_game::protocols::orchestrator_explorer::{
     ExplorerToOrchestrator, ExplorerToOrchestratorKind, OrchestratorToExplorer,
 };
 use common_game::utils::ID;
-use crossbeam_channel::Sender;
-use std::ops::Mul;
 use std::time::Duration;
 
-///**Supported Combination Conversation**
+///**Reset Explorer Conversation**
 ///
-/// This module manages the conversation between the Orchestrator and an Explorer regarding the combinations
-/// supported by the explorer's current planet.
-/// It uses a Finite State Machine (FSM) to ensure that the request for combinations and the subsequent
-/// result list are handled in the correct order at compile time.
+/// This module manages the conversation between the Orchestrator and an Explorer regarding the reset of its AI meaning it will reset all the knowledge it already acquired.
+/// It uses a Finite State Machine (FSM) to ensure that the reset command and the subsequent result
+/// are handled in the correct order at compile time.
 ///
-/// The conversation flow starts by sending a request to the explorer and terminates once the
-/// [`ExplorerToOrchestrator::SupportedCombinationResult`] is received and processed.
+/// The conversation flow starts by sending a reset request to the explorer and terminates once the
+/// [`ExplorerToOrchestrator::ResetExplorerAIResult`] is received.
 /// Marker struct for FSM state
 ///
-/// The conversation starts in the [`SendingSupportedCombinationRequest`] state, which sends an
-/// [`OrchestratorToExplorer::SupportedCombinationRequest`] when the [`Conversation::transition`] method is called.
-pub(crate) struct SendingSupportedCombinationRequest {
+/// The conversation starts in the [`SendingExplorerReset`] state, which sends an
+/// [`OrchestratorToExplorer::ResetExplorerAI`] when the [`Conversation::transition`] method is called.
+pub(crate) struct SendingExplorerReset {
     /// A struct containing fields to send messages to the specific explorer
     to_explorer_struct: ToExplorerStruct,
-    /// Optional sender to forward explorer snapshot to UI
-    ui_sender: Option<Sender<OrchestratorToUiUpdate>>,
 }
 
-impl SendingSupportedCombinationRequest {
-    /// Constructor for [`SendingSupportedCombinationRequest`] state struct
-    pub(crate) fn new(
-        to_explorer_struct: ToExplorerStruct,
-        ui_sender: Option<Sender<OrchestratorToUiUpdate>>,
-    ) -> Self {
-        Self {
-            to_explorer_struct,
-            ui_sender,
-        }
+impl SendingExplorerReset {
+    /// Constructor for [`SendingExplorerReset`] state struct
+    pub(crate) fn new(to_explorer_struct: ToExplorerStruct) -> Self {
+        Self { to_explorer_struct }
     }
 }
 
 /// Marker struct for FSM state
 ///
-/// In the [`WaitingSupportedCombinationResult`] state, the conversation expects an
-/// [`ExplorerToOrchestrator::SupportedCombinationResult`] message containing the list of valid
-/// recipes or combinations available to the explorer.
-struct WaitingSupportedCombinationResult {
+/// In the [`WaitingExplorerResetResult`] state, the conversation expects an
+/// [`ExplorerToOrchestrator::ResetExplorerAIResult`] message to confirm the AI reset was successful.
+struct WaitingExplorerResetResult {
     /// ID of the explorer we are waiting for
     explorer_id: ID,
-    /// Optional sender to forward explorer snapshot to UI
-    ui_sender: Option<Sender<OrchestratorToUiUpdate>>,
 }
 
-impl WaitingSupportedCombinationResult {
-    /// The constructor for [`WaitingSupportedCombinationResult`] state struct
-    fn new(explorer_id: ID, ui_sender: Option<Sender<OrchestratorToUiUpdate>>) -> Self {
-        Self {
-            explorer_id,
-            ui_sender,
-        }
+impl WaitingExplorerResetResult {
+    /// The constructor for [`WaitingExplorerResetResult`] state struct
+    fn new(explorer_id: ID) -> Self {
+        Self { explorer_id }
     }
 }
 
-/// Supported Combination Conversation FSM
+/// Reset Explorer Conversation FSM
 ///
 /// This is the generic FSM struct that takes the generic type `State` to ensure only methods
 /// of that specific state can be called during the conversation.
-pub(crate) struct SupportedCombinationConversation<State> {
+pub(crate) struct ResetExplorerConversation<State> {
     /// Conversation ID
     id: ID,
     /// Optional expected message to trigger the transition
@@ -84,10 +66,8 @@ pub(crate) struct SupportedCombinationConversation<State> {
     state: State,
 }
 
-// SENDING SUPPORTED COMBINATION REQUEST IMPLEMENTATION
-impl Conversation<ExplorerBagContent>
-    for SupportedCombinationConversation<SendingSupportedCombinationRequest>
-{
+// SENDING EXPLORER RESET IMPLEMENTATION
+impl Conversation<ExplorerBagContent> for ResetExplorerConversation<SendingExplorerReset> {
     fn get_id(&self) -> ID {
         self.id
     }
@@ -100,7 +80,7 @@ impl Conversation<ExplorerBagContent>
         self.expected_message.clone()
     }
 
-    /// Transition Function for [`SendingSupportedCombinationRequest`] state:
+    /// Transition Function for [`SendingExplorerReset`] state:
     ///
     /// Returns:
     ///
@@ -108,7 +88,7 @@ impl Conversation<ExplorerBagContent>
     ///
     /// [`ErrorState`] with [`CommonErrorTypes::ExplorerSenderNotFound`] if the communication channel is missing.
     ///
-    /// The next state: [`SupportedCombinationConversation<WaitingSupportedCombinationResult>`] if the request was sent successfully.
+    /// The next state: [`ResetExplorerConversation<WaitingExplorerResetResult>`] if the reset command was sent successfully.
     fn transition(
         self: Box<Self>,
         _msg_wrapped: Option<PossibleMessage<ExplorerBagContent>>,
@@ -116,14 +96,13 @@ impl Conversation<ExplorerBagContent>
         match self
             .state
             .to_explorer_struct
-            .to_explorer(OrchestratorToExplorer::SupportedCombinationRequest)
+            .to_explorer(OrchestratorToExplorer::ResetExplorerAI)
         {
             Ok(()) => {
                 let explorer_id = self.state.to_explorer_struct.explorer_id;
-                let next_state = SupportedCombinationConversation::<
-                    WaitingSupportedCombinationResult,
-                >::new(
-                    self.id, explorer_id, self.state.ui_sender.clone()
+                let next_state = ResetExplorerConversation::<WaitingExplorerResetResult>::new(
+                    self.id,
+                    explorer_id,
                 );
                 Some(Box::new(next_state))
             }
@@ -144,13 +123,13 @@ impl Conversation<ExplorerBagContent>
     }
 
     fn get_priority(&self) -> i32 {
-        2
+        5
     }
 }
 
-impl SupportedCombinationConversation<SendingSupportedCombinationRequest> {
-    /// The constructor for [`SupportedCombinationConversation`] in the [`SendingSupportedCombinationRequest`] state
-    pub(crate) fn new(id: ID, state: SendingSupportedCombinationRequest) -> Self {
+impl ResetExplorerConversation<SendingExplorerReset> {
+    /// The constructor for [`ResetExplorerConversation`] in the [`SendingExplorerReset`] state
+    pub(crate) fn new(id: ID, state: SendingExplorerReset) -> Self {
         Self {
             id,
             expected_message: None,
@@ -159,10 +138,8 @@ impl SupportedCombinationConversation<SendingSupportedCombinationRequest> {
     }
 }
 
-// WAITING SUPPORTED COMBINATION RESULT IMPLEMENTATION
-impl Conversation<ExplorerBagContent>
-    for SupportedCombinationConversation<WaitingSupportedCombinationResult>
-{
+// WAITING EXPLORER RESET RESULT IMPLEMENTATION
+impl Conversation<ExplorerBagContent> for ResetExplorerConversation<WaitingExplorerResetResult> {
     fn get_id(&self) -> ID {
         self.id
     }
@@ -175,11 +152,11 @@ impl Conversation<ExplorerBagContent>
         self.expected_message.clone()
     }
 
-    /// Transition Function for [`WaitingSupportedCombinationResult`] state:
+    /// Transition Function for [`WaitingExplorerResetResult`] state:
     ///
     /// Returns:
     ///
-    /// [None] if the [`ExplorerToOrchestrator::SupportedCombinationResult`] is successfully received, closing the conversation.
+    /// [None] if the [`ExplorerToOrchestrator::ResetExplorerAIResult`] is successfully received, closing the conversation.
     ///
     /// [`ErrorState`] with [`CommonErrorTypes::WrongMessage`] if the received message does not match the expected result kind.
     fn transition(
@@ -187,29 +164,16 @@ impl Conversation<ExplorerBagContent>
         msg_wrapped: Option<PossibleMessage<ExplorerBagContent>>,
     ) -> Option<Box<dyn Conversation<ExplorerBagContent> + Send + Sync>> {
         if let Some(PossibleMessage::ExplorerToOrch(
-            ExplorerToOrchestrator::SupportedCombinationResult {
-                explorer_id,
-                combination_list,
-            },
+            ExplorerToOrchestrator::ResetExplorerAIResult { explorer_id },
         )) = msg_wrapped
         {
-            let combinations_log = format!("{combination_list:?}");
-
-            // Send explorer snapshot to UI if sender is available
-            if let Some(ref sender) = self.state.ui_sender {
-                let _ = sender.send(OrchestratorToUiUpdate::SupportedCombinations(
-                    explorer_id,
-                    combination_list,
-                ));
-            }
-
             log_internal(
+                LogTarget::Conversations,
                 Channel::Info,
                 payload!(
-                    action : "Explorer sent supported combinations in its current Planet, closing conversation",
+                    action : "Reset explorer, closing conversation",
                     explorer_id : explorer_id,
-                    supported_combinnations : combinations_log,
-                    conversation_id : self.id
+                    conversation_id : self.id,
                 ),
             );
             return None;
@@ -221,24 +185,24 @@ impl Conversation<ExplorerBagContent>
     }
 
     fn get_priority(&self) -> i32 {
-        2
+        5
     }
 
-    // Longer timeout, since it involves an Explorer - Planet communication
+    // Longer timeout, since it involves a communication with an Explorer
     fn get_timeout(&self) -> Option<Duration> {
-        Some(get_explorer_timeout().mul(2))
+        Some(get_explorer_timeout())
     }
 }
 
-impl SupportedCombinationConversation<WaitingSupportedCombinationResult> {
-    /// The constructor for [`SupportedCombinationConversation`] in the [`WaitingSupportedCombinationResult`] state
-    fn new(id: ID, explorer_id: ID, ui_sender: Option<Sender<OrchestratorToUiUpdate>>) -> Self {
+impl ResetExplorerConversation<WaitingExplorerResetResult> {
+    /// The constructor for [`ResetExplorerConversation`] in the [`WaitingExplorerResetResult`] state
+    fn new(id: ID, explorer_id: ID) -> Self {
         Self {
             id,
             expected_message: Some(PossibleExpectedKinds::ExplorerToOrchKind(
-                ExplorerToOrchestratorKind::SupportedCombinationResult,
+                ExplorerToOrchestratorKind::ResetExplorerAIResult,
             )),
-            state: WaitingSupportedCombinationResult::new(explorer_id, ui_sender),
+            state: WaitingExplorerResetResult::new(explorer_id),
         }
     }
 }
@@ -250,41 +214,29 @@ mod tests {
     use crate::orchestrator::conversations::orch_explorer::test_utils::{
         MakeSendersResult, make_empty_senders, make_senders_with, make_to_explorer_struct,
     };
-    use common_game::components::resource::ComplexResourceType;
-    use common_game::protocols::orchestrator_explorer::ExplorerToOrchestratorKind;
     use crossbeam_channel::unbounded;
-    use std::collections::{HashMap, HashSet};
+    use std::collections::HashMap;
     use std::sync::{Arc, Mutex};
 
-    const CONV_ID: ID = 100;
-    const EXPLORER_ID: ID = 200;
+    const CONV_ID: u32 = 1;
+    const EXPLORER_ID: u32 = 2;
 
     // --- Helper functions ---
 
     #[allow(clippy::unnecessary_box_returns)]
     fn make_send_conv(
         senders: SendersToExplorer,
-    ) -> Box<SupportedCombinationConversation<SendingSupportedCombinationRequest>> {
+    ) -> Box<ResetExplorerConversation<SendingExplorerReset>> {
         let to_explorer = make_to_explorer_struct(EXPLORER_ID, senders);
-        let state = SendingSupportedCombinationRequest::new(to_explorer, None);
-        Box::new(SupportedCombinationConversation::<
-            SendingSupportedCombinationRequest,
-        >::new(CONV_ID, state))
+        let state = SendingExplorerReset::new(to_explorer);
+        Box::new(ResetExplorerConversation::<SendingExplorerReset>::new(
+            CONV_ID, state,
+        ))
     }
 
-    /*#[allow(clippy::unnecessary_box_returns)]
-    fn make_wait_conv() -> Box<SupportedCombinationConversation<WaitingSupportedCombinationResult>>
-    {
-        Box::new(SupportedCombinationConversation::<
-            WaitingSupportedCombinationResult,
-        >::new(CONV_ID, EXPLORER_ID))
-    }*/
-
-    fn make_combination_list() -> HashSet<ComplexResourceType> {
-        let mut combination_list = HashSet::new();
-        combination_list.insert(ComplexResourceType::Water);
-        combination_list.insert(ComplexResourceType::Robot);
-        combination_list
+    #[allow(clippy::unnecessary_box_returns)]
+    fn make_wait_conv() -> Box<ResetExplorerConversation<WaitingExplorerResetResult>> {
+        Box::new(ResetExplorerConversation::<WaitingExplorerResetResult>::new(CONV_ID, EXPLORER_ID))
     }
 
     // --- Tests ---
@@ -295,15 +247,14 @@ mod tests {
         let conv = make_send_conv(senders);
         let next_conv = conv
             .transition(None)
-            .expect("Should transition to WaitingSupportedCombinationResult");
+            .expect("Should transition to next state");
         assert_eq!(
             next_conv.get_expected_kind(),
             Some(PossibleExpectedKinds::ExplorerToOrchKind(
-                ExplorerToOrchestratorKind::SupportedCombinationResult
+                ExplorerToOrchestratorKind::ResetExplorerAIResult
             ))
         );
         assert_eq!(next_conv.get_id(), CONV_ID);
-        assert!(next_conv.get_error_details().is_none());
     }
 
     #[test]
@@ -312,6 +263,7 @@ mod tests {
         let conv = make_send_conv(senders);
         let next_conv = conv.transition(None).expect("Should return an ErrorState");
         assert!(next_conv.get_expected_kind().is_none());
+        assert_eq!(next_conv.get_id(), CONV_ID);
         assert_eq!(
             next_conv.get_error_details(),
             Some(format!("sender to explorer {EXPLORER_ID} not found"))
@@ -334,66 +286,60 @@ mod tests {
         );
     }
 
-    /*#[test]
+    #[test]
     fn send_getters() {
         let MakeSendersResult(senders, _rx) = make_senders_with(EXPLORER_ID);
         let to_explorer = make_to_explorer_struct(EXPLORER_ID, senders);
-        let state = SendingSupportedCombinationRequest::new(to_explorer);
-        let conv = SupportedCombinationConversation::<SendingSupportedCombinationRequest>::new(
-            CONV_ID, state,
-        );
+        let state = SendingExplorerReset::new(to_explorer);
+        let conv = ResetExplorerConversation::<SendingExplorerReset>::new(CONV_ID, state);
         assert_eq!(conv.get_id(), CONV_ID);
         assert_eq!(conv.get_entities_ids(), (None, Some(EXPLORER_ID)));
         assert_eq!(conv.get_expected_kind(), None);
-        assert_eq!(conv.get_priority(), 2);
-    }*/
+        assert_eq!(conv.get_priority(), 5);
+    }
 
-    /*#[test]
-    fn wait_correct_message() {
+    #[test]
+    fn wait_correct_transition() {
         let conv = make_wait_conv();
-        let msg =
-            PossibleMessage::ExplorerToOrch(ExplorerToOrchestrator::SupportedCombinationResult {
-                explorer_id: EXPLORER_ID,
-                combination_list: make_combination_list(),
-            });
+        let msg = PossibleMessage::ExplorerToOrch(ExplorerToOrchestrator::ResetExplorerAIResult {
+            explorer_id: EXPLORER_ID,
+        });
         let result = conv.transition(Some(msg));
         assert!(
             result.is_none(),
-            "Conversation should terminate upon receiving SupportedCombinationResult"
+            "Conversation should terminate upon receiving ResetExplorerAIResult"
         );
-    }*/
+    }
 
-    /*#[test]
+    #[test]
     fn wait_wrong_message() {
         let conv = make_wait_conv();
         let wrong_msg =
-            PossibleMessage::ExplorerToOrch(ExplorerToOrchestrator::StopExplorerAIResult {
+            PossibleMessage::ExplorerToOrch(ExplorerToOrchestrator::StartExplorerAIResult {
                 explorer_id: EXPLORER_ID,
             });
         let result = conv
             .transition(Some(wrong_msg))
-            .expect("Should transition to ErrorState");
+            .expect("Should return an ErrorState");
         assert_eq!(result.get_id(), CONV_ID);
         assert_eq!(
             result.get_error_details(),
             Some("Wrong Message Received".to_string())
         );
-    }*/
+    }
 
-    /*#[test]
+    #[test]
     fn wait_getters() {
-        let conv = SupportedCombinationConversation::<WaitingSupportedCombinationResult>::new(
-            CONV_ID,
-            EXPLORER_ID,
-        );
+        let conv =
+            ResetExplorerConversation::<WaitingExplorerResetResult>::new(CONV_ID, EXPLORER_ID);
         assert_eq!(conv.get_id(), CONV_ID);
         assert_eq!(conv.get_entities_ids(), (None, Some(EXPLORER_ID)));
         assert_eq!(
             conv.get_expected_kind(),
             Some(PossibleExpectedKinds::ExplorerToOrchKind(
-                ExplorerToOrchestratorKind::SupportedCombinationResult
+                ExplorerToOrchestratorKind::ResetExplorerAIResult
             ))
         );
-        assert_eq!(conv.get_priority(), 2);
-    }*/
+        assert_eq!(conv.get_priority(), 5);
+    }
 }

@@ -1,4 +1,4 @@
-use crate::logging_utils::log_internal;
+use crate::logging_utils::{LogTarget, log_internal};
 use crate::orchestrator::ExplorerBagContent;
 use crate::orchestrator::conversations::Conversation;
 use crate::orchestrator::conversations::PossibleExpectedKinds;
@@ -187,6 +187,7 @@ impl<T: Debug + Eq + Hash> ConvoScheduler<T> {
         let ready_to_transition =
             conversation.get_expected_kind().is_none() || self.get_waiting_message(id).is_some();
         log_internal(
+            LogTarget::Conversations,
             Channel::Trace,
             payload!(
                 event: "QueueEnqueue",
@@ -238,6 +239,7 @@ impl<T: Debug + Eq + Hash> ConvoScheduler<T> {
         // Log dequeue before returning
         let entities = conversation.as_ref().unwrap().get_entities_ids();
         log_internal(
+            LogTarget::Conversations,
             Channel::Trace,
             payload!(
                 event: "QueueDequeue",
@@ -284,6 +286,7 @@ impl<T: Debug + Eq + Hash> ConvoScheduler<T> {
         // Log parking of the message for the conversation transition
         let (planet_id, explorer_id) = entity_ids;
         log_internal(
+            LogTarget::Conversations,
             Channel::Trace,
             payload!(
                 event: "MessageParked",

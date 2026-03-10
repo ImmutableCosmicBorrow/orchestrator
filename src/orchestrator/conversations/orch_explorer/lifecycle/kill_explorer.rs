@@ -1,6 +1,6 @@
 use crate::globals::get_explorer_timeout;
-use crate::logging_utils::log_internal;
-use crate::orchestrator::conversations::orch_planet::adv_dead_explorer::{
+use crate::logging_utils::{LogTarget, log_internal};
+use crate::orchestrator::conversations::orch_planet::galaxy_events::adv_dead_explorer::{
     AdvDeadExplorer, SendingDeadExpAdv,
 };
 use crate::orchestrator::conversations::{
@@ -212,6 +212,7 @@ impl Conversation<ExplorerBagContent> for KillExplorerConversation<WaitingKillEx
             self.delete_dead_explorer();
 
             log_internal(
+                LogTarget::Conversations,
                 Channel::Info,
                 payload!(
                     action : "Killed explorer",
@@ -226,6 +227,7 @@ impl Conversation<ExplorerBagContent> for KillExplorerConversation<WaitingKillEx
             }
             //No need to adv dead explorer, ending conversation
             log_internal(
+                LogTarget::Conversations,
                 Channel::Warning,
                 payload!(
                     action : "Conversation already took care of this dead Explorer and is Ending",
@@ -238,6 +240,7 @@ impl Conversation<ExplorerBagContent> for KillExplorerConversation<WaitingKillEx
 
         // Wrong Message
         log_internal(
+            LogTarget::Conversations,
             Channel::Warning,
             payload!(
                 action : "Wrong Message arrived, sending error state",

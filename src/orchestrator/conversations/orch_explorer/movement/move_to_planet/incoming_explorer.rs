@@ -1,5 +1,5 @@
-use crate::orchestrator::conversations::orch_explorer::move_to_planet::errors::MoveToPlanetErrors;
-use crate::orchestrator::conversations::orch_explorer::move_to_planet::{
+use crate::orchestrator::conversations::orch_explorer::movement::move_to_planet::errors::MoveToPlanetErrors;
+use crate::orchestrator::conversations::orch_explorer::movement::move_to_planet::{
     MoveToPlanetConversation, SendIncomingRequest, SendMoveRequest, SendOutgoingRequest,
     WaitingIncomingResponse,
 };
@@ -14,7 +14,6 @@ use common_game::protocols::orchestrator_planet::{
 use common_game::protocols::planet_explorer::PlanetToExplorer;
 use common_game::utils::ID;
 use crossbeam_channel::Sender;
-
 ///**Move To Planet Conversation - Send Incoming Request**
 ///
 /// This state initiates the acquisition phase of the movement protocol. It is responsible
