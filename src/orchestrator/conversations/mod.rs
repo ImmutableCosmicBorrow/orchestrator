@@ -155,8 +155,6 @@ impl<T> PossibleMessage<T> {
 // --- Communication Helpers ---
 
 pub(crate) type KillExplorersList = Vec<(ID, ID)>;
-pub(crate) type SendersToPlanet = Arc<Mutex<OrchPlanSenderMap>>;
-pub(crate) type SendersToExplorer = Arc<Mutex<HashMap<ID, Sender<OrchestratorToExplorer>>>>;
 
 /// **Planet Messaging Context**
 ///

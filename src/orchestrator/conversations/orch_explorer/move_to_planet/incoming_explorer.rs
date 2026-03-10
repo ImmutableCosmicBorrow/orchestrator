@@ -170,8 +170,8 @@ impl Conversation<ExplorerBagContent> for MoveToPlanetConversation<WaitingIncomi
     /// If the planet accepts the explorer, the transition logic branches based on the
     /// `handle_outgoing` flag:
     /// * **Flag True (Standard Move)**: The explorer is currently on a planet. The Orchestrator
-    ///   must now command that planet to release the entity. It dispatches an [`OutgoingExplorerRequest`]
-    ///   to the current planet and transitions to [`SendOutgoingRequest`].
+    ///   must now command that planet to release the entity.
+    ///   To do so, it transitions to [`SendOutgoingRequest`].
     /// * **Flag False (Spawn/Forced)**: The explorer does not have a current planet (or is
     ///   being moved externally). It skips the source release and transitions directly
     ///   to [`SendMoveRequest`] to notify the explorer of the success.
@@ -200,39 +200,19 @@ impl Conversation<ExplorerBagContent> for MoveToPlanetConversation<WaitingIncomi
             return if res.is_ok() {
                 //Explorer comes from another planet, transition to SendOutgoingRequest
                 if self.state.handle_outgoing {
-                    match self
-                        .state
-                        .curr_planet_struct
-                        .to_planet(OrchestratorToPlanet::OutgoingExplorerRequest { explorer_id })
-                    {
-                        Ok(()) => {
-                            let state_struct = SendOutgoingRequest::new(
-                                self.state.curr_planet_struct,
-                                self.state.explorer_struct,
-                                self.state.planet_explorer_channels,
-                                self.state.dst_planet_id,
-                                self.state.explorers_location_ref,
-                            );
-                            let next_state = MoveToPlanetConversation::<SendOutgoingRequest>::new(
-                                self.id,
-                                state_struct,
-                            );
-                            Some(Box::new(next_state))
-                        }
-                        Err(err) => {
-                            let error: Box<dyn ErrorType + Send + Sync> = match err {
-                                ToPlanetError::SendingMessageFailure(id) => {
-                                    Box::new(MoveToPlanetErrors::OutgoingMessageFailed(id))
-                                }
-                                ToPlanetError::SenderNotFound(id) => {
-                                    Box::new(CommonErrorTypes::PlanetSenderNotFound(id))
-                                }
-                            };
-                            let error_state = ErrorState::new(error, self.id);
-                            Some(Box::new(error_state)
-                                as Box<dyn Conversation<ExplorerBagContent> + Send + Sync>)
-                        }
-                    }
+                    let state_struct = SendOutgoingRequest::new(
+                          self.state.curr_planet_struct,
+                          self.state.explorer_struct,
+                          self.state.planet_explorer_channels,
+                          self.state.dst_planet_id,
+                          self.state.explorers_location_ref, 
+                    );
+                    let next_state = MoveToPlanetConversation::<SendOutgoingRequest>::new(
+                        self.id,
+                        state_struct,
+                    );
+                    Some(Box::new(next_state))
+
                 } else {
                     let state = SendMoveRequest::new(
                         self.state.explorers_location_ref,
@@ -257,7 +237,7 @@ impl Conversation<ExplorerBagContent> for MoveToPlanetConversation<WaitingIncomi
                     as Box<dyn Conversation<ExplorerBagContent> + Send + Sync>)
             };
         }
-
+        //Wrong message arrived
         let error_state = ErrorState::new(Box::new(CommonErrorTypes::WrongMessage), self.id);
         Some(Box::new(error_state) as Box<dyn Conversation<ExplorerBagContent> + Send + Sync>)
     }

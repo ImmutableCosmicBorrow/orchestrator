@@ -1,6 +1,6 @@
 #![allow(dead_code)]
 
-mod conversations;
+pub(crate) mod conversations;
 pub mod convo_factory;
 mod event_senders;
 mod queue;
@@ -34,7 +34,7 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 use std::thread::JoinHandle;
 use std::time::Duration;
-
+use crate::channels_manager::ChannelsManager;
 use crate::ui::{OrchestratorToUiUpdate, UiToOrchestratorCommand};
 
 pub type ExplorersLocationRef = Arc<Mutex<HashMap<ID, ID>>>;
@@ -46,26 +46,17 @@ pub enum ExplorerType {
     Jaco,
 }
 
-#[derive(Clone)]
-pub(crate) struct PlanetExplorerChannels {
-    planet_to_explorer_senders: Arc<Mutex<HashMap<ID, Sender<PlanetToExplorer>>>>,
-    explorer_to_planet_senders: Arc<Mutex<HashMap<ID, Sender<ExplorerToPlanet>>>>,
-}
+//TODO: TALK WITH ROB, SAME PROBLEM OF MESSAGE RACE THAT WE HAVE WITH ORCHESTRATOR WE MIGHT HAVE IT WITH OTHER ENTITIES
+//TODO: FIX GALAXY LOADER, ROB?
 
 pub struct Orchestrator {
-    pub(crate) ui_sender: Sender<OrchestratorToUiUpdate>,
-    pub(crate) ui_receiver: Receiver<UiToOrchestratorCommand>,
-    pub(crate) planets_senders: SendersToPlanet,
-    pub(crate) explorer_senders: SendersToExplorer,
-    planets_receiver: Receiver<PlanetToOrchestrator>,
-    explorers_receiver: Receiver<ExplorerToOrchestrator<ExplorerBagContent>>,
-    explorer_to_orchestrator_sender: Sender<ExplorerToOrchestrator<ExplorerBagContent>>,
+
+    channels_manager: ChannelsManager,
     forge: Arc<Forge>,
     pub(crate) convo_scheduler: ConvoScheduler<ExplorerBagContent>,
     pub(crate) galaxy: PlanetMap,
-    planet_explorer_channels: PlanetExplorerChannels,
     pub(crate) explorers_location: ExplorersLocationRef,
-    planet_threads: std::sync::Arc<std::sync::Mutex<HashMap<ID, JoinHandle<()>>>>,
+    planet_threads: Arc<Mutex<HashMap<ID, JoinHandle<()>>>>,
     explorer_threads: HashMap<ID, JoinHandle<()>>,
     manual_mode: bool,
     channel_logger: Arc<ChannelFileLogger>,
