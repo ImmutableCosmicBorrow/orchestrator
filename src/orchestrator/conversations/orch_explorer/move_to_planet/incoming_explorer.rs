@@ -205,7 +205,7 @@ impl Conversation<ExplorerBagContent> for MoveToPlanetConversation<WaitingIncomi
                           self.state.explorer_struct,
                           self.state.planet_explorer_channels,
                           self.state.dst_planet_id,
-                          self.state.explorers_location_ref, 
+                          self.state.explorers_location_ref,
                     );
                     let next_state = MoveToPlanetConversation::<SendOutgoingRequest>::new(
                         self.id,
