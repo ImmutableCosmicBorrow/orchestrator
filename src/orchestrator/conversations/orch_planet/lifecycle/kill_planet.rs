@@ -1,8 +1,8 @@
 use crate::logging_utils::{LogTarget, log_internal};
 use crate::orchestrator::conversations::PossibleExpectedKinds::PlanetToOrchKind;
 use crate::orchestrator::conversations::{
-    CommonErrorTypes, Conversation, ErrorState, KillExplorersList, PossibleExpectedKinds,
-    PossibleMessage, SendersToExplorer, SendersToPlanet, ToPlanetError, ToPlanetStruct,
+    CommonErrorTypes, Conversation, ErrorState, KillExplorersList, OrchToExplorerSenders,
+    OrchToPlanetSenders, PossibleExpectedKinds, PossibleMessage, ToPlanetError, ToPlanetStruct,
 };
 use crate::orchestrator::{ExplorerBagContent, ExplorersLocationRef};
 use crate::payload;
@@ -26,7 +26,7 @@ pub(crate) struct SendPlanetKill {
     /// A struct containing fields to send messages to the planet
     to_planet_struct: ToPlanetStruct,
     /// Struct to send messages to explorers (passed to subsequent cleanup states)
-    explorers_senders: SendersToExplorer,
+    explorers_senders: OrchToExplorerSenders,
     /// Reference to the list of explorers locations to identify victims on the planet
     explorers_location_ref: ExplorersLocationRef,
 }
@@ -36,7 +36,7 @@ impl SendPlanetKill {
     pub(crate) fn new(
         to_planet_struct: ToPlanetStruct,
         explorers_location_ref: ExplorersLocationRef,
-        explorers_senders: SendersToExplorer,
+        explorers_senders: OrchToExplorerSenders,
     ) -> Self {
         Self {
             to_planet_struct,
@@ -57,9 +57,9 @@ struct WaitingPlanetKillResult {
     /// Reference to the list of explorers locations
     explorers_location_ref: ExplorersLocationRef,
     /// Senders used to notify explorers of their termination
-    explorers_senders: SendersToExplorer,
+    explorers_senders: OrchToExplorerSenders,
     /// Senders used to communicate with planets
-    planet_senders: SendersToPlanet,
+    planet_senders: OrchToPlanetSenders,
 }
 
 impl WaitingPlanetKillResult {
@@ -67,8 +67,8 @@ impl WaitingPlanetKillResult {
     fn new(
         planet_id: ID,
         explorers_location_ref: ExplorersLocationRef,
-        explorers_senders: SendersToExplorer,
-        planet_senders: SendersToPlanet,
+        explorers_senders: OrchToExplorerSenders,
+        planet_senders: OrchToPlanetSenders,
     ) -> Self {
         Self {
             planet_id,
@@ -281,7 +281,7 @@ mod tests {
         }
     }
 
-    fn make_empty_explorer_refs() -> (ExplorersLocationRef, SendersToExplorer) {
+    fn make_empty_explorer_refs() -> (ExplorersLocationRef, OrchToExplorerSenders) {
         (
             Arc::new(Mutex::new(HashMap::new())),
             Arc::new(Mutex::new(HashMap::new())),

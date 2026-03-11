@@ -1,22 +1,22 @@
 use crate::OrchestratorToUiUpdate;
+use crate::channels_manager::{OrchToExplorerSenders, OrchToPlanetSenders, PlanetExplorerChannels};
 use crate::globals::get_id_manager;
 use crate::orchestrator::ConvoScheduler;
 use crate::orchestrator::ExplorersLocationRef;
-use crate::orchestrator::PlanetExplorerChannels;
-use crate::orchestrator::SendersToPlanet;
 use crate::orchestrator::conversations;
 use crate::orchestrator::conversations::ToExplorerStruct;
 use crate::orchestrator::conversations::ToPlanetStruct;
 use crate::orchestrator::conversations::orch_explorer::movement::move_to_planet::MoveToPlanetConversation;
 use crate::orchestrator::conversations::orch_explorer::movement::move_to_planet::SendManualMoveRequest;
 use crate::orchestrator::conversations::orch_planet::lifecycle::internal_state_scenario::SendingInternalStateRequest;
-use crate::orchestrator::conversations::{SendersToExplorer, orch_explorer, orch_planet};
+use crate::orchestrator::conversations::{orch_explorer, orch_planet};
 use crate::orchestrator::{LogTarget, log_internal};
 use crate::payload;
 use crate::planet::PlanetMap;
 use common_explorer::ExplorerBagContent;
 use common_game::components::forge::Forge;
 use common_game::logging::Channel;
+use common_game::protocols::orchestrator_planet::OrchestratorToPlanet;
 use common_game::utils::ID;
 use crossbeam_channel::Sender;
 use std::sync::Arc;
@@ -24,7 +24,7 @@ use std::sync::Arc;
 pub(crate) fn create_neighbors_request_conversation(
     galaxy: &PlanetMap,
     convo_scheduler: &ConvoScheduler<ExplorerBagContent>,
-    explorer_senders: &SendersToExplorer,
+    explorer_senders: &OrchToExplorerSenders,
     explorer_id: ID,
 ) -> ID {
     let to_explorer_struct = ToExplorerStruct::new(explorer_senders.clone(), explorer_id);
@@ -68,15 +68,18 @@ pub(crate) fn create_neighbors_request_conversation(
 pub(crate) fn create_travel_to_planet_request_conversation(
     convo_scheduler: &ConvoScheduler<ExplorerBagContent>,
     planet_explorer_channels: &PlanetExplorerChannels,
-    explorer_senders: &SendersToExplorer,
-    planets_senders: &SendersToPlanet,
+    explorer_senders: &OrchToExplorerSenders,
+    planets_senders: &OrchToPlanetSenders,
     explorers_location: &ExplorersLocationRef,
     explorer_id: ID,
-    current_planet_id: ID,
+    current_planet_id: Option<ID>,
     dst_planet_id: ID,
 ) -> ID {
     let to_explorer_struct = ToExplorerStruct::new(explorer_senders.clone(), explorer_id);
-    let curr_planet_struct = ToPlanetStruct::new(planets_senders.clone(), current_planet_id);
+    let curr_planet_struct = current_planet_id.map(
+        |id| ToPlanetStruct::new(planets_senders.clone(), id)
+    );
+        
     let dst_planet_struct = ToPlanetStruct::new(planets_senders.clone(), dst_planet_id);
     let state = SendManualMoveRequest::new(
         explorers_location.clone(),
@@ -99,7 +102,7 @@ pub(crate) fn create_travel_to_planet_request_conversation(
             conversation_id: id,
             kind: "MoveToPlanet",
             explorer_id: explorer_id,
-            from_planet: current_planet_id,
+            from_planet: format!("{current_planet_id:?}"),
             to_planet: dst_planet_id
         ),
     );
@@ -109,7 +112,7 @@ pub(crate) fn create_travel_to_planet_request_conversation(
 
 pub(crate) fn create_internal_state_conversation(
     convo_scheduler: &ConvoScheduler<ExplorerBagContent>,
-    planets_senders: &SendersToPlanet,
+    planets_senders: &OrchToPlanetSenders,
     ui_sender: Sender<OrchestratorToUiUpdate>,
     planet_id: ID,
 ) -> ID {
@@ -142,7 +145,7 @@ pub(crate) fn create_internal_state_conversation(
 
 pub(crate) fn create_bag_content_conversation(
     convo_scheduler: &ConvoScheduler<ExplorerBagContent>,
-    explorer_senders: &SendersToExplorer,
+    explorer_senders: &OrchToExplorerSenders,
     ui_sender: Sender<OrchestratorToUiUpdate>,
     explorer_id: ID,
 ) -> ID {
@@ -175,7 +178,7 @@ pub(crate) fn create_bag_content_conversation(
 
 pub(crate) fn create_generate_resource_conversation(
     convo_scheduler: &ConvoScheduler<ExplorerBagContent>,
-    explorer_senders: &SendersToExplorer,
+    explorer_senders: &OrchToExplorerSenders,
     explorer_id: ID,
     resource_type: common_game::components::resource::BasicResourceType,
 ) -> ID {
@@ -209,7 +212,7 @@ pub(crate) fn create_generate_resource_conversation(
 
 pub(crate) fn create_combine_resource_conversation(
     convo_scheduler: &ConvoScheduler<ExplorerBagContent>,
-    explorer_senders: &SendersToExplorer,
+    explorer_senders: &OrchToExplorerSenders,
     explorer_id: ID,
     resource_type: common_game::components::resource::ComplexResourceType,
 ) -> ID {
@@ -243,7 +246,7 @@ pub(crate) fn create_combine_resource_conversation(
 
 pub(crate) fn create_start_explorer_conversation(
     convo_scheduler: &ConvoScheduler<ExplorerBagContent>,
-    explorer_senders: &SendersToExplorer,
+    explorer_senders: &OrchToExplorerSenders,
     explorer_id: ID,
 ) -> ID {
     let to_explorer_struct = ToExplorerStruct::new(explorer_senders.clone(), explorer_id);
@@ -275,7 +278,7 @@ pub(crate) fn create_start_explorer_conversation(
 
 pub(crate) fn create_stop_explorer_conversation(
     convo_scheduler: &ConvoScheduler<ExplorerBagContent>,
-    explorer_senders: &SendersToExplorer,
+    explorer_senders: &OrchToExplorerSenders,
     explorer_id: ID,
 ) -> ID {
     let to_explorer_struct = ToExplorerStruct::new(explorer_senders.clone(), explorer_id);
@@ -306,8 +309,8 @@ pub(crate) fn create_stop_explorer_conversation(
 
 pub(crate) fn create_kill_explorer_conversation(
     convo_scheduler: &ConvoScheduler<ExplorerBagContent>,
-    explorer_senders: &SendersToExplorer,
-    planets_senders: &SendersToPlanet,
+    explorer_senders: &OrchToExplorerSenders,
+    planets_senders: &OrchToPlanetSenders,
     explorers_location: &ExplorersLocationRef,
     explorer_id: ID,
     planet_id: ID,
@@ -347,7 +350,7 @@ pub(crate) fn create_kill_explorer_conversation(
 
 pub(crate) fn create_reset_explorer_conversation(
     convo_scheduler: &ConvoScheduler<ExplorerBagContent>,
-    explorer_senders: &SendersToExplorer,
+    explorer_senders: &OrchToExplorerSenders,
     explorer_id: ID,
 ) -> ID {
     let to_explorer_struct = ToExplorerStruct::new(explorer_senders.clone(), explorer_id);
@@ -379,7 +382,7 @@ pub(crate) fn create_reset_explorer_conversation(
 
 pub(crate) fn create_start_planet_conversation(
     convo_scheduler: &ConvoScheduler<ExplorerBagContent>,
-    planets_senders: &SendersToPlanet,
+    planets_senders: &OrchToPlanetSenders,
     planet_id: ID,
 ) -> ID {
     let to_planet_struct = ToPlanetStruct::new(planets_senders.clone(), planet_id);
@@ -408,7 +411,7 @@ pub(crate) fn create_start_planet_conversation(
 
 pub(crate) fn create_stop_planet_conversation(
     convo_scheduler: &ConvoScheduler<ExplorerBagContent>,
-    planets_senders: &SendersToPlanet,
+    planets_senders: &OrchToPlanetSenders,
     planet_id: ID,
 ) -> ID {
     let to_planet_struct = ToPlanetStruct::new(planets_senders.clone(), planet_id);
@@ -437,8 +440,8 @@ pub(crate) fn create_stop_planet_conversation(
 
 pub(crate) fn create_kill_planet_conversation(
     convo_scheduler: &ConvoScheduler<ExplorerBagContent>,
-    planets_senders: &SendersToPlanet,
-    explorer_senders: &SendersToExplorer,
+    planets_senders: &OrchToPlanetSenders,
+    explorer_senders: &OrchToExplorerSenders,
     explorers_location: &ExplorersLocationRef,
     planet_id: ID,
 ) -> ID {
@@ -472,7 +475,7 @@ pub(crate) fn create_kill_planet_conversation(
 
 pub(crate) fn create_supported_resources_conversation(
     convo_scheduler: &ConvoScheduler<ExplorerBagContent>,
-    explorer_senders: &SendersToExplorer,
+    explorer_senders: &OrchToExplorerSenders,
     ui_sender: Sender<OrchestratorToUiUpdate>,
     explorer_id: ID,
 ) -> ID {
@@ -506,7 +509,7 @@ pub(crate) fn create_supported_resources_conversation(
 
 pub(crate) fn create_supported_combinations_conversation(
     convo_scheduler: &ConvoScheduler<ExplorerBagContent>,
-    explorer_senders: &SendersToExplorer,
+    explorer_senders: &OrchToExplorerSenders,
     ui_sender: Sender<OrchestratorToUiUpdate>,
     explorer_id: ID,
 ) -> ID {
@@ -541,11 +544,11 @@ pub(crate) fn create_supported_combinations_conversation(
 
 pub(crate) fn create_asteroid_conversation(
     convo_scheduler: &ConvoScheduler<ExplorerBagContent>,
-    planets_senders: &SendersToPlanet,
+    planets_senders: &OrchToPlanetSenders,
     ui_sender: &Sender<OrchestratorToUiUpdate>,
     forge: &Arc<Forge>,
     explorers_location: &ExplorersLocationRef,
-    explorer_senders: &SendersToExplorer,
+    explorer_senders: &OrchToExplorerSenders,
     planet_id: ID,
 ) -> ID {
     let to_planet_struct = ToPlanetStruct::new(planets_senders.clone(), planet_id);
@@ -582,7 +585,7 @@ pub(crate) fn create_asteroid_conversation(
 
 pub(crate) fn create_sunray_conversation(
     convo_scheduler: &ConvoScheduler<ExplorerBagContent>,
-    planets_senders: &SendersToPlanet,
+    planets_senders: &OrchToPlanetSenders,
     ui_sender: &Sender<OrchestratorToUiUpdate>,
     forge: &Arc<Forge>,
     planet_id: ID,

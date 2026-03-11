@@ -267,7 +267,7 @@ impl CombineResourceConversation<WaitingCombineResourceResult> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::orchestrator::conversations::SendersToExplorer;
+    use crate::orchestrator::conversations::OrchToExplorerSenders;
     use crate::orchestrator::conversations::orch_explorer::test_utils::{
         MakeSendersResult, make_empty_senders, make_senders_with, make_to_explorer_struct,
     };
@@ -283,7 +283,7 @@ mod tests {
 
     #[allow(clippy::unnecessary_box_returns)]
     fn make_send_conv(
-        senders: SendersToExplorer,
+        senders: OrchToExplorerSenders,
     ) -> Box<CombineResourceConversation<SendingCombineResourceRequest>> {
         let to_explorer = make_to_explorer_struct(EXPLORER_ID, senders);
         let state = SendingCombineResourceRequest::new(to_explorer, AIPartner);

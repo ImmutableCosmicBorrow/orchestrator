@@ -200,18 +200,15 @@ impl Conversation<ExplorerBagContent> for MoveToPlanetConversation<WaitingIncomi
                 //Explorer comes from another planet, transition to SendOutgoingRequest
                 if self.state.handle_outgoing {
                     let state_struct = SendOutgoingRequest::new(
-                          self.state.curr_planet_struct,
-                          self.state.explorer_struct,
-                          self.state.planet_explorer_channels,
-                          self.state.dst_planet_id,
-                          self.state.explorers_location_ref,
+                        self.state.curr_planet_struct.unwrap(),
+                        self.state.explorer_struct,
+                        self.state.planet_explorer_channels,
+                        self.state.dst_planet_id,
+                        self.state.explorers_location_ref,
                     );
-                    let next_state = MoveToPlanetConversation::<SendOutgoingRequest>::new(
-                        self.id,
-                        state_struct,
-                    );
+                    let next_state =
+                        MoveToPlanetConversation::<SendOutgoingRequest>::new(self.id, state_struct);
                     Some(Box::new(next_state))
-
                 } else {
                     let state = SendMoveRequest::new(
                         self.state.explorers_location_ref,

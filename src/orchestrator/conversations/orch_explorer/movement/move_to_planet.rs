@@ -5,8 +5,9 @@ mod move_explorer;
 mod outgoing_explorer;
 mod wait_travel_request;
 
+use crate::channels_manager::PlanetExplorerChannels;
+use crate::orchestrator::ExplorersLocationRef;
 use crate::orchestrator::conversations::{PossibleExpectedKinds, ToExplorerStruct, ToPlanetStruct};
-use crate::orchestrator::{ExplorersLocationRef, PlanetExplorerChannels};
 use crate::planet::PlanetMap;
 use common_game::utils::ID;
 
@@ -74,7 +75,7 @@ pub(crate) struct SendManualMoveRequest {
     /// Registry to resolve channels for the forced movement.
     planet_explorer_channels: PlanetExplorerChannels,
     /// Connection info for the current planet (source).
-    curr_planet_struct: ToPlanetStruct,
+    curr_planet_struct: Option<ToPlanetStruct>,
     /// Connection info for the target planet (destination).
     dst_planet_struct: ToPlanetStruct,
     /// Connection info for the explorer performing the move.
@@ -86,7 +87,7 @@ pub(crate) struct SendManualMoveRequest {
 impl SendManualMoveRequest {
     pub(crate) fn new(
         explorers_location_ref: ExplorersLocationRef,
-        curr_planet_struct: ToPlanetStruct,
+        curr_planet_struct: Option<ToPlanetStruct>,
         dst_planet_struct: ToPlanetStruct,
         explorer_struct: ToExplorerStruct,
         planet_explorer_channels: PlanetExplorerChannels,
@@ -106,7 +107,7 @@ impl SendManualMoveRequest {
 /// of an incoming explorer.
 pub(crate) struct SendIncomingRequest {
     /// Connection info for the source planet.
-    curr_planet_struct: ToPlanetStruct,
+    curr_planet_struct: Option<ToPlanetStruct>,
     /// Connection info for the moving explorer.
     explorer_struct: ToExplorerStruct,
     /// Connection info for the destination planet.
@@ -121,7 +122,7 @@ pub(crate) struct SendIncomingRequest {
 
 impl SendIncomingRequest {
     pub(crate) fn new(
-        curr_planet_struct: ToPlanetStruct,
+        curr_planet_struct: Option<ToPlanetStruct>,
         explorer_struct: ToExplorerStruct,
         dst_planet_struct: ToPlanetStruct,
         planet_explorer_channels: PlanetExplorerChannels,
@@ -145,7 +146,7 @@ impl SendIncomingRequest {
 /// planet regarding the acquisition of the explorer.
 pub(crate) struct WaitingIncomingResponse {
     /// Context for the source planet to be used if acquisition is accepted.
-    curr_planet_struct: ToPlanetStruct,
+    curr_planet_struct: Option<ToPlanetStruct>,
     /// Context for the moving explorer.
     explorer_struct: ToExplorerStruct,
     /// ID of the destination planet.
@@ -160,7 +161,7 @@ pub(crate) struct WaitingIncomingResponse {
 
 impl WaitingIncomingResponse {
     pub(crate) fn new(
-        curr_planet_struct: ToPlanetStruct,
+        curr_planet_struct: Option<ToPlanetStruct>,
         explorer_struct: ToExplorerStruct,
         dst_planet_id: ID,
         planet_explorer_channels: PlanetExplorerChannels,

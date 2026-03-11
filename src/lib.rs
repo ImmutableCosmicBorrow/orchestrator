@@ -1,3 +1,4 @@
+mod channels_manager;
 mod galaxy_setup;
 mod globals;
 pub mod id;
@@ -6,7 +7,6 @@ mod orchestrator;
 pub mod planet;
 mod planet_factory;
 pub mod ui;
-mod channels_manager;
 
 // Re-export public items that other crates can use
 pub use globals::get_id_manager;

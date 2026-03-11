@@ -68,7 +68,7 @@ impl Conversation<ExplorerBagContent> for MoveToPlanetConversation<WaitingTravel
             // Case 1: Destination is reachable. Transition to notify the destination planet.
             if self.check_neighbors() {
                 let next_state = SendIncomingRequest::new(
-                    self.state.curr_planet_struct,
+                    Some(self.state.curr_planet_struct),
                     self.state.explorer_struct.clone(),
                     self.state.dst_planet_struct.clone(),
                     self.state.planet_explorer_channels,

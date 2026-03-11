@@ -29,7 +29,7 @@ pub enum UiToOrchestratorCommand {
 
     // explorer commands: move and resource crafting/combining
     ///Explorer ID, current planet, dst planet
-    ManualMoveExplorer(ID, ID, ID),
+    ManualMoveExplorer(ID, Option<ID>, ID),
     ExplorerGenerateResource(ID, BasicResourceType),
     ExplorerCombineResource(ID, ComplexResourceType),
     SupportedCombinations(ID),

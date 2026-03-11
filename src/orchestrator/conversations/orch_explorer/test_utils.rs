@@ -1,13 +1,14 @@
+use crate::channels_manager::{OrchToExplorerSenders, OrchToPlanetSenders};
 #[cfg(test)]
-use crate::orchestrator::conversations::{SendersToExplorer, ToExplorerStruct};
-use crate::orchestrator::conversations::{SendersToPlanet, ToPlanetStruct};
+use crate::orchestrator::conversations::ToExplorerStruct;
+use crate::orchestrator::conversations::ToPlanetStruct;
 #[cfg(test)]
 use common_game::protocols::orchestrator_explorer::OrchestratorToExplorer;
 use common_game::utils::ID;
 
 #[cfg(test)]
 pub(crate) struct MakeSendersResult(
-    pub(crate) SendersToExplorer,
+    pub(crate) OrchToExplorerSenders,
     pub(crate) crossbeam_channel::Receiver<OrchestratorToExplorer>,
 );
 
@@ -25,7 +26,7 @@ pub(crate) fn make_senders_with(explorer_id: ID) -> MakeSendersResult {
     MakeSendersResult(Arc::new(Mutex::new(HashMap::from([(explorer_id, tx)]))), rx)
 }
 #[cfg(test)]
-pub(crate) fn make_empty_senders() -> SendersToExplorer {
+pub(crate) fn make_empty_senders() -> OrchToExplorerSenders {
     use std::{
         collections::HashMap,
         sync::{Arc, Mutex},
@@ -37,7 +38,7 @@ pub(crate) fn make_empty_senders() -> SendersToExplorer {
 #[cfg(test)]
 pub(crate) fn make_to_explorer_struct(
     explorer_id: ID,
-    senders: SendersToExplorer,
+    senders: OrchToExplorerSenders,
 ) -> ToExplorerStruct {
     ToExplorerStruct {
         explorer_id,
@@ -45,7 +46,7 @@ pub(crate) fn make_to_explorer_struct(
     }
 }
 
-pub(crate) fn make_to_planet_struct(planet_id: ID, senders: SendersToPlanet) -> ToPlanetStruct {
+pub(crate) fn make_to_planet_struct(planet_id: ID, senders: OrchToPlanetSenders) -> ToPlanetStruct {
     ToPlanetStruct {
         planet_id,
         planets_senders: senders,

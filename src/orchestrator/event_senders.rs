@@ -5,7 +5,6 @@
 //! - Graceful shutdown support
 
 use crate::logging_utils::{LogTarget, log_internal};
-use crate::orchestrator::conversations::{SendersToExplorer, SendersToPlanet};
 use crate::orchestrator::queue::ConvoScheduler;
 use crate::orchestrator::{ExplorerBagContent, ExplorersLocationRef, convo_factory};
 use crate::payload;
@@ -17,6 +16,7 @@ use common_game::components::forge::Forge;
 use common_game::logging::Channel;
 use common_game::utils::ID;
 
+use crate::channels_manager::{OrchToExplorerSenders, OrchToPlanetSenders};
 use rand::Rng;
 use std::cell::RefCell;
 use std::collections::HashMap;
@@ -26,7 +26,6 @@ use std::sync::{
 };
 use std::thread::{self, JoinHandle};
 use std::time::{Duration, Instant};
-
 //
 // ──────────────────────────────────────────────────────────────────────────
 // External control surface (flags only)
@@ -455,10 +454,10 @@ struct UniverseCtx {
 }
 
 struct ConversationCtx {
-    planets_senders: SendersToPlanet,
+    planets_senders: OrchToPlanetSenders,
     forge: Arc<Forge>,
     ui_sender: Sender<OrchestratorToUiUpdate>,
-    explorer_senders: SendersToExplorer,
+    explorer_senders: OrchToExplorerSenders,
     convo_scheduler: ConvoScheduler<ExplorerBagContent>,
 }
 
@@ -684,11 +683,11 @@ fn scheduler_loop(universe: &UniverseCtx, convo: &ConversationCtx) {
 //
 
 pub fn init_background_event_scheduler(
-    planets_senders: SendersToPlanet,
+    planets_senders: OrchToPlanetSenders,
     forge: Arc<Forge>,
     ui_sender: Sender<OrchestratorToUiUpdate>,
     explorers_location: ExplorersLocationRef,
-    explorer_senders: SendersToExplorer,
+    explorer_senders: OrchToExplorerSenders,
     convo_scheduler: ConvoScheduler<ExplorerBagContent>,
     galaxy: PlanetMap,
 ) {

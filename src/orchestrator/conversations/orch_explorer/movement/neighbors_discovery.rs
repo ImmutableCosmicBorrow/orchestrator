@@ -259,6 +259,7 @@ mod tests {
     use crate::galaxy_setup::galaxy_loader;
 
     use super::*;
+    use crate::ui::{OrchestratorToUiUpdate, UiToOrchestratorCommand};
     use crossbeam_channel::unbounded;
     use std::collections::HashMap;
     use std::sync::{Arc, Mutex};
@@ -298,13 +299,12 @@ mod tests {
         file_path: &str,
     ) -> Box<NeighborsDiscoveryConversation<WaitingExplorerNeighborsRequest>> {
         let to_explorer_struct = make_to_explorer_struct(EXPLORER_ID, senders);
-        let (
-            galaxy,
-            _planets_receiver,
-            _orch_to_plan_senders,
-            _expl_to_plan_senders,
-            _join_handles,
-        ) = galaxy_loader(std::path::Path::new(file_path));
+        let (to_ui_tx, _to_ui_rx) = unbounded::<OrchestratorToUiUpdate>();
+        let (_from_ui_tx, from_ui_rx) = unbounded::<UiToOrchestratorCommand>();
+        let (galaxy, _join_handles) = galaxy_loader(
+            std::path::Path::new(file_path),
+            &crate::orchestrator::ChannelsManager::new(to_ui_tx, from_ui_rx),
+        );
         let state = WaitingExplorerNeighborsRequest::new(to_explorer_struct, galaxy);
         Box::new(NeighborsDiscoveryConversation::<
             WaitingExplorerNeighborsRequest,
@@ -364,7 +364,7 @@ mod tests {
         assert_eq!(conv.get_entities_ids(), (None, Some(EXPLORER_ID)));
         assert_eq!(
             conv.get_expected_kind(),
-            Some(PossibleExpectedKinds::ExplorerToOrchKind(
+            Some(ExplorerToOrchKind(
                 ExplorerToOrchestratorKind::NeighborsRequest
             ))
         );

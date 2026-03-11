@@ -294,7 +294,7 @@ mod tests {
         MakeSendersResult, make_empty_senders, make_senders_with, make_to_explorer_struct,
         make_to_planet_struct,
     };
-    use crate::orchestrator::conversations::{SendersToExplorer, SendersToPlanet};
+    use crate::orchestrator::conversations::{OrchToExplorerSenders, OrchToPlanetSenders};
     use crossbeam_channel::unbounded;
     use std::collections::HashMap;
     use std::sync::{Arc, Mutex};
@@ -305,8 +305,8 @@ mod tests {
 
     #[allow(clippy::unnecessary_box_returns)]
     fn make_send_conv(
-        exp_senders: SendersToExplorer,
-        pla_senders: SendersToPlanet,
+        exp_senders: OrchToExplorerSenders,
+        pla_senders: OrchToPlanetSenders,
         _handle_outgoing: bool,
     ) -> Box<KillExplorerConversation<SendingKillExplorer>> {
         let to_explorer = make_to_explorer_struct(EXPLORER_ID, exp_senders);
@@ -325,7 +325,7 @@ mod tests {
 
     #[allow(clippy::unnecessary_box_returns)]
     fn make_wait_conv(
-        planet_senders: SendersToPlanet,
+        planet_senders: OrchToPlanetSenders,
         handle_outgoing: bool,
         explorers_location_ref: ExplorersLocationRef,
     ) -> Box<KillExplorerConversation<WaitingKillExplorerResult>> {

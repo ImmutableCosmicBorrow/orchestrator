@@ -1,4 +1,4 @@
-use crate::galaxy_setup::OrchPlanSenderMap;
+pub(crate) use crate::channels_manager::{OrchToExplorerSenders, OrchToPlanetSenders};
 use crate::globals::TIMEOUT;
 use crate::logging_utils::{LogTarget, log_internal, log_msg_to};
 use crate::orchestrator::ExplorerBagContent;
@@ -11,11 +11,8 @@ use common_game::protocols::orchestrator_planet::{
     OrchestratorToPlanet, PlanetToOrchestrator, PlanetToOrchestratorKind,
 };
 use common_game::utils::ID;
-use crossbeam_channel::Sender;
-use std::collections::HashMap;
 use std::fmt::Debug;
 use std::hash::Hash;
-use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 pub(crate) mod orch_explorer;
@@ -161,12 +158,12 @@ pub(crate) type KillExplorersList = Vec<(ID, ID)>;
 /// Utility struct used within states to facilitate sending messages to a specific planet.
 #[derive(Clone)]
 pub(crate) struct ToPlanetStruct {
-    planets_senders: SendersToPlanet,
+    planets_senders: OrchToPlanetSenders,
     planet_id: ID,
 }
 
 impl ToPlanetStruct {
-    pub(crate) fn new(planets_senders: SendersToPlanet, planet_id: ID) -> Self {
+    pub(crate) fn new(planets_senders: OrchToPlanetSenders, planet_id: ID) -> Self {
         Self {
             planets_senders,
             planet_id,
@@ -208,7 +205,7 @@ pub(crate) enum ToPlanetError {
 /// Utility struct used within states to facilitate sending messages to a specific explorer.
 #[derive(Clone)]
 pub(crate) struct ToExplorerStruct {
-    explorers_senders: SendersToExplorer,
+    explorers_senders: OrchToExplorerSenders,
     explorer_id: ID,
 }
 
@@ -237,7 +234,7 @@ impl ToExplorerStruct {
         }
     }
 
-    pub(crate) fn new(explorers_senders: SendersToExplorer, explorer_id: ID) -> Self {
+    pub(crate) fn new(explorers_senders: OrchToExplorerSenders, explorer_id: ID) -> Self {
         Self {
             explorers_senders,
             explorer_id,

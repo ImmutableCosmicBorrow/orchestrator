@@ -50,7 +50,8 @@ impl Conversation<ExplorerBagContent> for MoveToPlanetConversation<SendManualMov
         self: Box<Self>,
         _msg_wrapped: Option<PossibleMessage<ExplorerBagContent>>,
     ) -> Option<Box<dyn Conversation<ExplorerBagContent> + Send + Sync>> {
-        let handle_outgoing = self.explorer_is_in_planets();
+        //check if explorer is currently in a planet (in case we need to notify the planet to release him)
+        let handle_outgoing = self.state.curr_planet_struct.is_some();
 
         let state_struct = SendIncomingRequest::new(
             self.state.curr_planet_struct,

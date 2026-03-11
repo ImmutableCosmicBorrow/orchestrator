@@ -97,7 +97,7 @@ impl Conversation<ExplorerBagContent> for InternalStateConversation<SendingInter
     ///
     /// [`ErrorState`] with [`CommonErrorTypes::MessageToPlanetFailed`] if the message has not been correctly sent to the planet
     ///
-    /// [`ErrorState`] with [`CommonErrorTypes::PlanetSenderNotFound`] if the sender to the planet is not in the [`SendersToPlanet`] list
+    /// [`ErrorState`] with [`CommonErrorTypes::PlanetSenderNotFound`] if the sender to the planet is not in the [`OrchToPlanetSenders`] list
     ///
     /// The next state: [`InternalStateConversation<WaitingInternalStateResponse>`] if the request was sent successfully.
     fn transition(

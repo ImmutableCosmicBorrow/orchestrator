@@ -3,8 +3,8 @@ use crate::orchestrator::conversations::orch_planet::lifecycle::kill_planet::{
     KillPlanetConversation, SendPlanetKill,
 };
 use crate::orchestrator::conversations::{
-    CommonErrorTypes, Conversation, ErrorState, PossibleExpectedKinds, PossibleMessage,
-    SendersToExplorer, ToPlanetError, ToPlanetStruct,
+    CommonErrorTypes, Conversation, ErrorState, OrchToExplorerSenders, PossibleExpectedKinds,
+    PossibleMessage, ToPlanetError, ToPlanetStruct,
 };
 use crate::orchestrator::{ExplorerBagContent, ExplorersLocationRef};
 use crate::payload;
@@ -35,7 +35,7 @@ pub(crate) struct SendingAsteroid {
     ///Atomic Reference to the forge to create [Asteroid]
     forge: Arc<Forge>,
     ///Struct to send messages to explorer, used by subsequent states
-    explorers_senders: SendersToExplorer,
+    explorers_senders: OrchToExplorerSenders,
     ///Reference to the list of explorers locations, used by subsequent states
     explorers_location_ref: ExplorersLocationRef,
 }
@@ -46,7 +46,7 @@ impl SendingAsteroid {
         to_planet_struct: ToPlanetStruct,
         forge: Arc<Forge>,
         explorers_location_ref: ExplorersLocationRef,
-        explorers_senders: SendersToExplorer,
+        explorers_senders: OrchToExplorerSenders,
     ) -> Self {
         Self {
             to_planet_struct,
@@ -65,7 +65,7 @@ struct WaitingAsteroidAck {
     ///A struct containing fields to send messages to a planet, used if a planet cannot defend and has to be killed
     to_planet_struct: ToPlanetStruct,
     ///Struct to send messages to explorer, used by subsequent states
-    explorers_senders: SendersToExplorer,
+    explorers_senders: OrchToExplorerSenders,
     ///Reference to the list of explorers locations, used by subsequent states
     explorers_location_ref: ExplorersLocationRef,
 }
@@ -74,7 +74,7 @@ impl WaitingAsteroidAck {
     ///The constructor for [`WaitingAsteroidAck`] state struct
     pub(crate) fn new(
         to_planet_struct: ToPlanetStruct,
-        explorers_senders: SendersToExplorer,
+        explorers_senders: OrchToExplorerSenders,
         explorers_location_ref: ExplorersLocationRef,
     ) -> Self {
         Self {
@@ -115,7 +115,7 @@ impl Conversation<ExplorerBagContent> for AsteroidConversation<SendingAsteroid> 
     ///
     /// [`ErrorState`] with [`CommonErrorTypes::MessageToPlanetFailed`] if the message has not been correctly sent to the planet
     ///
-    /// [`ErrorState`] with [`CommonErrorTypes::PlanetSenderNotFound`] if the sender to the planet is not in the [`SendersToPlanet`] list
+    /// [`ErrorState`] with [`CommonErrorTypes::PlanetSenderNotFound`] if the sender to the planet is not in the [`OrchToPlanetSenders`] list
     ///
     /// [`AsteroidConversation<WaitingAsteroidAck>`] if the asteroid has been correctly sent, going to the next state  
     fn transition(
@@ -298,7 +298,7 @@ mod tests {
         }
     }
 
-    fn make_empty_explorer_refs() -> (ExplorersLocationRef, SendersToExplorer) {
+    fn make_empty_explorer_refs() -> (ExplorersLocationRef, OrchToExplorerSenders) {
         (
             Arc::new(Mutex::new(HashMap::new())),
             Arc::new(Mutex::new(HashMap::new())),

@@ -12,6 +12,7 @@ use common_game::utils::ID;
 use crossbeam_channel::unbounded;
 use crossbeam_channel::{Receiver, Sender};
 
+use crate::channels_manager::ChannelsManager;
 use std::collections::HashMap;
 use std::path::Path;
 use std::thread;
@@ -27,16 +28,15 @@ pub(crate) type PlanetThreadMap = HashMap<ID, JoinHandle<()>>;
 // Option: spawn planet threads at creation time.
 // Returns a JoinHandle<()> for the spawned planet thread.
 pub(crate) fn spawn_planet_with_channels(
-    orch_sender_map: &mut OrchPlanSenderMap,
-    expl_sender_map: &mut ExplPlanSenderMap,
+    channels_manager: &ChannelsManager,
     planet_id: ID,
-    tx_orch_out: Sender<PlanetToOrchestrator>,
 ) -> JoinHandle<()> {
-    let (tx_orch_in, rx_orch_in) = unbounded::<OrchestratorToPlanet>();
-    orch_sender_map.insert(planet_id, tx_orch_in);
-
-    let (tx_expl_in, rx_expl_in) = unbounded::<ExplorerToPlanet>();
-    expl_sender_map.insert(planet_id, tx_expl_in);
+    //create Orchestrator to Planet channels
+    let (_tx_orch_in, rx_orch_in) = channels_manager.create_orch_to_planet_channel(planet_id);
+    //create Explorer to Planet channel (fix the receiver for the planet)
+    let (_tx_expl_in, rx_expl_in) = channels_manager.create_exp_to_planet_channel(planet_id);
+    //get the sender to send messages to the Orchestrator
+    let tx_orch_out = channels_manager.get_from_planets_sender();
 
     let planet_res = match IdManager::planet_kind(planet_id) {
         PlanetKind::Trip => crate::planet_factory::create_trip_planet(
@@ -136,13 +136,8 @@ pub(crate) fn spawn_planet_with_channels(
 
 pub fn galaxy_loader(
     file_path: &Path,
-) -> (
-    PlanetMap,
-    Receiver<PlanetToOrchestrator>,
-    OrchPlanSenderMap,
-    ExplPlanSenderMap,
-    PlanetThreadMap,
-) {
+    channels_manager: &ChannelsManager,
+) -> (PlanetMap, PlanetThreadMap) {
     use std::collections::HashMap;
     use std::fs::File;
     use std::io::{BufRead, BufReader};
@@ -153,13 +148,9 @@ pub fn galaxy_loader(
         std::fs::create_dir_all(parent).expect("Failed to create directory path");
     }
 
-    let (tx_orch_out, rx_orch_out) = unbounded::<PlanetToOrchestrator>();
-
     // ✅ Create the shared PlanetMap FIRST (empty).
     let planet_map: PlanetMap = Arc::new(std::sync::RwLock::new(HashMap::new()));
 
-    let mut orch_to_plan_send: OrchPlanSenderMap = HashMap::new();
-    let mut expl_to_plan_send: ExplPlanSenderMap = HashMap::new();
     let mut planet_threads: PlanetThreadMap = HashMap::new();
 
     // Read file: build topology with the centralized edge store (planet.rs) and
@@ -189,32 +180,16 @@ pub fn galaxy_loader(
         add_planet_with_neighbors(&planet_map, id, neighbors.iter().copied());
 
         // Runtime: spawn planet threads once per unique id, including neighbors.
-        planet_threads.entry(id).or_insert_with(|| {
-            spawn_planet_with_channels(
-                &mut orch_to_plan_send,
-                &mut expl_to_plan_send,
-                id,
-                tx_orch_out.clone(),
-            )
-        });
+        planet_threads
+            .entry(id)
+            .or_insert_with(|| spawn_planet_with_channels(channels_manager, id));
 
         for &neighbor_id in &neighbors {
-            planet_threads.entry(neighbor_id).or_insert_with(|| {
-                spawn_planet_with_channels(
-                    &mut orch_to_plan_send,
-                    &mut expl_to_plan_send,
-                    neighbor_id,
-                    tx_orch_out.clone(),
-                )
-            });
+            planet_threads
+                .entry(neighbor_id)
+                .or_insert_with(|| spawn_planet_with_channels(channels_manager, neighbor_id));
         }
     }
 
-    (
-        planet_map,
-        rx_orch_out,
-        orch_to_plan_send,
-        expl_to_plan_send,
-        planet_threads,
-    )
+    (planet_map, planet_threads)
 }
