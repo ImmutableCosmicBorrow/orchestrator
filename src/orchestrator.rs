@@ -1,8 +1,8 @@
 #![allow(dead_code)]
 
+mod background_events;
 pub(crate) mod conversations;
 pub mod convo_factory;
-mod event_senders;
 mod queue;
 
 use crate::galaxy_setup::galaxy_loader;
@@ -44,7 +44,7 @@ pub enum ExplorerType {
 }
 
 pub struct Orchestrator {
-    channels_manager: ChannelsManager,
+    channels_manager: Arc<ChannelsManager>,
     forge: Arc<Forge>,
     pub(crate) convo_scheduler: ConvoScheduler<ExplorerBagContent>,
     pub(crate) galaxy: PlanetMap,
@@ -80,11 +80,11 @@ impl Orchestrator {
         // Set static variable GAME_STEP
         set_game_step(game_step);
 
-        let channels_manager = ChannelsManager::new(ui_sender, ui_receiver);
+        let channels_manager = Arc::new(ChannelsManager::new(ui_sender, ui_receiver));
 
         // galaxy_loader now returns 2 values (galaxy and planet_threads), all channels are distributed inside using
         // channels manager APIs
-        let (galaxy, planet_threads) = galaxy_loader(file_path, &channels_manager);
+        let (galaxy, planet_threads) = galaxy_loader(file_path, channels_manager.as_ref());
 
         let forge = Arc::new(Forge::new().expect("Couldn't create forge!"));
 
@@ -518,7 +518,7 @@ impl Orchestrator {
             for explorer_id in explorer_senders.lock().unwrap().keys() {
                 self.stop_explorer_ai(*explorer_id);
             }
-            event_senders::disable_asteroids();
+            background_events::disable_asteroids();
         } else {
             log_internal(
                 LogTarget::General,
@@ -530,23 +530,21 @@ impl Orchestrator {
             for explorer_id in explorer_senders.lock().unwrap().keys() {
                 self.start_explorer_ai(*explorer_id);
             }
-            event_senders::enable_asteroids();
+            background_events::enable_asteroids();
         }
     }
 
     fn start_background_event_senders(&self) {
-        event_senders::init_background_event_scheduler(
-            self.channels_manager.get_to_planet_senders_struct(),
+        background_events::init_background_event_scheduler(
+            Arc::clone(&self.channels_manager),
             self.forge.clone(),
-            self.channels_manager.get_ui_sender(),
             self.explorers_location.clone(),
-            self.channels_manager.get_orch_to_exp_senders_struct(),
             self.convo_scheduler.clone(),
             self.galaxy.clone(),
         );
 
-        event_senders::enable_sunrays();
-        event_senders::enable_asteroids();
+        background_events::enable_sunrays();
+        background_events::enable_asteroids();
     }
 
     fn handle_message(&mut self, message: PossibleMessage<ExplorerBagContent>) {
@@ -685,8 +683,8 @@ impl Orchestrator {
                 std::process::exit(0);
             }
             PauseGame => {
-                event_senders::disable_asteroids();
-                event_senders::disable_sunrays();
+                background_events::disable_asteroids();
+                background_events::disable_sunrays();
                 log_internal(
                     LogTarget::General,
                     Channel::Info,
@@ -696,8 +694,8 @@ impl Orchestrator {
                 );
             }
             ResumeGame => {
-                event_senders::enable_asteroids();
-                event_senders::enable_sunrays();
+                background_events::enable_asteroids();
+                background_events::enable_sunrays();
                 log_internal(
                     LogTarget::General,
                     Channel::Info,

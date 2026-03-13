@@ -27,6 +27,8 @@ type PlanetToExplorerReceivers = Arc<Mutex<HashMap<ID, Receiver<PlanetToExplorer
 type ExplorerToPlanetSenders = Arc<Mutex<HashMap<ID, Sender<ExplorerToPlanet>>>>;
 //HashMap PlanetID, Receiver<ExplorerID>, given to the Planet at creation time to receive messages from Explorers
 type ExplorerToPlanetReceivers = Arc<Mutex<HashMap<ID, Receiver<ExplorerToPlanet>>>>;
+
+#[derive(Clone)]
 pub(crate) struct UIChannels {
     pub(crate) ui_sender: Sender<OrchestratorToUiUpdate>,
     pub(crate) ui_receiver: Receiver<UiToOrchestratorCommand>,
@@ -44,6 +46,7 @@ impl UIChannels {
     }
 }
 
+#[derive(Clone)]
 pub(crate) struct PlanetsChannels {
     //Channels to send messages from Orchestrator to the planets and respective receivers
     to_planet_senders: OrchToPlanetSenders,
@@ -120,6 +123,7 @@ impl PlanetsChannels {
     }
 }
 
+#[derive(Clone)]
 pub(crate) struct ExplorersChannels {
     //Channels to send messages to the explorers and respective receivers
     to_explorer_senders: OrchToExplorerSenders,
@@ -265,6 +269,7 @@ impl PlanetExplorerChannels {
             .cloned()
     }
 }
+#[derive(Clone)]
 pub(crate) struct OrchestratorChannels {
     explorers_channels: ExplorersChannels,
     planets_channels: PlanetsChannels,
@@ -288,6 +293,7 @@ impl OrchestratorChannels {
     }
 }
 
+#[derive(Clone)]
 pub(crate) struct ChannelsManager {
     ui: UIChannels,
     orchestrator: OrchestratorChannels,
