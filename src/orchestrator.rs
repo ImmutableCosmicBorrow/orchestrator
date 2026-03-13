@@ -29,6 +29,7 @@ use conversations::orch_explorer::lifecycle::kill_explorer::{
 };
 use crossbeam_channel::{Receiver, Sender, select};
 use std::collections::HashMap;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::thread::JoinHandle;
@@ -51,6 +52,9 @@ pub struct Orchestrator {
     pub(crate) explorers_location: ExplorersLocationRef,
     planet_threads: Arc<Mutex<HashMap<ID, JoinHandle<()>>>>,
     explorer_threads: HashMap<ID, JoinHandle<()>>,
+    message_processor_thread: Option<JoinHandle<()>>,
+    message_processor_stop: Arc<AtomicBool>,
+    shutdown_requested: bool,
     manual_mode: bool,
 }
 
@@ -96,6 +100,9 @@ impl Orchestrator {
             explorers_location: Arc::new(Mutex::new(HashMap::new())),
             planet_threads: Arc::new(Mutex::new(planet_threads)), // threads were spawned in galaxy_loader/create_planet_with_channels
             explorer_threads: HashMap::new(),
+            message_processor_thread: None,
+            message_processor_stop: Arc::new(AtomicBool::new(false)),
+            shutdown_requested: false,
             manual_mode: false,
         };
 
@@ -210,9 +217,14 @@ impl Orchestrator {
                                 action : "No explorers left. Shutting down orchestrator",
                             )
                         );
-                        std::process::exit(0);
+                        self.shutdown_requested = true;
                     }
                 }
+            }
+
+            if self.shutdown_requested {
+                self.shutdown();
+                return;
             }
         }
     }
@@ -682,7 +694,7 @@ impl Orchestrator {
                         action : "Received EndGame command from UI. Shutting down orchestrator",
                     ),
                 );
-                std::process::exit(0);
+                self.shutdown_requested = true;
             }
             PauseGame => {
                 event_senders::disable_asteroids();
@@ -788,8 +800,13 @@ impl Orchestrator {
         let explorer_locations = self.explorers_location.clone();
         let galaxy = self.galaxy.clone();
         let planet_threads = self.planet_threads.clone();
-        thread::spawn(move || {
+        let stop = self.message_processor_stop.clone();
+        self.message_processor_thread = Some(thread::spawn(move || {
             loop {
+                if stop.load(Ordering::Acquire) {
+                    break;
+                }
+
                 if convo_scheduler.is_empty() {
                     // Wait for new messages to arrive
                     thread::sleep(Duration::from_millis(10));
@@ -869,7 +886,43 @@ impl Orchestrator {
                     }
                 }
             }
-        });
+        }));
+    }
+
+    fn shutdown(&mut self) {
+        // Stop producers first so no new conversations/events are created while shutting down.
+        self.message_processor_stop.store(true, Ordering::Release);
+        event_senders::shutdown_background_events();
+
+        if let Some(handle) = self.message_processor_thread.take() {
+            let _ = handle.join();
+        }
+
+        {
+            let explorer_senders = self.channels_manager.get_orch_to_exp_senders_struct();
+            for sender in explorer_senders.lock().unwrap().values() {
+                let _ = sender
+                    .send(common_game::protocols::orchestrator_explorer::OrchestratorToExplorer::KillExplorer);
+            }
+        }
+
+        for (_, handle) in self.explorer_threads.drain() {
+            let _ = handle.join();
+        }
+
+        {
+            let planet_senders = self.channels_manager.get_to_planet_senders_struct();
+            for sender in planet_senders.lock().unwrap().values() {
+                let _ = sender
+                    .send(common_game::protocols::orchestrator_planet::OrchestratorToPlanet::KillPlanet);
+            }
+        }
+
+        if let Ok(mut handles) = self.planet_threads.lock() {
+            for (_, handle) in handles.drain() {
+                let _ = handle.join();
+            }
+        }
     }
     /// Creates an Explorer and spawns its thread.
     ///
