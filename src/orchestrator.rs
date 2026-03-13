@@ -890,7 +890,7 @@ impl Orchestrator {
     fn shutdown(&mut self) {
         // Stop producers first so no new conversations/events are created while shutting down.
         self.message_processor_stop.store(true, Ordering::Release);
-        event_senders::shutdown_background_events();
+        background_events::shutdown_background_events();
 
         if let Some(handle) = self.message_processor_thread.take() {
             let _ = handle.join();
@@ -911,8 +911,9 @@ impl Orchestrator {
         {
             let planet_senders = self.channels_manager.get_to_planet_senders_struct();
             for sender in planet_senders.lock().unwrap().values() {
-                let _ = sender
-                    .send(common_game::protocols::orchestrator_planet::OrchestratorToPlanet::KillPlanet);
+                let _ = sender.send(
+                    common_game::protocols::orchestrator_planet::OrchestratorToPlanet::KillPlanet,
+                );
             }
         }
 
