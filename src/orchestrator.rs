@@ -38,9 +38,9 @@ pub type ExplorersLocationRef = Arc<Mutex<HashMap<ID, ID>>>;
 
 #[derive(Clone, Copy, Debug)]
 pub enum ExplorerType {
-    Vojager, //Roberto
+    Vojager,  //Roberto
     Explorer, //Nicola
-    Nomad, //Jacopo
+    Nomad,    //Jacopo
 }
 
 pub struct Orchestrator {
@@ -122,7 +122,7 @@ impl Orchestrator {
     ) {
         // Check where to spawn Explorers
         let planet_id = spawn_planet
-            .filter(|id| self.channels_manager.to_planet_senders_contains(id))
+            .filter(|id| self.channels_manager.to_planet_senders_contains(*id))
             .unwrap_or_else(|| {
                 let fallback_id = self.channels_manager.to_planet_senders_next_id().expect("Planet senders hashmap is empty");
                 // Log only if a planet was actually requested but not found
@@ -330,7 +330,7 @@ impl Orchestrator {
     ) {
         convo_factory::create_travel_to_planet_request_conversation(
             &self.convo_scheduler,
-            self.channels_manager.get_planet_explorer_channels_struct(),
+            self.channels_manager.get_planet_explorer_struct(),
             self.channels_manager.get_orch_to_exp_senders_struct_ref(),
             self.channels_manager.get_to_planet_senders_struct_ref(),
             &self.explorers_location,
@@ -596,7 +596,7 @@ impl Orchestrator {
                     dst_planet_id,
                 } => Some(convo_factory::create_travel_to_planet_request_conversation(
                     &self.convo_scheduler,
-                    self.channels_manager.get_planet_explorer_channels_struct(),
+                    self.channels_manager.get_planet_explorer_struct(),
                     self.channels_manager.get_orch_to_exp_senders_struct_ref(),
                     self.channels_manager.get_to_planet_senders_struct_ref(),
                     &self.explorers_location,
@@ -949,7 +949,7 @@ impl Orchestrator {
         // Move Manually the explorer to the planet
         convo_factory::create_travel_to_planet_request_conversation(
             &self.convo_scheduler,
-            self.channels_manager.get_planet_explorer_channels_struct(),
+            self.channels_manager.get_planet_explorer_struct(),
             self.channels_manager.get_orch_to_exp_senders_struct_ref(),
             self.channels_manager.get_to_planet_senders_struct_ref(),
             &self.explorers_location,

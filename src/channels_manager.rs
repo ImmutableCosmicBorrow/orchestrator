@@ -51,6 +51,8 @@ pub(crate) struct PlanetsChannels {
     from_planets_sender: Sender<PlanetToOrchestrator>,
     from_planets_receiver: Receiver<PlanetToOrchestrator>,
 }
+
+#[allow(dead_code)]
 impl PlanetsChannels {
     fn new() -> Self {
         let (from_planets_sender, from_planets_receiver) =
@@ -77,19 +79,19 @@ impl PlanetsChannels {
             .insert(planet_id, receiver);
     }
 
-    fn get_orch_to_planet_sender(&self, planet_id: &ID) -> Option<Sender<OrchestratorToPlanet>> {
+    fn get_orch_to_planet_sender(&self, planet_id: ID) -> Option<Sender<OrchestratorToPlanet>> {
         self.to_planet_senders
             .lock()
             .unwrap()
-            .get(planet_id)
+            .get(&planet_id)
             .cloned()
     }
 
-    fn get_orch_to_planet_rcv(&self, planet_id: &ID) -> Option<Receiver<OrchestratorToPlanet>> {
+    fn get_orch_to_planet_rcv(&self, planet_id: ID) -> Option<Receiver<OrchestratorToPlanet>> {
         self.to_planet_receivers
             .lock()
             .unwrap()
-            .get(planet_id)
+            .get(&planet_id)
             .cloned()
     }
 
@@ -101,11 +103,11 @@ impl PlanetsChannels {
         self.from_planets_receiver.clone()
     }
 
-    fn to_planet_senders_contains(&self, planet_id: &ID) -> bool {
+    fn to_planet_senders_contains(&self, planet_id: ID) -> bool {
         self.to_planet_senders
             .lock()
             .unwrap()
-            .contains_key(planet_id)
+            .contains_key(&planet_id)
     }
 
     fn to_planet_senders_next_id(&self) -> Option<ID> {
@@ -125,6 +127,8 @@ pub(crate) struct ExplorersChannels {
     from_explorers_sender: Sender<ExplorerToOrchestrator<ExplorerBagContent>>,
     from_explorers_receiver: Receiver<ExplorerToOrchestrator<ExplorerBagContent>>,
 }
+
+#[allow(dead_code)]
 impl ExplorersChannels {
     fn new() -> Self {
         let (from_explorers_sender, from_explorers_receiver) =
@@ -157,23 +161,23 @@ impl ExplorersChannels {
 
     fn get_orch_to_explorer_sender(
         &self,
-        explorer_id: &ID,
+        explorer_id: ID,
     ) -> Option<Sender<OrchestratorToExplorer>> {
         self.to_explorer_senders
             .lock()
             .unwrap()
-            .get(explorer_id)
+            .get(&explorer_id)
             .cloned()
     }
 
     fn get_orch_to_explorer_rcv(
         &self,
-        explorer_id: &ID,
+        explorer_id: ID,
     ) -> Option<Receiver<OrchestratorToExplorer>> {
         self.to_explorer_receivers
             .lock()
             .unwrap()
-            .get(explorer_id)
+            .get(&explorer_id)
             .cloned()
     }
 
@@ -192,6 +196,8 @@ pub(crate) struct PlanetExplorerChannels {
     pub(crate) explorer_to_planet_senders: ExplorerToPlanetSenders,
     explorer_to_planet_receivers: ExplorerToPlanetReceivers,
 }
+
+#[allow(dead_code)]
 impl PlanetExplorerChannels {
     fn new() -> Self {
         Self {
@@ -227,35 +233,35 @@ impl PlanetExplorerChannels {
             .insert(planet_id, rcv);
     }
 
-    fn get_planet_to_exp_sender(&self, exp_id: &ID) -> Option<Sender<PlanetToExplorer>> {
+    fn get_planet_to_exp_sender(&self, exp_id: ID) -> Option<Sender<PlanetToExplorer>> {
         self.planet_to_explorer_senders
             .lock()
             .unwrap()
-            .get(exp_id)
+            .get(&exp_id)
             .cloned()
     }
 
-    fn get_planet_to_exp_rcv(&self, exp_id: &ID) -> Option<Receiver<PlanetToExplorer>> {
+    fn get_planet_to_exp_rcv(&self, exp_id: ID) -> Option<Receiver<PlanetToExplorer>> {
         self.planet_to_explorer_receivers
             .lock()
             .unwrap()
-            .get(exp_id)
+            .get(&exp_id)
             .cloned()
     }
 
-    fn get_exp_to_planet_sender(&self, planet_id: &ID) -> Option<Sender<ExplorerToPlanet>> {
+    fn get_exp_to_planet_sender(&self, planet_id: ID) -> Option<Sender<ExplorerToPlanet>> {
         self.explorer_to_planet_senders
             .lock()
             .unwrap()
-            .get(planet_id)
+            .get(&planet_id)
             .cloned()
     }
 
-    fn get_exp_to_planet_rcv(&self, planet_id: &ID) -> Option<Receiver<ExplorerToPlanet>> {
+    fn get_exp_to_planet_rcv(&self, planet_id: ID) -> Option<Receiver<ExplorerToPlanet>> {
         self.explorer_to_planet_receivers
             .lock()
             .unwrap()
-            .get(planet_id)
+            .get(&planet_id)
             .cloned()
     }
 }
@@ -264,6 +270,7 @@ pub(crate) struct OrchestratorChannels {
     planets_channels: PlanetsChannels,
 }
 
+#[allow(dead_code)]
 impl OrchestratorChannels {
     fn new() -> Self {
         Self {
@@ -282,20 +289,21 @@ impl OrchestratorChannels {
 }
 
 pub(crate) struct ChannelsManager {
-    ui_channels: UIChannels,
-    orchestrator_channels: OrchestratorChannels,
-    planet_explorer_channels: PlanetExplorerChannels,
+    ui: UIChannels,
+    orchestrator: OrchestratorChannels,
+    planet_explorer: PlanetExplorerChannels,
 }
 
+#[allow(dead_code)]
 impl ChannelsManager {
     pub(crate) fn new(
         ui_sender: Sender<OrchestratorToUiUpdate>,
         ui_receiver: Receiver<UiToOrchestratorCommand>,
     ) -> Self {
         Self {
-            ui_channels: UIChannels::new(ui_sender, ui_receiver),
-            orchestrator_channels: OrchestratorChannels::new(),
-            planet_explorer_channels: PlanetExplorerChannels::new(),
+            ui: UIChannels::new(ui_sender, ui_receiver),
+            orchestrator: OrchestratorChannels::new(),
+            planet_explorer: PlanetExplorerChannels::new(),
         }
     }
 
@@ -306,16 +314,16 @@ impl ChannelsManager {
     //
 
     pub(crate) fn get_ui_sender(&self) -> Sender<OrchestratorToUiUpdate> {
-        self.ui_channels.ui_sender.clone()
+        self.ui.ui_sender.clone()
     }
     pub(crate) fn get_ui_sender_ref(&self) -> &Sender<OrchestratorToUiUpdate> {
-        &self.ui_channels.ui_sender
+        &self.ui.ui_sender
     }
     pub(crate) fn get_ui_receiver(&self) -> Receiver<UiToOrchestratorCommand> {
-        self.ui_channels.ui_receiver.clone()
+        self.ui.ui_receiver.clone()
     }
     pub(crate) fn get_ui_receiver_ref(&self) -> &Receiver<UiToOrchestratorCommand> {
-        &self.ui_channels.ui_receiver
+        &self.ui.ui_receiver
     }
 
     //
@@ -331,78 +339,67 @@ impl ChannelsManager {
     ) -> (Sender<OrchestratorToPlanet>, Receiver<OrchestratorToPlanet>) {
         let (tx, rx) = crossbeam_channel::unbounded::<OrchestratorToPlanet>();
         //set new sender in senders Map
-        self.orchestrator_channels
+        self.orchestrator
             .planets_channels
             .set_orch_to_planet_sender(planet_id, tx.clone());
         //set new receiver in receivers Map
-        self.orchestrator_channels
+        self.orchestrator
             .planets_channels
             .set_orch_to_planet_rcv(planet_id, rx.clone());
         (tx, rx)
     }
     pub(crate) fn get_orch_to_planet_sender(
         &self,
-        planet_id: &ID,
+        planet_id: ID,
     ) -> Option<Sender<OrchestratorToPlanet>> {
-        self.orchestrator_channels
+        self.orchestrator
             .planets_channels
             .get_orch_to_planet_sender(planet_id)
     }
     pub(crate) fn get_orch_to_planet_receiver(
         &self,
-        planet_id: &ID,
+        planet_id: ID,
     ) -> Option<Receiver<OrchestratorToPlanet>> {
-        self.orchestrator_channels
+        self.orchestrator
             .planets_channels
             .get_orch_to_planet_rcv(planet_id)
     }
 
     pub(crate) fn get_from_planets_sender(&self) -> Sender<PlanetToOrchestrator> {
-        self.orchestrator_channels
+        self.orchestrator
             .planets_channels
             .get_planet_to_orch_sender()
     }
 
     pub(crate) fn get_from_planets_receiver(&self) -> Receiver<PlanetToOrchestrator> {
-        self.orchestrator_channels
-            .planets_channels
-            .get_from_planets_rcv()
+        self.orchestrator.planets_channels.get_from_planets_rcv()
     }
 
-    pub(crate) fn to_planet_senders_contains(&self, planet_id: &ID) -> bool {
-        self.orchestrator_channels
+    pub(crate) fn to_planet_senders_contains(&self, planet_id: ID) -> bool {
+        self.orchestrator
             .planets_channels
             .to_planet_senders_contains(planet_id)
     }
 
     pub(crate) fn to_planet_senders_next_id(&self) -> Option<ID> {
-        self.orchestrator_channels
+        self.orchestrator
             .planets_channels
             .to_planet_senders_next_id()
     }
 
     pub(crate) fn get_to_planet_senders_struct_ref(&self) -> &OrchToPlanetSenders {
-        &self
-            .orchestrator_channels
-            .planets_channels
-            .to_planet_senders
+        &self.orchestrator.planets_channels.to_planet_senders
     }
 
     pub(crate) fn get_to_planet_senders_struct(&self) -> OrchToPlanetSenders {
-        self.orchestrator_channels
-            .planets_channels
-            .to_planet_senders
-            .clone()
+        self.orchestrator.planets_channels.to_planet_senders.clone()
     }
 
     pub(crate) fn get_from_planet_rcv_ref(&self) -> &Receiver<PlanetToOrchestrator> {
-        &self
-            .orchestrator_channels
-            .planets_channels
-            .from_planets_receiver
+        &self.orchestrator.planets_channels.from_planets_receiver
     }
     pub(crate) fn get_from_planet_rcv(&self) -> Receiver<PlanetToOrchestrator> {
-        self.orchestrator_channels
+        self.orchestrator
             .planets_channels
             .from_planets_receiver
             .clone()
@@ -422,11 +419,11 @@ impl ChannelsManager {
     ) {
         let (tx, rx) = crossbeam_channel::unbounded::<OrchestratorToExplorer>();
         //set new sender in senders Map
-        self.orchestrator_channels
+        self.orchestrator
             .explorers_channels
             .set_orch_to_explorer_sender(explorer_id, tx.clone());
         //set new receiver in receivers Map
-        self.orchestrator_channels
+        self.orchestrator
             .explorers_channels
             .set_orch_to_explorer_rcv(explorer_id, rx.clone());
         (tx, rx)
@@ -434,29 +431,26 @@ impl ChannelsManager {
 
     pub(crate) fn get_orch_to_explorer_sender(
         &self,
-        explorer_id: &ID,
+        explorer_id: ID,
     ) -> Option<Sender<OrchestratorToExplorer>> {
-        self.orchestrator_channels
+        self.orchestrator
             .explorers_channels
             .get_orch_to_explorer_sender(explorer_id)
     }
     pub(crate) fn get_orch_to_explorer_rcv(
         &self,
-        explorer_id: &ID,
+        explorer_id: ID,
     ) -> Option<Receiver<OrchestratorToExplorer>> {
-        self.orchestrator_channels
+        self.orchestrator
             .explorers_channels
             .get_orch_to_explorer_rcv(explorer_id)
     }
 
     pub(crate) fn get_orch_to_exp_senders_struct_ref(&self) -> &OrchToExplorerSenders {
-        &self
-            .orchestrator_channels
-            .explorers_channels
-            .to_explorer_senders
+        &self.orchestrator.explorers_channels.to_explorer_senders
     }
     pub(crate) fn get_orch_to_exp_senders_struct(&self) -> OrchToExplorerSenders {
-        self.orchestrator_channels
+        self.orchestrator
             .explorers_channels
             .to_explorer_senders
             .clone()
@@ -464,7 +458,7 @@ impl ChannelsManager {
     pub(crate) fn get_from_explorers_sender(
         &self,
     ) -> Sender<ExplorerToOrchestrator<ExplorerBagContent>> {
-        self.orchestrator_channels
+        self.orchestrator
             .explorers_channels
             .get_exp_to_orch_sender()
     }
@@ -472,7 +466,7 @@ impl ChannelsManager {
     pub(crate) fn get_from_explorers_rcv(
         &self,
     ) -> Receiver<ExplorerToOrchestrator<ExplorerBagContent>> {
-        self.orchestrator_channels
+        self.orchestrator
             .explorers_channels
             .get_from_explorers_rcv()
     }
@@ -480,10 +474,7 @@ impl ChannelsManager {
     pub(crate) fn get_from_explorers_rcv_ref(
         &self,
     ) -> &Receiver<ExplorerToOrchestrator<ExplorerBagContent>> {
-        &self
-            .orchestrator_channels
-            .explorers_channels
-            .from_explorers_receiver
+        &self.orchestrator.explorers_channels.from_explorers_receiver
     }
 
     //
@@ -496,18 +487,17 @@ impl ChannelsManager {
         exp_id: ID,
     ) -> (Sender<PlanetToExplorer>, Receiver<PlanetToExplorer>) {
         let (tx, rx) = crossbeam_channel::unbounded::<PlanetToExplorer>();
-        self.planet_explorer_channels
+        self.planet_explorer
             .set_planet_to_exp_sender(exp_id, tx.clone());
-        self.planet_explorer_channels
+        self.planet_explorer
             .set_planet_to_exp_rcv(exp_id, rx.clone());
         (tx, rx)
     }
-    pub(crate) fn get_planet_to_exp_sender(&self, exp_id: &ID) -> Option<Sender<PlanetToExplorer>> {
-        self.planet_explorer_channels
-            .get_planet_to_exp_sender(exp_id)
+    pub(crate) fn get_planet_to_exp_sender(&self, exp_id: ID) -> Option<Sender<PlanetToExplorer>> {
+        self.planet_explorer.get_planet_to_exp_sender(exp_id)
     }
-    pub(crate) fn get_planet_to_exp_rcv(&self, exp_id: &ID) -> Option<Receiver<PlanetToExplorer>> {
-        self.planet_explorer_channels.get_planet_to_exp_rcv(exp_id)
+    pub(crate) fn get_planet_to_exp_rcv(&self, exp_id: ID) -> Option<Receiver<PlanetToExplorer>> {
+        self.planet_explorer.get_planet_to_exp_rcv(exp_id)
     }
 
     pub(crate) fn create_exp_to_planet_channel(
@@ -515,28 +505,26 @@ impl ChannelsManager {
         planet_id: ID,
     ) -> (Sender<ExplorerToPlanet>, Receiver<ExplorerToPlanet>) {
         let (tx, rx) = crossbeam_channel::unbounded::<ExplorerToPlanet>();
-        self.planet_explorer_channels
+        self.planet_explorer
             .set_exp_to_planet_sender(planet_id, tx.clone());
-        self.planet_explorer_channels
+        self.planet_explorer
             .set_exp_to_planet_rcv(planet_id, rx.clone());
         (tx, rx)
     }
     pub(crate) fn get_exp_to_planet_sender(
         &self,
-        planet_id: &ID,
+        planet_id: ID,
     ) -> Option<Sender<ExplorerToPlanet>> {
-        self.planet_explorer_channels
-            .get_exp_to_planet_sender(planet_id)
+        self.planet_explorer.get_exp_to_planet_sender(planet_id)
     }
     pub(crate) fn get_exp_to_planet_rcv(
         &self,
-        planet_id: &ID,
+        planet_id: ID,
     ) -> Option<Receiver<ExplorerToPlanet>> {
-        self.planet_explorer_channels
-            .get_exp_to_planet_rcv(planet_id)
+        self.planet_explorer.get_exp_to_planet_rcv(planet_id)
     }
 
-    pub(crate) fn get_planet_explorer_channels_struct(&self) -> &PlanetExplorerChannels {
-        &self.planet_explorer_channels
+    pub(crate) fn get_planet_explorer_struct(&self) -> &PlanetExplorerChannels {
+        &self.planet_explorer
     }
 }

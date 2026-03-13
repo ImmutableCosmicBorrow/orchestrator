@@ -1,4 +1,6 @@
-use crate::channels_manager::{OrchToExplorerSenders, OrchToPlanetSenders};
+#[cfg(test)]
+use crate::channels_manager::OrchToExplorerSenders;
+use crate::channels_manager::OrchToPlanetSenders;
 #[cfg(test)]
 use crate::orchestrator::conversations::ToExplorerStruct;
 use crate::orchestrator::conversations::ToPlanetStruct;
