@@ -137,6 +137,15 @@ fn open_log_file(dir: &str, filename: &str) -> std::fs::File {
 /// # Panics
 /// Panics if the log directory or any log file cannot be created/opened.
 pub fn start_logger() {
+    start_logger_with_console(true);
+}
+
+/// Same as [`start_logger`], but allows disabling terminal (stderr) output.
+///
+/// When `print_to_stderr` is `false`, logs are still written to files.
+/// # Panics
+/// Panics if the log directory or any log file cannot be created/opened.
+pub fn start_logger_with_console(print_to_stderr: bool) {
     std::fs::create_dir_all("log").expect("failed to create log/ directory");
 
     let now = chrono::Local::now();
@@ -212,15 +221,18 @@ pub fn start_logger() {
         })
         .chain(std::io::stderr());
 
-    fern::Dispatch::new()
+    let mut root_dispatch = fern::Dispatch::new()
         .level(level)
         .chain(asteroids_sunrays)
         .chain(conversations)
         .chain(general)
         .chain(channel_messages)
         .chain(common_game)
-        .chain(shared)
-        .chain(terminal)
-        .apply()
-        .expect("failed to initialize logger");
+        .chain(shared);
+
+    if print_to_stderr {
+        root_dispatch = root_dispatch.chain(terminal);
+    }
+
+    root_dispatch.apply().expect("failed to initialize logger");
 }

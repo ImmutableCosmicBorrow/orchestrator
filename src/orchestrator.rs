@@ -55,6 +55,7 @@ pub struct Orchestrator {
     message_processor_thread: Option<JoinHandle<()>>,
     message_processor_stop: Arc<AtomicBool>,
     shutdown_requested: bool,
+    background_events_enabled: bool,
     manual_mode: bool,
 }
 
@@ -103,6 +104,7 @@ impl Orchestrator {
             message_processor_thread: None,
             message_processor_stop: Arc::new(AtomicBool::new(false)),
             shutdown_requested: false,
+            background_events_enabled: true,
             manual_mode: false,
         };
 
@@ -185,7 +187,12 @@ impl Orchestrator {
         self.process_messages();
 
         // Start background event senders
-        self.start_background_event_senders();
+        if self.background_events_enabled {
+            self.start_background_event_senders();
+        } else {
+            event_senders::disable_asteroids();
+            event_senders::disable_sunrays();
+        }
 
         //Get receiving channels
         let from_planets_rcv = self.channels_manager.get_from_planet_rcv();
@@ -542,7 +549,18 @@ impl Orchestrator {
             for explorer_id in explorer_senders.lock().unwrap().keys() {
                 self.start_explorer_ai(*explorer_id);
             }
-            event_senders::enable_asteroids();
+            if self.background_events_enabled {
+                event_senders::enable_asteroids();
+            }
+        }
+    }
+
+    /// Enables or disables background sunray/asteroid generation.
+    pub fn set_background_events_enabled(&mut self, enabled: bool) {
+        self.background_events_enabled = enabled;
+        if !enabled {
+            event_senders::disable_asteroids();
+            event_senders::disable_sunrays();
         }
     }
 
@@ -708,15 +726,25 @@ impl Orchestrator {
                 );
             }
             ResumeGame => {
-                event_senders::enable_asteroids();
-                event_senders::enable_sunrays();
-                log_internal(
-                    LogTarget::General,
-                    Channel::Info,
-                    payload!(
-                        action : "Received ResumeGame command from UI. Resuming background events",
-                    ),
-                );
+                if self.background_events_enabled {
+                    event_senders::enable_asteroids();
+                    event_senders::enable_sunrays();
+                    log_internal(
+                        LogTarget::General,
+                        Channel::Info,
+                        payload!(
+                            action : "Received ResumeGame command from UI. Resuming background events",
+                        ),
+                    );
+                } else {
+                    log_internal(
+                        LogTarget::General,
+                        Channel::Info,
+                        payload!(
+                            action : "Received ResumeGame command from UI, but background events are disabled",
+                        ),
+                    );
+                }
             }
 
             // Explorer Movement Commands
@@ -913,8 +941,9 @@ impl Orchestrator {
         {
             let planet_senders = self.channels_manager.get_to_planet_senders_struct();
             for sender in planet_senders.lock().unwrap().values() {
-                let _ = sender
-                    .send(common_game::protocols::orchestrator_planet::OrchestratorToPlanet::KillPlanet);
+                let _ = sender.send(
+                    common_game::protocols::orchestrator_planet::OrchestratorToPlanet::KillPlanet,
+                );
             }
         }
 
