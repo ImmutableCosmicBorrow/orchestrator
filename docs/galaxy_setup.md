@@ -96,12 +96,12 @@ If you're creating a galaxy, here there are several planets IDs, divided per gro
 
 Explorer IDs combine the `EXPLORER_SHIFT` base bit (bit 7) with subtype bits and a 4-bit sequence (`EXPLORER_MASK = 0b1111`, up to 16 per subtype):
 
-| Explorer Subtype | Bit Position | Shift Constant |
-|------------------|--------------|----------------|
-| **Base Explorer**| 7            | `EXPLORER_SHIFT` |
-| **Nico**         | 6            | `NICO_SHIFT`   |
-| **Jaco**         | 5            | `JACO_SHIFT`   |
-| **Rob**          | 4            | `ROB_SHIFT`    |
+| Explorer Subtype | Bit Position | Shift Constant       |
+|------------------|--------------|----------------------|
+| **Base Explorer**| 7            | `EXPLORER_SHIFT`     |
+| **Nico Explorer**| 6            | `NICO_EXPLORER_SHIFT`|
+| **Nomad**        | 5            | `NOMAD_SHIFT`        |
+| **Vojager**      | 4            | `VOJAGER_SHIFT`      |
 
 ID formula for explorers:
 ```
@@ -109,9 +109,9 @@ ID = (1 << EXPLORER_SHIFT) | (1 << SUBTYPE_SHIFT) | (sequence & EXPLORER_MASK)
 ```
 
 Example Explorer IDs:
-- **Nico**: 193, 194, 195, 196 = `0b11000001`, `0b11000010`, `0b11000011`, `0b11000100`
-- **Jaco**: 161, 162, 163, 164 = `0b10100001`, `0b10100010`, `0b10100011`, `0b10100100`
-- **Rob**: 145, 146, 147, 148 = `0b10010001`, `0b10010010`, `0b10010011`, `0b10010100`
+- **Nico Explorer**: 193, 194, 195, 196 = `0b11000001`, `0b11000010`, `0b11000011`, `0b11000100`
+- **Nomad**: 161, 162, 163, 164 = `0b10100001`, `0b10100010`, `0b10100011`, `0b10100100`
+- **Vojager**: 145, 146, 147, 148 = `0b10010001`, `0b10010010`, `0b10010011`, `0b10010100`
 
 ## Technical Details
 

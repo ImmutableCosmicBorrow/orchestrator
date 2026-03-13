@@ -38,9 +38,9 @@ pub type ExplorersLocationRef = Arc<Mutex<HashMap<ID, ID>>>;
 
 #[derive(Clone, Copy, Debug)]
 pub enum ExplorerType {
-    Rob,
-    Nico,
-    Jaco,
+    Vojager, //Roberto
+    Explorer, //Nicola
+    Nomad, //Jacopo
 }
 
 pub struct Orchestrator {
@@ -886,21 +886,21 @@ impl Orchestrator {
             self.channels_manager.create_planet_to_exp_channel(id);
 
         let mut explorer: Box<dyn ExplorerAI + Send> = match explorer_type {
-            ExplorerType::Nico => Box::new(explorer_nico::Explorer::new(
+            ExplorerType::Explorer => Box::new(explorer_nico::Explorer::new(
                 id,
                 self.channels_manager.get_from_explorers_sender(),
                 rx_orchestrator_to_explorer,
                 rx_planet_to_explorer,
                 get_game_step(),
             )),
-            ExplorerType::Rob => Box::new(explorer_rob::Voyager::new(
+            ExplorerType::Vojager => Box::new(explorer_rob::Voyager::new(
                 id,
                 self.channels_manager.get_from_explorers_sender(),
                 rx_orchestrator_to_explorer,
                 rx_planet_to_explorer,
                 get_game_step(),
             )),
-            ExplorerType::Jaco => {
+            ExplorerType::Nomad => {
                 let nomad = explorer_jacopo::Nomad::new(
                     id,
                     self.channels_manager.get_from_explorers_sender(),

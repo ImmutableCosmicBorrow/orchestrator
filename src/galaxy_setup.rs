@@ -5,12 +5,10 @@ use crate::planet::{PlanetMap, add_planet_with_neighbors};
 
 use crate::id::PlanetKind;
 use common_game::logging::Channel;
-use common_game::protocols::orchestrator_planet::{OrchestratorToPlanet, PlanetToOrchestrator};
-use common_game::protocols::planet_explorer::ExplorerToPlanet;
+use common_game::protocols::orchestrator_planet::OrchestratorToPlanet;
 use common_game::utils::ID;
 
-use crossbeam_channel::unbounded;
-use crossbeam_channel::{Receiver, Sender};
+use crossbeam_channel::Sender;
 
 use crate::channels_manager::ChannelsManager;
 use std::collections::HashMap;
@@ -20,8 +18,6 @@ use std::thread::JoinHandle;
 
 // Planets are removed from PlanetMap and stopped via OrchestratorToPlanet message.
 pub(crate) type OrchPlanSenderMap = HashMap<ID, Sender<OrchestratorToPlanet>>;
-pub(crate) type ExplPlanSenderMap = HashMap<ID, Sender<ExplorerToPlanet>>;
-
 /// Holds handles so the orchestrator can join or inspect planet threads if needed.
 pub(crate) type PlanetThreadMap = HashMap<ID, JoinHandle<()>>;
 
