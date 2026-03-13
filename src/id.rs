@@ -252,28 +252,28 @@ impl IdManager {
     }
 
     #[must_use]
-    pub fn is_nico_id(id: ID) -> bool {
+    pub fn is_nico_explorer_id(id: ID) -> bool {
         Self::is_explorer_id(id) && ((id & (1 << Self::NICO_EXPLORER_SHIFT)) != 0)
     }
 
     #[must_use]
-    pub fn is_jaco_id(id: ID) -> bool {
+    pub fn is_nomad_id(id: ID) -> bool {
         Self::is_explorer_id(id) && ((id & (1 << Self::NOMAD_SHIFT)) != 0)
     }
 
     #[must_use]
-    pub fn is_rob_id(id: ID) -> bool {
+    pub fn is_vojager_id(id: ID) -> bool {
         Self::is_explorer_id(id) && ((id & (1 << Self::VOJAGER_SHIFT)) != 0)
     }
 
     #[must_use]
     pub fn explorer_name_from_id(id: ID) -> &'static str {
-        if Self::is_nico_id(id) {
-            "Nico"
-        } else if Self::is_jaco_id(id) {
-            "Jaco"
-        } else if Self::is_rob_id(id) {
-            "Rob"
+        if Self::is_nico_explorer_id(id) {
+            "Nico Explorer"
+        } else if Self::is_nomad_id(id) {
+            "Nomad"
+        } else if Self::is_vojager_id(id) {
+            "Vojager"
         } else {
             "Unknown Explorer"
         }
