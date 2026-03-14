@@ -1171,8 +1171,8 @@ dependencies = [
 
 [[package]]
 name = "trip"
-version = "0.6.0"
-source = "git+https://github.com/Totally-Reliable-Imaginary-Planets/TRIP.git?branch=main#344caf6b5f17b5ec85bd6f55f37b4813f9f3783c"
+version = "0.6.1"
+source = "git+https://github.com/Totally-Reliable-Imaginary-Planets/TRIP.git#c85d48152a9d1b24e6ea04ac31fc86633776f3ba"
 dependencies = [
  "common-game",
  "crossbeam-channel",
