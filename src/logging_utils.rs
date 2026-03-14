@@ -140,7 +140,7 @@ pub fn start_logger() {
     std::fs::create_dir_all("log").expect("failed to create log/ directory");
 
     let now = chrono::Local::now();
-    let log_filename = format!("{}.log", now.format("%Y_%m_%d_%H:%M:%S"));
+    let log_filename = format!("{}.log", now.format("%Y_%m_%d_%H-%M-%S"));
 
     let level = std::env::var("RUST_LOG")
         .ok()
