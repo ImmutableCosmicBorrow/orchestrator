@@ -90,10 +90,8 @@ impl Orchestrator {
         // channels manager APIs
         let (galaxy, planet_threads) = galaxy_loader(file_path, channels_manager.as_ref());
 
-        let forge = Arc::new(Forge::new().expect("Couldn't create forge!"));
-
         let mut orchestrator = Self {
-            forge,
+            forge: Arc::new(Forge::new().expect("Couldn't create forge!")),
             galaxy,
             channels_manager,
             convo_scheduler: ConvoScheduler::new(),
@@ -155,6 +153,7 @@ impl Orchestrator {
             self.add_explorer(explorer, planet_id);
         }
     }
+
     /// Runs the orchestrator, managing all planet and explorer conversations.
     ///
     /// # Panics
@@ -647,6 +646,7 @@ impl Orchestrator {
     /// # Panics
     ///
     /// Panics if a mutex lock is poisoned.
+    // TODO: remove the clippy allow once the function is refactored into smaller functions
     #[allow(clippy::too_many_lines)]
     pub fn handle_ui_message(&mut self, command: UiToOrchestratorCommand) {
         #[allow(clippy::enum_glob_use)]
@@ -923,6 +923,7 @@ impl Orchestrator {
             }
         }
     }
+    
     /// Creates an Explorer and spawns its thread.
     ///
     /// # Panics
