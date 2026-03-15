@@ -333,14 +333,14 @@ impl Orchestrator {
     }
 
     /// Create travel-to-planet conversation.
-    pub fn make_travel_to_planet_request(
+    pub fn make_manual_travel_to_planet_request(
         &self,
         explorer_id: ID,
         current_planet_id: Option<ID>,
         dst_planet_id: ID,
     ) {
         //TODO: CHANGE THIS TO CREATE WAITING TRAVEL PLANET REQUEST
-        convo_factory::create_travel_to_planet_request_conversation(
+        convo_factory::create_send_manual_move_conversation(
             &self.convo_scheduler,
             self.channels_manager.get_planet_explorer_struct(),
             self.channels_manager.get_orch_to_exp_senders_struct_ref(),
@@ -604,14 +604,15 @@ impl Orchestrator {
                     explorer_id,
                     current_planet_id,
                     dst_planet_id,
-                } => Some(convo_factory::create_travel_to_planet_request_conversation(
+                } => Some(convo_factory::create_waiting_travel_to_planet_request_conversation(
                     &self.convo_scheduler,
+                    self.galaxy.clone(),
                     self.channels_manager.get_planet_explorer_struct(),
                     self.channels_manager.get_orch_to_exp_senders_struct_ref(),
                     self.channels_manager.get_to_planet_senders_struct_ref(),
                     &self.explorers_location,
                     *explorer_id,
-                    Some(*current_planet_id),
+                    *current_planet_id,
                     *dst_planet_id,
                 )),
                 _ => {
@@ -720,7 +721,7 @@ impl Orchestrator {
 
             // Explorer Movement Commands
             ManualMoveExplorer(explorer_id, current_planet, dst_planet) => {
-                self.make_travel_to_planet_request(explorer_id, current_planet, dst_planet);
+                self.make_manual_travel_to_planet_request(explorer_id, current_planet, dst_planet);
             }
 
             // Explorer Resource Commands
@@ -1001,7 +1002,7 @@ impl Orchestrator {
         self.explorer_threads.insert(id, handle);
 
         // Move Manually the explorer to the planet
-        convo_factory::create_travel_to_planet_request_conversation(
+        convo_factory::create_send_manual_move_conversation(
             &self.convo_scheduler,
             self.channels_manager.get_planet_explorer_struct(),
             self.channels_manager.get_orch_to_exp_senders_struct_ref(),

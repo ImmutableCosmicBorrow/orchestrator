@@ -4,9 +4,9 @@ use crate::globals::get_id_manager;
 use crate::orchestrator::ConvoScheduler;
 use crate::orchestrator::ExplorersLocationRef;
 use crate::orchestrator::conversations;
-use crate::orchestrator::conversations::ToExplorerStruct;
+use crate::orchestrator::conversations::{ToExplorerStruct, ToPlanetError};
 use crate::orchestrator::conversations::ToPlanetStruct;
-use crate::orchestrator::conversations::orch_explorer::movement::move_to_planet::MoveToPlanetConversation;
+use crate::orchestrator::conversations::orch_explorer::movement::move_to_planet::{MoveToPlanetConversation, WaitingTravelRequest};
 use crate::orchestrator::conversations::orch_explorer::movement::move_to_planet::SendManualMoveRequest;
 use crate::orchestrator::conversations::orch_planet::lifecycle::internal_state_scenario::SendingInternalStateRequest;
 use crate::orchestrator::conversations::{orch_explorer, orch_planet};
@@ -64,7 +64,7 @@ pub(crate) fn create_neighbors_request_conversation(
 }
 
 #[allow(clippy::too_many_arguments)]
-pub(crate) fn create_travel_to_planet_request_conversation(
+pub(crate) fn create_send_manual_move_conversation(
     convo_scheduler: &ConvoScheduler<ExplorerBagContent>,
     planet_explorer_channels: &PlanetExplorerChannels,
     explorer_senders: &OrchToExplorerSenders,
@@ -75,8 +75,7 @@ pub(crate) fn create_travel_to_planet_request_conversation(
     dst_planet_id: ID,
 ) -> ID {
     let to_explorer_struct = ToExplorerStruct::new(explorer_senders.clone(), explorer_id);
-    let curr_planet_struct =
-        current_planet_id.map(|id| ToPlanetStruct::new(planets_senders.clone(), id));
+    let curr_planet_struct = current_planet_id.map(|id|ToPlanetStruct::new(planets_senders.clone(),id)) ;
 
     let dst_planet_struct = ToPlanetStruct::new(planets_senders.clone(), dst_planet_id);
     let state = SendManualMoveRequest::new(
@@ -84,7 +83,7 @@ pub(crate) fn create_travel_to_planet_request_conversation(
         curr_planet_struct,
         dst_planet_struct,
         to_explorer_struct,
-        planet_explorer_channels.clone(),
+        planet_explorer_channels.clone()
     );
 
     let id = get_id_manager().get_next_conversation_id();
@@ -98,7 +97,54 @@ pub(crate) fn create_travel_to_planet_request_conversation(
         payload!(
             event: "ScheduleConversation",
             conversation_id: id,
-            kind: "MoveToPlanet",
+            kind: "ManualMoveRequest",
+            explorer_id: explorer_id,
+            from_planet: format!("{current_planet_id:?}"),
+            to_planet: dst_planet_id
+        ),
+    );
+
+    id
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn create_waiting_travel_to_planet_request_conversation(
+    convo_scheduler: &ConvoScheduler<ExplorerBagContent>,
+    galaxy: PlanetMap,
+    planet_explorer_channels: &PlanetExplorerChannels,
+    explorer_senders: &OrchToExplorerSenders,
+    planets_senders: &OrchToPlanetSenders,
+    explorers_location: &ExplorersLocationRef,
+    explorer_id: ID,
+    current_planet_id: ID,
+    dst_planet_id: ID,
+) -> ID {
+    let to_explorer_struct = ToExplorerStruct::new(explorer_senders.clone(), explorer_id);
+    let curr_planet_struct =
+        ToPlanetStruct::new(planets_senders.clone(), current_planet_id);
+
+    let dst_planet_struct = ToPlanetStruct::new(planets_senders.clone(), dst_planet_id);
+    let state = WaitingTravelRequest::new(
+        galaxy,
+        planet_explorer_channels.clone(),
+        curr_planet_struct,
+        dst_planet_struct,
+        to_explorer_struct,
+        explorers_location.clone(),
+    );
+
+    let id = get_id_manager().get_next_conversation_id();
+    let new_conv = MoveToPlanetConversation::<WaitingTravelRequest>::new(id, state);
+
+    convo_scheduler.add_conversation(Box::new(new_conv));
+
+    log_internal(
+        LogTarget::Conversations,
+        Channel::Trace,
+        payload!(
+            event: "ScheduleConversation",
+            conversation_id: id,
+            kind: "WaitingMoveToPlanet",
             explorer_id: explorer_id,
             from_planet: format!("{current_planet_id:?}"),
             to_planet: dst_planet_id
