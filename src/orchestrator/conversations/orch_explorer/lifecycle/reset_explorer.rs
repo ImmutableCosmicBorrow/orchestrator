@@ -67,7 +67,7 @@ pub(crate) struct ResetExplorerConversation<State> {
 }
 
 // SENDING EXPLORER RESET IMPLEMENTATION
-impl Conversation<ExplorerBagContent> for ResetExplorerConversation<SendingExplorerReset> {
+impl Conversation for ResetExplorerConversation<SendingExplorerReset> {
     fn get_id(&self) -> ID {
         self.id
     }
@@ -92,7 +92,7 @@ impl Conversation<ExplorerBagContent> for ResetExplorerConversation<SendingExplo
     fn transition(
         self: Box<Self>,
         _msg_wrapped: Option<PossibleMessage<ExplorerBagContent>>,
-    ) -> Option<Box<dyn Conversation<ExplorerBagContent> + Send + Sync>> {
+    ) -> Option<Box<dyn Conversation + Send + Sync>> {
         match self
             .state
             .to_explorer_struct
@@ -117,7 +117,7 @@ impl Conversation<ExplorerBagContent> for ResetExplorerConversation<SendingExplo
                 };
                 let error_state = ErrorState::new(Box::new(error), self.id);
                 Some(Box::new(error_state)
-                    as Box<dyn Conversation<ExplorerBagContent> + Send + Sync>)
+                    as Box<dyn Conversation + Send + Sync>)
             }
         }
     }
@@ -139,7 +139,7 @@ impl ResetExplorerConversation<SendingExplorerReset> {
 }
 
 // WAITING EXPLORER RESET RESULT IMPLEMENTATION
-impl Conversation<ExplorerBagContent> for ResetExplorerConversation<WaitingExplorerResetResult> {
+impl Conversation for ResetExplorerConversation<WaitingExplorerResetResult> {
     fn get_id(&self) -> ID {
         self.id
     }
@@ -162,7 +162,7 @@ impl Conversation<ExplorerBagContent> for ResetExplorerConversation<WaitingExplo
     fn transition(
         self: Box<Self>,
         msg_wrapped: Option<PossibleMessage<ExplorerBagContent>>,
-    ) -> Option<Box<dyn Conversation<ExplorerBagContent> + Send + Sync>> {
+    ) -> Option<Box<dyn Conversation + Send + Sync>> {
         if let Some(PossibleMessage::ExplorerToOrch(
             ExplorerToOrchestrator::ResetExplorerAIResult { explorer_id },
         )) = msg_wrapped
@@ -181,7 +181,7 @@ impl Conversation<ExplorerBagContent> for ResetExplorerConversation<WaitingExplo
 
         //Wrong Message, close conversation
         let error_state = ErrorState::new(Box::new(CommonErrorTypes::WrongMessage), self.id);
-        Some(Box::new(error_state) as Box<dyn Conversation<ExplorerBagContent> + Send + Sync>)
+        Some(Box::new(error_state) as Box<dyn Conversation + Send + Sync>)
     }
 
     fn get_priority(&self) -> i32 {

@@ -103,7 +103,7 @@ pub(crate) struct KillExplorerConversation<State> {
 }
 
 // SENDING KILL EXPLORER IMPLEMENTATION
-impl Conversation<ExplorerBagContent> for KillExplorerConversation<SendingKillExplorer> {
+impl Conversation for KillExplorerConversation<SendingKillExplorer> {
     fn get_id(&self) -> ID {
         self.id
     }
@@ -126,7 +126,7 @@ impl Conversation<ExplorerBagContent> for KillExplorerConversation<SendingKillEx
     fn transition(
         self: Box<Self>,
         _msg_wrapped: Option<PossibleMessage<ExplorerBagContent>>,
-    ) -> Option<Box<dyn Conversation<ExplorerBagContent> + Send + Sync>> {
+    ) -> Option<Box<dyn Conversation + Send + Sync>> {
         match self
             .state
             .to_explorer_struct
@@ -157,7 +157,7 @@ impl Conversation<ExplorerBagContent> for KillExplorerConversation<SendingKillEx
                 };
                 let error_state = ErrorState::new(Box::new(error), self.id);
                 Some(Box::new(error_state)
-                    as Box<dyn Conversation<ExplorerBagContent> + Send + Sync>)
+                    as Box<dyn Conversation + Send + Sync>)
             }
         }
     }
@@ -179,7 +179,7 @@ impl KillExplorerConversation<SendingKillExplorer> {
 }
 
 // WAITING KILL EXPLORER RESULT IMPLEMENTATION
-impl Conversation<ExplorerBagContent> for KillExplorerConversation<WaitingKillExplorerResult> {
+impl Conversation for KillExplorerConversation<WaitingKillExplorerResult> {
     fn get_id(&self) -> ID {
         self.id
     }
@@ -204,7 +204,7 @@ impl Conversation<ExplorerBagContent> for KillExplorerConversation<WaitingKillEx
     fn transition(
         self: Box<Self>,
         msg_wrapped: Option<PossibleMessage<ExplorerBagContent>>,
-    ) -> Option<Box<dyn Conversation<ExplorerBagContent> + Send + Sync>> {
+    ) -> Option<Box<dyn Conversation + Send + Sync>> {
         if let Some(PossibleMessage::ExplorerToOrch(ExplorerToOrchestrator::KillExplorerResult {
             explorer_id,
         })) = msg_wrapped
@@ -248,7 +248,7 @@ impl Conversation<ExplorerBagContent> for KillExplorerConversation<WaitingKillEx
             ),
         );
         let error_state = ErrorState::new(Box::new(CommonErrorTypes::WrongMessage), self.id);
-        Some(Box::new(error_state) as Box<dyn Conversation<ExplorerBagContent> + Send + Sync>)
+        Some(Box::new(error_state) as Box<dyn Conversation + Send + Sync>)
     }
 
     fn get_priority(&self) -> i32 {

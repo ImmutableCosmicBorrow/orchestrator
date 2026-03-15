@@ -29,7 +29,7 @@ pub(super) fn init_background_event_scheduler(
     channels_manager: Arc<ChannelsManager>,
     forge: Arc<Forge>,
     explorers_location: ExplorersLocationRef,
-    convo_scheduler: ConvoScheduler<ExplorerBagContent>,
+    convo_scheduler: ConvoScheduler,
     galaxy: PlanetMap,
 ) {
     let controller = scheduler_ctrl();

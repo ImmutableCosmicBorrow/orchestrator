@@ -91,7 +91,7 @@ pub(crate) struct AdvDeadExplorer<State> {
 }
 
 // SENDING OUTGOING REQUEST IMPLEMENTATION
-impl Conversation<ExplorerBagContent> for AdvDeadExplorer<SendingDeadExpAdv> {
+impl Conversation for AdvDeadExplorer<SendingDeadExpAdv> {
     fn get_id(&self) -> ID {
         self.id
     }
@@ -113,8 +113,8 @@ impl Conversation<ExplorerBagContent> for AdvDeadExplorer<SendingDeadExpAdv> {
     /// [`AdvDeadExplorer<WaitingDeadAdvResponse>`] if the request was sent successfully.
     fn transition(
         self: Box<Self>,
-        _msg_wrapped: Option<PossibleMessage<ExplorerBagContent>>,
-    ) -> Option<Box<dyn Conversation<ExplorerBagContent> + Send + Sync>> {
+        _msg_wrapped: Option<PossibleMessage>,
+    ) -> Option<Box<dyn Conversation + Send + Sync>> {
         match self
             .state
             .to_planet_struct
@@ -137,7 +137,7 @@ impl Conversation<ExplorerBagContent> for AdvDeadExplorer<SendingDeadExpAdv> {
                 };
                 let error_state = ErrorState::new(Box::new(error), self.id);
                 Some(Box::new(error_state)
-                    as Box<dyn Conversation<ExplorerBagContent> + Send + Sync>)
+                    as Box<dyn Conversation + Send + Sync>)
             }
         }
     }
@@ -159,7 +159,7 @@ impl AdvDeadExplorer<SendingDeadExpAdv> {
 }
 
 // WAITING OUTGOING RESPONSE IMPLEMENTATION
-impl Conversation<ExplorerBagContent> for AdvDeadExplorer<WaitingDeadAdvResponse> {
+impl Conversation for AdvDeadExplorer<WaitingDeadAdvResponse> {
     fn get_id(&self) -> ID {
         self.id
     }
@@ -183,8 +183,8 @@ impl Conversation<ExplorerBagContent> for AdvDeadExplorer<WaitingDeadAdvResponse
     /// Returns the manager anyway if a wrong message type is received (failsafe).
     fn transition(
         self: Box<Self>,
-        msg_wrapped: Option<PossibleMessage<ExplorerBagContent>>,
-    ) -> Option<Box<dyn Conversation<ExplorerBagContent> + Send + Sync>> {
+        msg_wrapped: Option<PossibleMessage>,
+    ) -> Option<Box<dyn Conversation + Send + Sync>> {
         if let Some(PossibleMessage::PlanetToOrch(
             PlanetToOrchestrator::OutgoingExplorerResponse {
                 planet_id,
@@ -213,12 +213,12 @@ impl Conversation<ExplorerBagContent> for AdvDeadExplorer<WaitingDeadAdvResponse
                 };
                 let error_state = ErrorState::new(Box::new(error), self.id);
                 Some(Box::new(error_state)
-                    as Box<dyn Conversation<ExplorerBagContent> + Send + Sync>)
+                    as Box<dyn Conversation + Send + Sync>)
             };
         }
 
         let error_state = ErrorState::new(Box::new(CommonErrorTypes::WrongMessage), self.id);
-        Some(Box::new(error_state) as Box<dyn Conversation<ExplorerBagContent> + Send + Sync>)
+        Some(Box::new(error_state) as Box<dyn Conversation + Send + Sync>)
     }
 
     fn get_priority(&self) -> i32 {

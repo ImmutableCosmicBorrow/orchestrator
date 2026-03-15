@@ -82,7 +82,7 @@ pub(crate) struct SunrayConversation<State> {
 }
 
 // SEND SUNRAY IMPLEMENTATION
-impl Conversation<ExplorerBagContent> for SunrayConversation<SendSunray> {
+impl Conversation for SunrayConversation<SendSunray> {
     fn get_id(&self) -> ID {
         self.id
     }
@@ -107,7 +107,7 @@ impl Conversation<ExplorerBagContent> for SunrayConversation<SendSunray> {
     fn transition(
         self: Box<Self>,
         _msg_wrapped: Option<PossibleMessage<ExplorerBagContent>>,
-    ) -> Option<Box<dyn Conversation<ExplorerBagContent> + Send + Sync>> {
+    ) -> Option<Box<dyn Conversation + Send + Sync>> {
         let sunray = self.state.forge_ref.generate_sunray();
         match self
             .state
@@ -128,7 +128,7 @@ impl Conversation<ExplorerBagContent> for SunrayConversation<SendSunray> {
                 };
                 let error_state = ErrorState::new(Box::new(error), self.id);
                 Some(Box::new(error_state)
-                    as Box<dyn Conversation<ExplorerBagContent> + Send + Sync>)
+                    as Box<dyn Conversation + Send + Sync>)
             }
         }
     }
@@ -150,7 +150,7 @@ impl SunrayConversation<SendSunray> {
 }
 
 // WAITING SUNRAY ACK IMPLEMENTATION
-impl Conversation<ExplorerBagContent> for SunrayConversation<WaitingSunrayAck> {
+impl Conversation for SunrayConversation<WaitingSunrayAck> {
     fn get_id(&self) -> ID {
         self.id
     }
@@ -173,7 +173,7 @@ impl Conversation<ExplorerBagContent> for SunrayConversation<WaitingSunrayAck> {
     fn transition(
         self: Box<Self>,
         msg_wrapped: Option<PossibleMessage<ExplorerBagContent>>,
-    ) -> Option<Box<dyn Conversation<ExplorerBagContent> + Send + Sync>> {
+    ) -> Option<Box<dyn Conversation + Send + Sync>> {
         if let Some(PossibleMessage::PlanetToOrch(PlanetToOrchestrator::SunrayAck { planet_id })) =
             msg_wrapped
         {
@@ -191,7 +191,7 @@ impl Conversation<ExplorerBagContent> for SunrayConversation<WaitingSunrayAck> {
 
         //Wrong Message, close conversation
         let error_state = ErrorState::new(Box::new(CommonErrorTypes::WrongMessage), self.id);
-        Some(Box::new(error_state) as Box<dyn Conversation<ExplorerBagContent> + Send + Sync>)
+        Some(Box::new(error_state) as Box<dyn Conversation + Send + Sync>)
     }
 
     fn get_priority(&self) -> i32 {

@@ -24,7 +24,7 @@ use std::time::Duration;
 /// Orchestrator-Planet handshake and the Explorer's actual transition. Its primary role is to
 /// provide the Explorer with the technical means (communication channels) to interact with its new home.
 // SEND MOVE REQUEST IMPLEMENTATION
-impl Conversation<ExplorerBagContent> for MoveToPlanetConversation<SendMoveRequest> {
+impl Conversation for MoveToPlanetConversation<SendMoveRequest> {
     /// Returns the unique ID of the conversation instance.
     fn get_id(&self) -> ID {
         self.id
@@ -67,7 +67,7 @@ impl Conversation<ExplorerBagContent> for MoveToPlanetConversation<SendMoveReque
     fn transition(
         self: Box<Self>,
         _msg_wrapped: Option<PossibleMessage<ExplorerBagContent>>,
-    ) -> Option<Box<dyn Conversation<ExplorerBagContent> + Send + Sync>> {
+    ) -> Option<Box<dyn Conversation + Send + Sync>> {
         // Determine the sender
         let sender_to_new_planet = if self.state.is_explorer_moving {
             // Explorer is moving, we need to find the sender to the planet
@@ -79,7 +79,7 @@ impl Conversation<ExplorerBagContent> for MoveToPlanetConversation<SendMoveReque
                 ));
                 let error_state = ErrorState::new(error, self.id);
                 return Some(Box::new(error_state)
-                    as Box<dyn Conversation<ExplorerBagContent> + Send + Sync>);
+                    as Box<dyn Conversation + Send + Sync>);
             }
         } else {
             None
@@ -116,7 +116,7 @@ impl Conversation<ExplorerBagContent> for MoveToPlanetConversation<SendMoveReque
                 };
                 let error_state = ErrorState::new(error, self.id);
                 Some(Box::new(error_state)
-                    as Box<dyn Conversation<ExplorerBagContent> + Send + Sync>)
+                    as Box<dyn Conversation + Send + Sync>)
             }
         }
     }
@@ -154,7 +154,7 @@ impl MoveToPlanetConversation<SendMoveRequest> {
 /// This is the final terminal state in the movement sequence. It ensures that the Orchestrator
 /// and the Explorer have a synchronized view of the world state after the handover.
 // WAIT MOVE TO PLANET RESPONSE IMPLEMENTATION
-impl Conversation<ExplorerBagContent> for MoveToPlanetConversation<WaitMoveToPlanetResponse> {
+impl Conversation for MoveToPlanetConversation<WaitMoveToPlanetResponse> {
     /// Returns the unique ID of the conversation instance.
     fn get_id(&self) -> ID {
         self.id
@@ -192,7 +192,7 @@ impl Conversation<ExplorerBagContent> for MoveToPlanetConversation<WaitMoveToPla
     fn transition(
         self: Box<Self>,
         msg_wrapped: Option<PossibleMessage<ExplorerBagContent>>,
-    ) -> Option<Box<dyn Conversation<ExplorerBagContent> + Send + Sync>> {
+    ) -> Option<Box<dyn Conversation + Send + Sync>> {
         if let Some(PossibleMessage::ExplorerToOrch(
             ExplorerToOrchestrator::MovedToPlanetResult {
                 explorer_id,
@@ -241,7 +241,7 @@ impl Conversation<ExplorerBagContent> for MoveToPlanetConversation<WaitMoveToPla
         }
         // Wrong message, closing Conversation
         let error_state = ErrorState::new(Box::new(CommonErrorTypes::WrongMessage), self.id);
-        Some(Box::new(error_state) as Box<dyn Conversation<ExplorerBagContent> + Send + Sync>)
+        Some(Box::new(error_state) as Box<dyn Conversation + Send + Sync>)
     }
 
     fn get_priority(&self) -> i32 {

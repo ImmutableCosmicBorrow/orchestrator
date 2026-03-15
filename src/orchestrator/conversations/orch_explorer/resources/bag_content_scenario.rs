@@ -82,7 +82,7 @@ pub struct BagContentConversation<State> {
 }
 
 // SENDING BAG CONTENT REQUEST IMPLEMENTATION
-impl Conversation<ExplorerBagContent> for BagContentConversation<SendingBagContentRequest> {
+impl Conversation for BagContentConversation<SendingBagContentRequest> {
     fn get_id(&self) -> ID {
         self.id
     }
@@ -107,7 +107,7 @@ impl Conversation<ExplorerBagContent> for BagContentConversation<SendingBagConte
     fn transition(
         self: Box<Self>,
         _msg_wrapped: Option<PossibleMessage<ExplorerBagContent>>,
-    ) -> Option<Box<dyn Conversation<ExplorerBagContent> + Send + Sync>> {
+    ) -> Option<Box<dyn Conversation + Send + Sync>> {
         match self
             .state
             .to_explorer_struct
@@ -133,7 +133,7 @@ impl Conversation<ExplorerBagContent> for BagContentConversation<SendingBagConte
                 };
                 let error_state = ErrorState::new(Box::new(error), self.id);
                 Some(Box::new(error_state)
-                    as Box<dyn Conversation<ExplorerBagContent> + Send + Sync>)
+                    as Box<dyn Conversation + Send + Sync>)
             }
         }
     }
@@ -155,7 +155,7 @@ impl BagContentConversation<SendingBagContentRequest> {
 }
 
 // WAITING BAG CONTENT RESPONSE IMPLEMENTATION
-impl Conversation<ExplorerBagContent> for BagContentConversation<WaitingBagContentResponse> {
+impl Conversation for BagContentConversation<WaitingBagContentResponse> {
     fn get_id(&self) -> ID {
         self.id
     }
@@ -178,7 +178,7 @@ impl Conversation<ExplorerBagContent> for BagContentConversation<WaitingBagConte
     fn transition(
         self: Box<Self>,
         msg_wrapped: Option<PossibleMessage<ExplorerBagContent>>,
-    ) -> Option<Box<dyn Conversation<ExplorerBagContent> + Send + Sync>> {
+    ) -> Option<Box<dyn Conversation + Send + Sync>> {
         if let Some(PossibleMessage::ExplorerToOrch(ExplorerToOrchestrator::BagContentResponse {
             explorer_id,
             bag_content,
@@ -221,7 +221,7 @@ impl Conversation<ExplorerBagContent> for BagContentConversation<WaitingBagConte
 
         //Wrong Message, close conversation
         let error_state = ErrorState::new(Box::new(CommonErrorTypes::WrongMessage), self.id);
-        Some(Box::new(error_state) as Box<dyn Conversation<ExplorerBagContent> + Send + Sync>)
+        Some(Box::new(error_state) as Box<dyn Conversation + Send + Sync>)
     }
 
     fn get_priority(&self) -> i32 {

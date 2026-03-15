@@ -93,7 +93,7 @@ pub(crate) struct KillPlanetConversation<State> {
 }
 
 // SEND PLANET KILL IMPLEMENTATION
-impl Conversation<ExplorerBagContent> for KillPlanetConversation<SendPlanetKill> {
+impl Conversation for KillPlanetConversation<SendPlanetKill> {
     fn get_id(&self) -> ID {
         self.id
     }
@@ -116,7 +116,7 @@ impl Conversation<ExplorerBagContent> for KillPlanetConversation<SendPlanetKill>
     fn transition(
         self: Box<Self>,
         _msg_wrapped: Option<PossibleMessage<ExplorerBagContent>>,
-    ) -> Option<Box<dyn Conversation<ExplorerBagContent> + Send + Sync>> {
+    ) -> Option<Box<dyn Conversation + Send + Sync>> {
         match self
             .state
             .to_planet_struct
@@ -143,7 +143,7 @@ impl Conversation<ExplorerBagContent> for KillPlanetConversation<SendPlanetKill>
                 };
                 let error_state = ErrorState::new(Box::new(error), self.id);
                 Some(Box::new(error_state)
-                    as Box<dyn Conversation<ExplorerBagContent> + Send + Sync>)
+                    as Box<dyn Conversation + Send + Sync>)
             }
         }
     }
@@ -165,7 +165,7 @@ impl KillPlanetConversation<SendPlanetKill> {
 }
 
 // WAITING PLANET KILL RESULT IMPLEMENTATION
-impl Conversation<ExplorerBagContent> for KillPlanetConversation<WaitingPlanetKillResult> {
+impl Conversation for KillPlanetConversation<WaitingPlanetKillResult> {
     fn get_id(&self) -> ID {
         self.id
     }
@@ -189,7 +189,7 @@ impl Conversation<ExplorerBagContent> for KillPlanetConversation<WaitingPlanetKi
     fn transition(
         self: Box<Self>,
         msg_wrapped: Option<PossibleMessage<ExplorerBagContent>>,
-    ) -> Option<Box<dyn Conversation<ExplorerBagContent> + Send + Sync>> {
+    ) -> Option<Box<dyn Conversation + Send + Sync>> {
         if let Some(PossibleMessage::PlanetToOrch(PlanetToOrchestrator::KillPlanetResult {
             planet_id,
         })) = msg_wrapped
@@ -209,7 +209,7 @@ impl Conversation<ExplorerBagContent> for KillPlanetConversation<WaitingPlanetKi
 
         //Wrong Message, close conversation
         let error_state = ErrorState::new(Box::new(CommonErrorTypes::WrongMessage), self.id);
-        Some(Box::new(error_state) as Box<dyn Conversation<ExplorerBagContent> + Send + Sync>)
+        Some(Box::new(error_state) as Box<dyn Conversation + Send + Sync>)
     }
 
     fn get_priority(&self) -> i32 {

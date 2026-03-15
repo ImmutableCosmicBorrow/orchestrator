@@ -100,7 +100,7 @@ pub struct CraftResourceConversation<State> {
 }
 
 // SENDING CRAFT RESOURCE REQUEST IMPLEMENTATION
-impl Conversation<ExplorerBagContent> for CraftResourceConversation<SendingCraftResourceRequest> {
+impl Conversation for CraftResourceConversation<SendingCraftResourceRequest> {
     fn get_id(&self) -> ID {
         self.id
     }
@@ -123,7 +123,7 @@ impl Conversation<ExplorerBagContent> for CraftResourceConversation<SendingCraft
     fn transition(
         self: Box<Self>,
         _msg_wrapped: Option<PossibleMessage<ExplorerBagContent>>,
-    ) -> Option<Box<dyn Conversation<ExplorerBagContent> + Send + Sync>> {
+    ) -> Option<Box<dyn Conversation + Send + Sync>> {
         match self.state.to_explorer_struct.to_explorer(
             OrchestratorToExplorer::GenerateResourceRequest {
                 to_generate: self.state.to_craft,
@@ -150,7 +150,7 @@ impl Conversation<ExplorerBagContent> for CraftResourceConversation<SendingCraft
                 };
                 let error_state = ErrorState::new(Box::new(error), self.id);
                 Some(Box::new(error_state)
-                    as Box<dyn Conversation<ExplorerBagContent> + Send + Sync>)
+                    as Box<dyn Conversation + Send + Sync>)
             }
         }
     }
@@ -172,7 +172,7 @@ impl CraftResourceConversation<SendingCraftResourceRequest> {
 }
 
 // WAITING CRAFT RESOURCE RESULT IMPLEMENTATION
-impl Conversation<ExplorerBagContent> for CraftResourceConversation<WaitingCraftResourceResult> {
+impl Conversation for CraftResourceConversation<WaitingCraftResourceResult> {
     fn get_id(&self) -> ID {
         self.id
     }
@@ -197,7 +197,7 @@ impl Conversation<ExplorerBagContent> for CraftResourceConversation<WaitingCraft
     fn transition(
         self: Box<Self>,
         msg_wrapped: Option<PossibleMessage<ExplorerBagContent>>,
-    ) -> Option<Box<dyn Conversation<ExplorerBagContent> + Send + Sync>> {
+    ) -> Option<Box<dyn Conversation + Send + Sync>> {
         if let Some(PossibleMessage::ExplorerToOrch(
             ExplorerToOrchestrator::GenerateResourceResponse {
                 explorer_id,
@@ -227,14 +227,14 @@ impl Conversation<ExplorerBagContent> for CraftResourceConversation<WaitingCraft
                     };
                     let error_state = ErrorState::new(Box::new(error_struct), self.id);
                     Some(Box::new(error_state)
-                        as Box<dyn Conversation<ExplorerBagContent> + Send + Sync>)
+                        as Box<dyn Conversation + Send + Sync>)
                 }
             };
         }
 
         //Wrong Message, close conversation
         let error_state = ErrorState::new(Box::new(CommonErrorTypes::WrongMessage), self.id);
-        Some(Box::new(error_state) as Box<dyn Conversation<ExplorerBagContent> + Send + Sync>)
+        Some(Box::new(error_state) as Box<dyn Conversation + Send + Sync>)
     }
 
     fn get_priority(&self) -> i32 {

@@ -14,10 +14,12 @@ use common_game::utils::ID;
 use std::fmt::Debug;
 use std::hash::Hash;
 use std::time::Duration;
+use explorer_nico::Explorer;
 
 pub(crate) mod orch_explorer;
 pub(crate) mod orch_planet;
 pub(crate) mod util;
+pub mod macros;
 //TODO: implement timeouts in conversations
 
 ///**The Conversation Trait**
@@ -25,7 +27,7 @@ pub(crate) mod util;
 /// This is the foundation of the FSM system. Every state in a conversation must implement this trait.
 /// It defines how states identify themselves, what messages they expect, and how they transition
 /// to the next state.
-pub trait Conversation<T: Debug + Eq + Hash>: Send + Sync {
+pub trait Conversation: Send + Sync {
     /// Returns the unique ID of the conversation instance.
     fn get_id(&self) -> ID;
     /// Returns the tuple (`planet_id`, `explorer_id`) that represent the entities involved by the conversation. One or both may be `None`.
@@ -36,8 +38,8 @@ pub trait Conversation<T: Debug + Eq + Hash>: Send + Sync {
     /// Returns `None` to close the conversation successfully.
     fn transition(
         self: Box<Self>,
-        msg_wrapped: Option<PossibleMessage<T>>,
-    ) -> Option<Box<dyn Conversation<T> + Send + Sync>>;
+        msg_wrapped: Option<PossibleMessage>,
+    ) -> Option<Box<dyn Conversation + Send + Sync>>;
     /// Returns the execution priority (higher values are processed first).
     fn get_priority(&self) -> i32;
 
@@ -95,12 +97,12 @@ pub(crate) enum PossibleExpectedKinds {
 /// **Wrapped Protocol Messages**
 ///
 /// Container for the actual data payloads received from the network.
-pub(crate) enum PossibleMessage<T> {
+pub(crate) enum PossibleMessage {
     PlanetToOrch(PlanetToOrchestrator),
-    ExplorerToOrch(ExplorerToOrchestrator<T>),
+    ExplorerToOrch(ExplorerToOrchestrator<ExplorerBagContent>),
 }
 
-impl<T> PossibleMessage<T> {
+impl PossibleMessage {
     /// Extracts the kind (discriminant) from the message for matching against `PossibleExpectedKinds`.
     pub fn to_kind_type(&self) -> PossibleExpectedKinds {
         match self {
@@ -335,7 +337,7 @@ impl ErrorState {
     }
 }
 
-impl Conversation<ExplorerBagContent> for ErrorState {
+impl Conversation for ErrorState {
     fn get_id(&self) -> ID {
         self.id
     }
@@ -348,8 +350,8 @@ impl Conversation<ExplorerBagContent> for ErrorState {
 
     fn transition(
         self: Box<Self>,
-        _msg_wrapped: Option<PossibleMessage<ExplorerBagContent>>,
-    ) -> Option<Box<dyn Conversation<ExplorerBagContent> + Send + Sync>> {
+        _msg_wrapped: Option<PossibleMessage>,
+    ) -> Option<Box<dyn Conversation + Send + Sync>> {
         log_internal(
             LogTarget::Conversations,
             Channel::Warning,

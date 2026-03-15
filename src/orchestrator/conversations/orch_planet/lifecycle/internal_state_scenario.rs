@@ -78,7 +78,7 @@ pub struct InternalStateConversation<State> {
 }
 
 // SENDING INTERNAL STATE REQUEST IMPLEMENTATION
-impl Conversation<ExplorerBagContent> for InternalStateConversation<SendingInternalStateRequest> {
+impl Conversation for InternalStateConversation<SendingInternalStateRequest> {
     fn get_id(&self) -> ID {
         self.id
     }
@@ -103,7 +103,7 @@ impl Conversation<ExplorerBagContent> for InternalStateConversation<SendingInter
     fn transition(
         self: Box<Self>,
         _msg_wrapped: Option<PossibleMessage<ExplorerBagContent>>,
-    ) -> Option<Box<dyn Conversation<ExplorerBagContent> + Send + Sync>> {
+    ) -> Option<Box<dyn Conversation + Send + Sync>> {
         match self
             .state
             .to_planet_struct
@@ -126,7 +126,7 @@ impl Conversation<ExplorerBagContent> for InternalStateConversation<SendingInter
                 };
                 let error_state = ErrorState::new(Box::new(error), self.id);
                 Some(Box::new(error_state)
-                    as Box<dyn Conversation<ExplorerBagContent> + Send + Sync>)
+                    as Box<dyn Conversation + Send + Sync>)
             }
         }
     }
@@ -147,7 +147,7 @@ impl InternalStateConversation<SendingInternalStateRequest> {
 }
 
 // WAITING RESPONSE IMPLEMENTATION
-impl Conversation<ExplorerBagContent> for InternalStateConversation<WaitingInternalStateResponse> {
+impl Conversation for InternalStateConversation<WaitingInternalStateResponse> {
     fn get_id(&self) -> ID {
         self.id
     }
@@ -170,7 +170,7 @@ impl Conversation<ExplorerBagContent> for InternalStateConversation<WaitingInter
     fn transition(
         self: Box<Self>,
         msg_wrapped: Option<PossibleMessage<ExplorerBagContent>>,
-    ) -> Option<Box<dyn Conversation<ExplorerBagContent> + Send + Sync>> {
+    ) -> Option<Box<dyn Conversation + Send + Sync>> {
         if let Some(PossibleMessage::PlanetToOrch(PlanetToOrchestrator::InternalStateResponse {
             planet_id,
             planet_state,
@@ -199,7 +199,7 @@ impl Conversation<ExplorerBagContent> for InternalStateConversation<WaitingInter
 
         //Wrong Message, close conversation
         let error_state = ErrorState::new(Box::new(CommonErrorTypes::WrongMessage), self.id);
-        Some(Box::new(error_state) as Box<dyn Conversation<ExplorerBagContent> + Send + Sync>)
+        Some(Box::new(error_state) as Box<dyn Conversation + Send + Sync>)
     }
 
     fn get_priority(&self) -> i32 {

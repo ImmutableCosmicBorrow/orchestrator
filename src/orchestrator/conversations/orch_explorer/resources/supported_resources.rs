@@ -85,7 +85,7 @@ pub(crate) struct SupportedResourcesConversation<State> {
 }
 
 // SENDING SUPPORTED RESOURCES REQUEST IMPLEMENTATION
-impl Conversation<ExplorerBagContent>
+impl Conversation
     for SupportedResourcesConversation<SendingSupportedResourcesRequest>
 {
     fn get_id(&self) -> ID {
@@ -112,7 +112,7 @@ impl Conversation<ExplorerBagContent>
     fn transition(
         self: Box<Self>,
         _msg_wrapped: Option<PossibleMessage<ExplorerBagContent>>,
-    ) -> Option<Box<dyn Conversation<ExplorerBagContent> + Send + Sync>> {
+    ) -> Option<Box<dyn Conversation + Send + Sync>> {
         match self
             .state
             .to_explorer_struct
@@ -139,7 +139,7 @@ impl Conversation<ExplorerBagContent>
                 };
                 let error_state = ErrorState::new(Box::new(error), self.id);
                 Some(Box::new(error_state)
-                    as Box<dyn Conversation<ExplorerBagContent> + Send + Sync>)
+                    as Box<dyn Conversation + Send + Sync>)
             }
         }
     }
@@ -161,7 +161,7 @@ impl SupportedResourcesConversation<SendingSupportedResourcesRequest> {
 }
 
 // WAITING SUPPORTED RESOURCES RESULT IMPLEMENTATION
-impl Conversation<ExplorerBagContent>
+impl Conversation
     for SupportedResourcesConversation<WaitingSupportedResourcesResult>
 {
     fn get_id(&self) -> ID {
@@ -186,7 +186,7 @@ impl Conversation<ExplorerBagContent>
     fn transition(
         self: Box<Self>,
         msg_wrapped: Option<PossibleMessage<ExplorerBagContent>>,
-    ) -> Option<Box<dyn Conversation<ExplorerBagContent> + Send + Sync>> {
+    ) -> Option<Box<dyn Conversation + Send + Sync>> {
         if let Some(PossibleMessage::ExplorerToOrch(
             ExplorerToOrchestrator::SupportedResourceResult {
                 explorer_id,
@@ -218,7 +218,7 @@ impl Conversation<ExplorerBagContent>
 
         //Wrong Message, close conversation
         let error_state = ErrorState::new(Box::new(CommonErrorTypes::WrongMessage), self.id);
-        Some(Box::new(error_state) as Box<dyn Conversation<ExplorerBagContent> + Send + Sync>)
+        Some(Box::new(error_state) as Box<dyn Conversation + Send + Sync>)
     }
 
     fn get_priority(&self) -> i32 {

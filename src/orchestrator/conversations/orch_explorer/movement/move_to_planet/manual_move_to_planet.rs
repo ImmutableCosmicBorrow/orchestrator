@@ -11,7 +11,7 @@ use common_game::utils::ID;
 /// specific game logic) rather than an explorer's own request. It serves as an
 /// initialization point for forced transitions.
 // SEND MANUAL MOVE REQUEST IMPLEMENTATION
-impl Conversation<ExplorerBagContent> for MoveToPlanetConversation<SendManualMoveRequest> {
+impl Conversation for MoveToPlanetConversation<SendManualMoveRequest> {
     /// Returns the unique ID of the conversation instance.
     fn get_id(&self) -> ID {
         self.id
@@ -49,7 +49,7 @@ impl Conversation<ExplorerBagContent> for MoveToPlanetConversation<SendManualMov
     fn transition(
         self: Box<Self>,
         _msg_wrapped: Option<PossibleMessage<ExplorerBagContent>>,
-    ) -> Option<Box<dyn Conversation<ExplorerBagContent> + Send + Sync>> {
+    ) -> Option<Box<dyn Conversation + Send + Sync>> {
         //check if explorer is currently in a planet (in case we need to notify the planet to release him)
         let handle_outgoing = self.state.curr_planet_struct.is_some();
 

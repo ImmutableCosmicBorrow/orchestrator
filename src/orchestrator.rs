@@ -47,7 +47,7 @@ pub enum ExplorerType {
 pub struct Orchestrator {
     channels_manager: Arc<ChannelsManager>,
     forge: Arc<Forge>,
-    pub(crate) convo_scheduler: ConvoScheduler<ExplorerBagContent>,
+    pub(crate) convo_scheduler: ConvoScheduler,
     pub(crate) galaxy: PlanetMap,
     pub(crate) explorers_location: ExplorersLocationRef,
     planet_threads: Arc<Mutex<HashMap<ID, JoinHandle<()>>>>,
@@ -559,7 +559,7 @@ impl Orchestrator {
         background_events::enable_asteroids();
     }
 
-    fn handle_message(&mut self, message: PossibleMessage<ExplorerBagContent>) {
+    fn handle_message(&mut self, message: PossibleMessage) {
         let message_kind = message.to_kind_type();
         let entities_ids = message.get_entity_ids();
         let convo_id = self
@@ -585,7 +585,7 @@ impl Orchestrator {
 
     fn try_create_conversation(
         &mut self,
-        message: &PossibleMessage<ExplorerBagContent>,
+        message: &PossibleMessage,
         message_kind: &conversations::PossibleExpectedKinds,
         entities_ids: (Option<ID>, Option<ID>),
     ) -> Option<ID> {

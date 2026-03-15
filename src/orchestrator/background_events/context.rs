@@ -15,7 +15,7 @@ pub(super) struct WorldCtx {
 pub(super) struct DispatchCtx {
     pub(super) channels_manager: Arc<ChannelsManager>,
     pub(super) forge: Arc<Forge>,
-    pub(super) convo_scheduler: ConvoScheduler<ExplorerBagContent>,
+    pub(super) convo_scheduler: ConvoScheduler,
 }
 
 impl WorldCtx {
@@ -31,7 +31,7 @@ impl DispatchCtx {
     pub(super) fn new(
         channels_manager: Arc<ChannelsManager>,
         forge: Arc<Forge>,
-        convo_scheduler: ConvoScheduler<ExplorerBagContent>,
+        convo_scheduler: ConvoScheduler,
     ) -> Self {
         Self {
             channels_manager,

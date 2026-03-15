@@ -96,7 +96,7 @@ pub(crate) struct AsteroidConversation<State> {
 }
 
 //SENDING ASTEROID IMPLEMENTATION
-impl Conversation<ExplorerBagContent> for AsteroidConversation<SendingAsteroid> {
+impl Conversation for AsteroidConversation<SendingAsteroid> {
     fn get_id(&self) -> ID {
         self.id
     }
@@ -120,8 +120,8 @@ impl Conversation<ExplorerBagContent> for AsteroidConversation<SendingAsteroid> 
     /// [`AsteroidConversation<WaitingAsteroidAck>`] if the asteroid has been correctly sent, going to the next state  
     fn transition(
         self: Box<Self>,
-        _msg_wrapped: Option<PossibleMessage<ExplorerBagContent>>,
-    ) -> Option<Box<dyn Conversation<ExplorerBagContent> + Send + Sync>> {
+        _msg_wrapped: Option<PossibleMessage>,
+    ) -> Option<Box<dyn Conversation + Send + Sync>> {
         let asteroid = self.state.forge.generate_asteroid();
         match self
             .state
@@ -147,7 +147,7 @@ impl Conversation<ExplorerBagContent> for AsteroidConversation<SendingAsteroid> 
                 };
                 let error_state = ErrorState::new(Box::new(error), self.id);
                 Some(Box::new(error_state)
-                    as Box<dyn Conversation<ExplorerBagContent> + Send + Sync>)
+                    as Box<dyn Conversation + Send + Sync>)
             }
         }
     }
@@ -168,7 +168,7 @@ impl AsteroidConversation<SendingAsteroid> {
 }
 
 //WAITING ACK IMPLEMENTATION
-impl Conversation<ExplorerBagContent> for AsteroidConversation<WaitingAsteroidAck> {
+impl Conversation for AsteroidConversation<WaitingAsteroidAck> {
     fn get_id(&self) -> ID {
         self.id
     }
@@ -192,8 +192,8 @@ impl Conversation<ExplorerBagContent> for AsteroidConversation<WaitingAsteroidAc
     /// [`KillPlanetConversation<SendPlanetKill>`] if the planet cannot defend himself and has to be killed with a [`KillPlanetConversation`]  
     fn transition(
         self: Box<Self>,
-        msg_wrapped: Option<PossibleMessage<ExplorerBagContent>>,
-    ) -> Option<Box<dyn Conversation<ExplorerBagContent> + Send + Sync>> {
+        msg_wrapped: Option<PossibleMessage>,
+    ) -> Option<Box<dyn Conversation + Send + Sync>> {
         if let Some(PossibleMessage::PlanetToOrch(PlanetToOrchestrator::AsteroidAck {
             planet_id,
             rocket,
@@ -235,7 +235,7 @@ impl Conversation<ExplorerBagContent> for AsteroidConversation<WaitingAsteroidAc
         }
         //wrong message arrived, transitioning to ErrorState
         let error_state = ErrorState::new(Box::new(CommonErrorTypes::WrongMessage), self.id);
-        Some(Box::new(error_state) as Box<dyn Conversation<ExplorerBagContent> + Send + Sync>)
+        Some(Box::new(error_state) as Box<dyn Conversation + Send + Sync>)
     }
 
     fn get_priority(&self) -> i32 {
