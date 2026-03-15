@@ -16,7 +16,6 @@ use crate::planet::PlanetMap;
 use common_explorer::ExplorerBagContent;
 use common_game::components::forge::Forge;
 use common_game::logging::Channel;
-use common_game::protocols::orchestrator_planet::OrchestratorToPlanet;
 use common_game::utils::ID;
 use crossbeam_channel::Sender;
 use std::sync::Arc;
@@ -76,10 +75,9 @@ pub(crate) fn create_travel_to_planet_request_conversation(
     dst_planet_id: ID,
 ) -> ID {
     let to_explorer_struct = ToExplorerStruct::new(explorer_senders.clone(), explorer_id);
-    let curr_planet_struct = current_planet_id.map(
-        |id| ToPlanetStruct::new(planets_senders.clone(), id)
-    );
-        
+    let curr_planet_struct =
+        current_planet_id.map(|id| ToPlanetStruct::new(planets_senders.clone(), id));
+
     let dst_planet_struct = ToPlanetStruct::new(planets_senders.clone(), dst_planet_id);
     let state = SendManualMoveRequest::new(
         explorers_location.clone(),

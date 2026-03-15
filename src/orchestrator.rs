@@ -1,8 +1,8 @@
 #![allow(dead_code)]
 
+mod background_events;
 pub(crate) mod conversations;
 pub mod convo_factory;
-mod event_senders;
 mod queue;
 
 use crate::galaxy_setup::galaxy_loader;
@@ -29,6 +29,7 @@ use conversations::orch_explorer::lifecycle::kill_explorer::{
 };
 use crossbeam_channel::{Receiver, Sender, select};
 use std::collections::HashMap;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::thread::JoinHandle;
@@ -38,19 +39,22 @@ pub type ExplorersLocationRef = Arc<Mutex<HashMap<ID, ID>>>;
 
 #[derive(Clone, Copy, Debug)]
 pub enum ExplorerType {
-    Rob,
-    Nico,
-    Jaco,
+    Vojager,  //Roberto
+    Explorer, //Nicola
+    Nomad,    //Jacopo
 }
 
 pub struct Orchestrator {
-    channels_manager: ChannelsManager,
+    channels_manager: Arc<ChannelsManager>,
     forge: Arc<Forge>,
     pub(crate) convo_scheduler: ConvoScheduler<ExplorerBagContent>,
     pub(crate) galaxy: PlanetMap,
     pub(crate) explorers_location: ExplorersLocationRef,
     planet_threads: Arc<Mutex<HashMap<ID, JoinHandle<()>>>>,
     explorer_threads: HashMap<ID, JoinHandle<()>>,
+    message_processor_thread: Option<JoinHandle<()>>,
+    message_processor_stop: Arc<AtomicBool>,
+    shutdown_requested: bool,
     manual_mode: bool,
 }
 
@@ -80,22 +84,23 @@ impl Orchestrator {
         // Set static variable GAME_STEP
         set_game_step(game_step);
 
-        let channels_manager = ChannelsManager::new(ui_sender, ui_receiver);
+        let channels_manager = Arc::new(ChannelsManager::new(ui_sender, ui_receiver));
 
         // galaxy_loader now returns 2 values (galaxy and planet_threads), all channels are distributed inside using
         // channels manager APIs
-        let (galaxy, planet_threads) = galaxy_loader(file_path, &channels_manager);
-
-        let forge = Arc::new(Forge::new().expect("Couldn't create forge!"));
+        let (galaxy, planet_threads) = galaxy_loader(file_path, channels_manager.as_ref());
 
         let mut orchestrator = Self {
-            forge,
+            forge: Arc::new(Forge::new().expect("Couldn't create forge!")),
             galaxy,
             channels_manager,
             convo_scheduler: ConvoScheduler::new(),
             explorers_location: Arc::new(Mutex::new(HashMap::new())),
             planet_threads: Arc::new(Mutex::new(planet_threads)), // threads were spawned in galaxy_loader/create_planet_with_channels
             explorer_threads: HashMap::new(),
+            message_processor_thread: None,
+            message_processor_stop: Arc::new(AtomicBool::new(false)),
+            shutdown_requested: false,
             manual_mode: false,
         };
 
@@ -122,7 +127,7 @@ impl Orchestrator {
     ) {
         // Check where to spawn Explorers
         let planet_id = spawn_planet
-            .filter(|id| self.channels_manager.to_planet_senders_contains(id))
+            .filter(|id| self.channels_manager.to_planet_senders_contains(*id))
             .unwrap_or_else(|| {
                 let fallback_id = self.channels_manager.to_planet_senders_next_id().expect("Planet senders hashmap is empty");
                 // Log only if a planet was actually requested but not found
@@ -148,6 +153,7 @@ impl Orchestrator {
             self.add_explorer(explorer, planet_id);
         }
     }
+
     /// Runs the orchestrator, managing all planet and explorer conversations.
     ///
     /// # Panics
@@ -210,9 +216,14 @@ impl Orchestrator {
                                 action : "No explorers left. Shutting down orchestrator",
                             )
                         );
-                        std::process::exit(0);
+                        self.shutdown_requested = true;
                     }
                 }
+            }
+
+            if self.shutdown_requested {
+                self.shutdown();
+                return;
             }
         }
     }
@@ -331,7 +342,7 @@ impl Orchestrator {
         //TODO: CHANGE THIS TO CREATE WAITING TRAVEL PLANET REQUEST
         convo_factory::create_travel_to_planet_request_conversation(
             &self.convo_scheduler,
-            self.channels_manager.get_planet_explorer_channels_struct(),
+            self.channels_manager.get_planet_explorer_struct(),
             self.channels_manager.get_orch_to_exp_senders_struct_ref(),
             self.channels_manager.get_to_planet_senders_struct_ref(),
             &self.explorers_location,
@@ -519,7 +530,7 @@ impl Orchestrator {
             for explorer_id in explorer_senders.lock().unwrap().keys() {
                 self.stop_explorer_ai(*explorer_id);
             }
-            event_senders::disable_asteroids();
+            background_events::disable_asteroids();
         } else {
             log_internal(
                 LogTarget::General,
@@ -531,23 +542,21 @@ impl Orchestrator {
             for explorer_id in explorer_senders.lock().unwrap().keys() {
                 self.start_explorer_ai(*explorer_id);
             }
-            event_senders::enable_asteroids();
+            background_events::enable_asteroids();
         }
     }
 
     fn start_background_event_senders(&self) {
-        event_senders::init_background_event_scheduler(
-            self.channels_manager.get_to_planet_senders_struct(),
+        background_events::init_background_event_scheduler(
+            Arc::clone(&self.channels_manager),
             self.forge.clone(),
-            self.channels_manager.get_ui_sender(),
             self.explorers_location.clone(),
-            self.channels_manager.get_orch_to_exp_senders_struct(),
             self.convo_scheduler.clone(),
             self.galaxy.clone(),
         );
 
-        event_senders::enable_sunrays();
-        event_senders::enable_asteroids();
+        background_events::enable_sunrays();
+        background_events::enable_asteroids();
     }
 
     fn handle_message(&mut self, message: PossibleMessage<ExplorerBagContent>) {
@@ -597,7 +606,7 @@ impl Orchestrator {
                     dst_planet_id,
                 } => Some(convo_factory::create_travel_to_planet_request_conversation(
                     &self.convo_scheduler,
-                    self.channels_manager.get_planet_explorer_channels_struct(),
+                    self.channels_manager.get_planet_explorer_struct(),
                     self.channels_manager.get_orch_to_exp_senders_struct_ref(),
                     self.channels_manager.get_to_planet_senders_struct_ref(),
                     &self.explorers_location,
@@ -638,6 +647,7 @@ impl Orchestrator {
     /// # Panics
     ///
     /// Panics if a mutex lock is poisoned.
+    // TODO: remove the clippy allow once the function is refactored into smaller functions
     #[allow(clippy::too_many_lines)]
     pub fn handle_ui_message(&mut self, command: UiToOrchestratorCommand) {
         #[allow(clippy::enum_glob_use)]
@@ -683,11 +693,11 @@ impl Orchestrator {
                         action : "Received EndGame command from UI. Shutting down orchestrator",
                     ),
                 );
-                std::process::exit(0);
+                self.shutdown_requested = true;
             }
             PauseGame => {
-                event_senders::disable_asteroids();
-                event_senders::disable_sunrays();
+                background_events::disable_asteroids();
+                background_events::disable_sunrays();
                 log_internal(
                     LogTarget::General,
                     Channel::Info,
@@ -697,8 +707,8 @@ impl Orchestrator {
                 );
             }
             ResumeGame => {
-                event_senders::enable_asteroids();
-                event_senders::enable_sunrays();
+                background_events::enable_asteroids();
+                background_events::enable_sunrays();
                 log_internal(
                     LogTarget::General,
                     Channel::Info,
@@ -789,8 +799,13 @@ impl Orchestrator {
         let explorer_locations = self.explorers_location.clone();
         let galaxy = self.galaxy.clone();
         let planet_threads = self.planet_threads.clone();
-        thread::spawn(move || {
+        let stop = self.message_processor_stop.clone();
+        self.message_processor_thread = Some(thread::spawn(move || {
             loop {
+                if stop.load(Ordering::Acquire) {
+                    break;
+                }
+
                 if convo_scheduler.is_empty() {
                     // Wait for new messages to arrive
                     thread::sleep(Duration::from_millis(10));
@@ -870,8 +885,46 @@ impl Orchestrator {
                     }
                 }
             }
-        });
+        }));
     }
+
+    fn shutdown(&mut self) {
+        // Stop producers first so no new conversations/events are created while shutting down.
+        self.message_processor_stop.store(true, Ordering::Release);
+        background_events::shutdown_background_events();
+
+        if let Some(handle) = self.message_processor_thread.take() {
+            let _ = handle.join();
+        }
+
+        {
+            let explorer_senders = self.channels_manager.get_orch_to_exp_senders_struct();
+            for sender in explorer_senders.lock().unwrap().values() {
+                let _ = sender
+                    .send(common_game::protocols::orchestrator_explorer::OrchestratorToExplorer::KillExplorer);
+            }
+        }
+
+        for (_, handle) in self.explorer_threads.drain() {
+            let _ = handle.join();
+        }
+
+        {
+            let planet_senders = self.channels_manager.get_to_planet_senders_struct();
+            for sender in planet_senders.lock().unwrap().values() {
+                let _ = sender.send(
+                    common_game::protocols::orchestrator_planet::OrchestratorToPlanet::KillPlanet,
+                );
+            }
+        }
+
+        if let Ok(mut handles) = self.planet_threads.lock() {
+            for (_, handle) in handles.drain() {
+                let _ = handle.join();
+            }
+        }
+    }
+    
     /// Creates an Explorer and spawns its thread.
     ///
     /// # Panics
@@ -887,21 +940,21 @@ impl Orchestrator {
             self.channels_manager.create_planet_to_exp_channel(id);
 
         let mut explorer: Box<dyn ExplorerAI + Send> = match explorer_type {
-            ExplorerType::Nico => Box::new(explorer_nico::Explorer::new(
+            ExplorerType::Explorer => Box::new(explorer_nico::Explorer::new(
                 id,
                 self.channels_manager.get_from_explorers_sender(),
                 rx_orchestrator_to_explorer,
                 rx_planet_to_explorer,
                 get_game_step(),
             )),
-            ExplorerType::Rob => Box::new(explorer_rob::Voyager::new(
+            ExplorerType::Vojager => Box::new(explorer_rob::Voyager::new(
                 id,
                 self.channels_manager.get_from_explorers_sender(),
                 rx_orchestrator_to_explorer,
                 rx_planet_to_explorer,
                 get_game_step(),
             )),
-            ExplorerType::Jaco => {
+            ExplorerType::Nomad => {
                 let nomad = explorer_jacopo::Nomad::new(
                     id,
                     self.channels_manager.get_from_explorers_sender(),
@@ -950,7 +1003,7 @@ impl Orchestrator {
         // Move Manually the explorer to the planet
         convo_factory::create_travel_to_planet_request_conversation(
             &self.convo_scheduler,
-            self.channels_manager.get_planet_explorer_channels_struct(),
+            self.channels_manager.get_planet_explorer_struct(),
             self.channels_manager.get_orch_to_exp_senders_struct_ref(),
             self.channels_manager.get_to_planet_senders_struct_ref(),
             &self.explorers_location,

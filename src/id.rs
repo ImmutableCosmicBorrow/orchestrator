@@ -54,9 +54,9 @@ impl IdManager {
     const EXPLORER_MASK: u32 = 0b1111; // 4 bits = 16 explorers max per type
 
     const EXPLORER_SHIFT: u32 = 7;
-    const NICO_SHIFT: u32 = 6;
-    const JACO_SHIFT: u32 = 5;
-    const ROB_SHIFT: u32 = 4;
+    const NICO_EXPLORER_SHIFT: u32 = 6;
+    const NOMAD_SHIFT: u32 = 5;
+    const VOJAGER_SHIFT: u32 = 4;
 
     #[must_use]
     pub fn new() -> Self {
@@ -156,28 +156,28 @@ impl IdManager {
     #[must_use]
     pub fn get_next_explorer_id_by_type(&self, explorer_type: ExplorerType) -> ID {
         match explorer_type {
-            ExplorerType::Nico => self.get_next_nico_id(),
-            ExplorerType::Jaco => self.get_next_jaco_id(),
-            ExplorerType::Rob => self.get_next_rob_id(),
+            ExplorerType::Explorer => self.get_next_nico_id(),
+            ExplorerType::Nomad => self.get_next_jaco_id(),
+            ExplorerType::Vojager => self.get_next_rob_id(),
         }
     }
 
     #[must_use]
     pub fn get_next_nico_id(&self) -> ID {
         let id = self.get_next_explorer_id();
-        1 << Self::EXPLORER_SHIFT | 1 << Self::NICO_SHIFT | (id & Self::EXPLORER_MASK)
+        1 << Self::EXPLORER_SHIFT | 1 << Self::NICO_EXPLORER_SHIFT | (id & Self::EXPLORER_MASK)
     }
 
     #[must_use]
     pub fn get_next_jaco_id(&self) -> ID {
         let id = self.get_next_explorer_id();
-        1 << Self::EXPLORER_SHIFT | 1 << Self::JACO_SHIFT | (id & Self::EXPLORER_MASK)
+        1 << Self::EXPLORER_SHIFT | 1 << Self::NOMAD_SHIFT | (id & Self::EXPLORER_MASK)
     }
 
     #[must_use]
     pub fn get_next_rob_id(&self) -> ID {
         let id = self.get_next_explorer_id();
-        1 << Self::EXPLORER_SHIFT | 1 << Self::ROB_SHIFT | (id & Self::EXPLORER_MASK)
+        1 << Self::EXPLORER_SHIFT | 1 << Self::VOJAGER_SHIFT | (id & Self::EXPLORER_MASK)
     }
 
     //------ Conversation ID Generation -----//
@@ -252,28 +252,28 @@ impl IdManager {
     }
 
     #[must_use]
-    pub fn is_nico_id(id: ID) -> bool {
-        Self::is_explorer_id(id) && ((id & (1 << Self::NICO_SHIFT)) != 0)
+    pub fn is_nico_explorer_id(id: ID) -> bool {
+        Self::is_explorer_id(id) && ((id & (1 << Self::NICO_EXPLORER_SHIFT)) != 0)
     }
 
     #[must_use]
-    pub fn is_jaco_id(id: ID) -> bool {
-        Self::is_explorer_id(id) && ((id & (1 << Self::JACO_SHIFT)) != 0)
+    pub fn is_nomad_id(id: ID) -> bool {
+        Self::is_explorer_id(id) && ((id & (1 << Self::NOMAD_SHIFT)) != 0)
     }
 
     #[must_use]
-    pub fn is_rob_id(id: ID) -> bool {
-        Self::is_explorer_id(id) && ((id & (1 << Self::ROB_SHIFT)) != 0)
+    pub fn is_vojager_id(id: ID) -> bool {
+        Self::is_explorer_id(id) && ((id & (1 << Self::VOJAGER_SHIFT)) != 0)
     }
 
     #[must_use]
     pub fn explorer_name_from_id(id: ID) -> &'static str {
-        if Self::is_nico_id(id) {
-            "Nico"
-        } else if Self::is_jaco_id(id) {
-            "Jaco"
-        } else if Self::is_rob_id(id) {
-            "Rob"
+        if Self::is_nico_explorer_id(id) {
+            "Nico Explorer"
+        } else if Self::is_nomad_id(id) {
+            "Nomad"
+        } else if Self::is_vojager_id(id) {
+            "Vojager"
         } else {
             "Unknown Explorer"
         }
