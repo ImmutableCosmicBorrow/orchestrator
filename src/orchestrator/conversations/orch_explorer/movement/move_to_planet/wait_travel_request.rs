@@ -19,7 +19,7 @@ use std::time::Duration;
 
 ///**Move To Planet Conversation - Waiting Travel Request**
 ///
-/// This is the starting state of the movement lifecycle when it is requested by the orchestrator. It listens for a
+/// This is the starting state of the movement lifecycle when it is requested by the explorer. It listens for a
 /// [`ExplorerToOrchestrator::TravelToPlanetRequest`] from an explorer.
 ///
 /// **Logic Flow:**

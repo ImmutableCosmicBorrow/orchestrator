@@ -328,6 +328,7 @@ impl Orchestrator {
         current_planet_id: Option<ID>,
         dst_planet_id: ID,
     ) {
+        //TODO: CHANGE THIS TO CREATE WAITING TRAVEL PLANET REQUEST
         convo_factory::create_travel_to_planet_request_conversation(
             &self.convo_scheduler,
             self.channels_manager.get_planet_explorer_channels_struct(),
