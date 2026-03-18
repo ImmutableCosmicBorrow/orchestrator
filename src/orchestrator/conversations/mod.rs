@@ -1,7 +1,7 @@
+use std::collections::HashMap;
 pub(crate) use crate::channels_manager::{OrchToExplorerSenders, OrchToPlanetSenders};
-use crate::globals::TIMEOUT;
-use crate::logging_utils::{LogTarget, log_internal, log_msg_to};
-use crate::orchestrator::ExplorerBagContent;
+use crate::logging_utils::{log_internal, log_msg_to, LogTarget};
+use crate::orchestrator::{ChannelsManagerRef, ExplorerBagContent};
 use crate::payload;
 use common_game::logging::{ActorType, Channel, EventType};
 use common_game::protocols::orchestrator_explorer::{
@@ -14,13 +14,14 @@ use common_game::utils::ID;
 use std::fmt::Debug;
 use std::hash::Hash;
 use std::time::Duration;
-use explorer_nico::Explorer;
+use crate::ui::OrchestratorToUiUpdate;
 
 pub(crate) mod orch_explorer;
 pub(crate) mod orch_planet;
 pub(crate) mod util;
 pub mod macros;
-//TODO: implement timeouts in conversations
+pub mod send_msg_helpers;
+//TODO: CREATE TRAIT FOR COMMS WITH PLANET AND EXPLORERS AND CLEAN THIS FILE
 
 ///**The Conversation Trait**
 ///
@@ -56,9 +57,7 @@ pub trait Conversation: Send + Sync {
     /// Returns the timeout duration for this conversation state.
     /// The default timeout is `TIMEOUT` and does not depend on the game step.
     /// Override this in states that should not time out, or time out after a different period.
-    fn get_timeout(&self) -> Option<Duration> {
-        Some(TIMEOUT)
-    }
+    fn get_timeout(&self) -> Option<Duration>;
 
     /// Called when the conversation times out.
     /// Default behavior is to panic - override this to implement custom timeout handling
@@ -149,32 +148,32 @@ impl PossibleMessage {
     }
 }
 
-// --- Communication Helpers ---
+// --- Communication Traits ---
 
 pub(crate) type KillExplorersList = Vec<(ID, ID)>;
 
-/// **Planet Messaging Context**
-///
-/// Utility struct used within states to facilitate sending messages to a specific planet.
-#[derive(Clone)]
-pub(crate) struct ToPlanetStruct {
-    planets_senders: OrchToPlanetSenders,
-    planet_id: ID,
+pub(crate) trait PlanetContext {
+    fn get_planet_id(&self) -> ID;
 }
 
-impl ToPlanetStruct {
-    pub(crate) fn new(planets_senders: OrchToPlanetSenders, planet_id: ID) -> Self {
-        Self {
-            planets_senders,
-            planet_id,
-        }
-    }
+pub(crate) trait ExplorerContext {
+    fn get_explorer_id(&self) -> ID;
+}
 
-    /// Sends a protocol message to the planet associated with this context.
-    pub(crate) fn to_planet(&self, msg: OrchestratorToPlanet) -> Result<(), ToPlanetError> {
+pub(crate) trait ChannelsContext {
+    fn get_channels_manager(&self) -> &ChannelsManagerRef;
+}
+
+
+
+pub(crate) trait PlanetCommunicator: PlanetContext + ChannelsContext {
+
+    fn to_planet(&self, msg: OrchestratorToPlanet) -> Result<(), CommonErrorTypes> {
+
+        let planet_id = self.get_planet_id();
+
         let sender = {
-            let lock = self.planets_senders.lock().unwrap();
-            lock.get(&self.planet_id).cloned()
+            self.get_channels_manager().read().unwrap().get_orch_to_planet_sender(self.get_planet_id())
         };
 
         if let Some(s) = sender {
@@ -182,39 +181,26 @@ impl ToPlanetStruct {
                 LogTarget::Conversations,
                 Channel::Trace,
                 EventType::MessageOrchestratorToPlanet,
-                (ActorType::Planet, self.planet_id),
+                (ActorType::Planet, planet_id),
                 payload!(
                     message : format!("{:?}", msg)
-                ),
+            ),
             );
             s.send(msg)
-                .map_err(|_| ToPlanetError::SendingMessageFailure(self.planet_id))
+                .map_err(|_| CommonErrorTypes::MessageToPlanetFailed(planet_id))
         } else {
-            Err(ToPlanetError::SenderNotFound(self.planet_id))
+            Err(CommonErrorTypes::PlanetSenderNotFound(planet_id))
         }
     }
+
 }
 
-pub(crate) enum ToPlanetError {
-    SendingMessageFailure(ID),
-    SenderNotFound(ID),
-}
 
-/// **Explorer Messaging Context**
-///
-/// Utility struct used within states to facilitate sending messages to a specific explorer.
-#[derive(Clone)]
-pub(crate) struct ToExplorerStruct {
-    explorers_senders: OrchToExplorerSenders,
-    explorer_id: ID,
-}
-
-impl ToExplorerStruct {
-    /// Sends a protocol message to the explorer associated with this context.
-    pub(crate) fn to_explorer(&self, msg: OrchestratorToExplorer) -> Result<(), ToExplorerError> {
+pub(crate) trait ExplorerCommunicator: ExplorerContext + ChannelsContext {
+    fn to_explorer(&self, msg: OrchestratorToExplorer) -> Result<(), CommonErrorTypes> {
+        let explorer_id = self.get_explorer_id();
         let sender = {
-            let lock = self.explorers_senders.lock().unwrap();
-            lock.get(&self.explorer_id).cloned()
+            self.get_channels_manager().read().unwrap().get_orch_to_explorer_sender(explorer_id)
         };
 
         if let Some(s) = sender {
@@ -222,31 +208,40 @@ impl ToExplorerStruct {
                 LogTarget::Conversations,
                 Channel::Trace,
                 EventType::MessageOrchestratorToExplorer,
-                (ActorType::Explorer, self.explorer_id),
-                payload!(
-                    message : format!("{:?}", msg)
-                ),
+                (ActorType::Explorer, explorer_id),
+                payload!( message : format!("{:?}", msg) ),
             );
-            s.send(msg)
-                .map_err(|_| ToExplorerError::SendingMessageFailure(self.explorer_id))
+            s.send(msg).map_err(|_| CommonErrorTypes::MessageToExplorerFailed(explorer_id))
         } else {
-            Err(ToExplorerError::SenderNotFound(self.explorer_id))
-        }
-    }
-
-    pub(crate) fn new(explorers_senders: OrchToExplorerSenders, explorer_id: ID) -> Self {
-        Self {
-            explorers_senders,
-            explorer_id,
+            Err(CommonErrorTypes::ExplorerSenderNotFound(explorer_id))
         }
     }
 }
 
-pub(crate) enum ToExplorerError {
+pub(crate) trait UiCommunicator: ChannelsContext {
+    fn to_ui(&self, msg: OrchestratorToUiUpdate) -> Result<(), CommonErrorTypes> {
+        let sender = self.get_channels_manager().read().unwrap().get_ui_sender();
+        sender.send(msg).map_err(|_| CommonErrorTypes::MessageToUiFailed)
+    }
+}
+//Implement PlanetCommunicator for every type that implements PlanetContext and ChannelsContext using default implementation
+impl <T: PlanetContext + ChannelsContext> PlanetCommunicator for T {}
+
+//Implement ExplorerCommunicator for every type that implements ExplorerContext and ChannelsContext using default implementation
+impl <T: ExplorerContext + ChannelsContext> ExplorerCommunicator for T {}
+pub(crate) enum ToPlanetError {
     SendingMessageFailure(ID),
     SenderNotFound(ID),
 }
 
+pub(crate) enum ToExplorerError {
+    SendingMessageFailure(ID),
+}
+
+pub(crate) enum ToUiError {
+    SendingMessageFailure,
+    SenderNotFound,
+}
 // --- Error Handling ---
 
 /// **Error Reporting Interface**
@@ -263,6 +258,29 @@ enum CommonErrorTypes {
     ExplorerSenderNotFound(ID),
     MessageToExplorerFailed(ID),
     MessageToPlanetFailed(ID),
+    MessageToUiFailed,
+}
+impl ErrorType for CommonErrorTypes {
+    fn stringify(&self) -> String {
+        match self {
+            CommonErrorTypes::WrongMessage => "Wrong Message Received".to_string(),
+            CommonErrorTypes::PlanetSenderNotFound(id) => {
+                format!("sender to planet {id} not found")
+            }
+            CommonErrorTypes::ExplorerSenderNotFound(id) => {
+                format!("sender to explorer {id} not found")
+            }
+            CommonErrorTypes::MessageToExplorerFailed(id) => {
+                format!("failed to send message to explorer {id}")
+            }
+            CommonErrorTypes::MessageToPlanetFailed(id) => {
+                format!("failed to send message to planet {id}")
+            }
+            CommonErrorTypes::MessageToUiFailed => {
+                "failed to send message to ui".to_string()
+            }
+        }
+    }
 }
 
 /// **Timeout Error**
@@ -297,25 +315,6 @@ impl ErrorType for TimeoutErrorType {
     }
 }
 
-impl ErrorType for CommonErrorTypes {
-    fn stringify(&self) -> String {
-        match self {
-            CommonErrorTypes::WrongMessage => "Wrong Message Received".to_string(),
-            CommonErrorTypes::PlanetSenderNotFound(id) => {
-                format!("sender to planet {id} not found")
-            }
-            CommonErrorTypes::ExplorerSenderNotFound(id) => {
-                format!("sender to explorer {id} not found")
-            }
-            CommonErrorTypes::MessageToExplorerFailed(id) => {
-                format!("failed to send message to explorer {id}")
-            }
-            CommonErrorTypes::MessageToPlanetFailed(id) => {
-                format!("failed to send message to planet {id}")
-            }
-        }
-    }
-}
 
 /// **Error State**
 ///

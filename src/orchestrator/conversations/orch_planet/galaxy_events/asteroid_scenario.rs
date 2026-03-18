@@ -1,13 +1,11 @@
-use crate::logging_utils::{LogTarget, log_internal};
+use crate::globals::TIMEOUT;
+use crate::logging_utils::{log_internal, LogTarget};
 use crate::orchestrator::conversations::orch_planet::lifecycle::kill_planet::{
     KillPlanetConversation, SendPlanetKill,
 };
-use crate::orchestrator::conversations::{
-    CommonErrorTypes, Conversation, ErrorState, OrchToExplorerSenders, PossibleExpectedKinds,
-    PossibleMessage, ToPlanetError, ToPlanetStruct,
-};
-use crate::orchestrator::{ExplorerBagContent, ExplorersLocationRef};
-use crate::payload;
+use crate::orchestrator::conversations::{ChannelsContext, CommonErrorTypes, Conversation, ErrorState, PlanetCommunicator, PlanetContext, PossibleExpectedKinds, PossibleMessage, ToPlanetError};
+use crate::orchestrator::{ChannelsManagerRef, ExplorersLocationRef};
+use crate::{create_request_state, create_response_state, define_conversation, payload};
 use common_game::components::forge::Forge;
 use common_game::logging::Channel;
 use common_game::protocols::orchestrator_planet::{
@@ -21,244 +19,149 @@ use std::time::Duration;
 /// Asteroids are critical events, so the planet must respond promptly.
 const ASTEROID_ACK_TIMEOUT: Duration = Duration::from_secs(10);
 
-///**Asteroid Conversation**
-///
-/// This Module deals with the conversation between the Orchestrator and a Planet regarding asteroids, using FSM to ensure the correctness
-/// of messages orders at compile time
-///Marker Struct for FSM state
-///
-/// The conversation starts in the [`SendingAsteroid`] state, this state does not expect any message as it sends a [`OrchestratorToPlanet::Asteroid`]
-/// when the [`Conversation::transition`] method is called
-pub(crate) struct SendingAsteroid {
-    ///A struct containing fields to send messages to a planet, used if a planet cannot defend and has to be killed
-    to_planet_struct: ToPlanetStruct,
-    ///Atomic Reference to the forge to create [Asteroid]
-    forge: Arc<Forge>,
-    ///Struct to send messages to explorer, used by subsequent states
-    explorers_senders: OrchToExplorerSenders,
-    ///Reference to the list of explorers locations, used by subsequent states
-    explorers_location_ref: ExplorersLocationRef,
-}
+define_conversation!(
+    name: AsteroidConversation
+);
 
-impl SendingAsteroid {
-    ///Constructor for [`SendingAsteroid`] state struct
-    pub(crate) fn new(
-        to_planet_struct: ToPlanetStruct,
+create_request_state!(
+    state_name: SendingAsteroid,
+    conv_name: AsteroidConversation,
+    priority: 4,
+    timeout: Some(TIMEOUT),
+    expected_msg: None,
+    fields: { 
+        channels_manager: ChannelsManagerRef,
+        planet_id: ID,
         forge: Arc<Forge>,
         explorers_location_ref: ExplorersLocationRef,
-        explorers_senders: OrchToExplorerSenders,
-    ) -> Self {
-        Self {
-            to_planet_struct,
-            forge,
-            explorers_senders,
-            explorers_location_ref,
-        }
+    },
+    entities_id_fn: |this: &AsteroidConversation<SendingAsteroid>| { return (Some(this.state.planet_id), None) },
+    transition_fn: sending_asteroid_transition,
+    methods_settings: { },
+);
+
+impl PlanetContext for SendingAsteroid {
+    fn get_planet_id(&self) -> ID {
+        self.planet_id
     }
 }
 
-///Marker Struct for FSM state
+impl ChannelsContext for SendingAsteroid {
+    fn get_channels_manager(&self) -> &ChannelsManagerRef {
+        &self.channels_manager
+    }
+}
+
+///Transition Function for [`SendingAsteroid`] state:
 ///
-/// In the [`WaitingAsteroidAck`] state, the conversation expects a [`PlanetToOrchestrator::AsteroidAck`] message to decide
-/// whether to kill the planet using the [`KillPlanetConversation`] or closing the conversations if the planet defends himself
-struct WaitingAsteroidAck {
-    ///A struct containing fields to send messages to a planet, used if a planet cannot defend and has to be killed
-    to_planet_struct: ToPlanetStruct,
-    ///Struct to send messages to explorer, used by subsequent states
-    explorers_senders: OrchToExplorerSenders,
-    ///Reference to the list of explorers locations, used by subsequent states
-    explorers_location_ref: ExplorersLocationRef,
-}
-
-impl WaitingAsteroidAck {
-    ///The constructor for [`WaitingAsteroidAck`] state struct
-    pub(crate) fn new(
-        to_planet_struct: ToPlanetStruct,
-        explorers_senders: OrchToExplorerSenders,
-        explorers_location_ref: ExplorersLocationRef,
-    ) -> Self {
-        Self {
-            to_planet_struct,
-            explorers_senders,
-            explorers_location_ref,
+/// Returns:
+///
+/// [`ErrorState`] with [`CommonErrorTypes::MessageToPlanetFailed`] if the message has not been correctly sent to the planet
+///
+/// [`ErrorState`] with [`CommonErrorTypes::PlanetSenderNotFound`] if the sender to the planet is not in the [`crate::channels_manager::OrchToPlanetSenders`] list in the [`crate::channels_manager::ChannelsManager`]
+///
+/// [`AsteroidConversation<WaitingAsteroidAck>`] if the asteroid has been correctly sent, going to the next state
+fn sending_asteroid_transition(this: Box<AsteroidConversation<SendingAsteroid>>) -> Option<Box<dyn Conversation + Send + Sync>> {
+    let asteroid = this.state.forge.generate_asteroid();
+    match this.state.to_planet(OrchestratorToPlanet::Asteroid(asteroid))
+    {
+        Ok(()) => {
+            let state_struct = WaitingAsteroidAck::new(
+                this.state.channels_manager,
+                this.state.planet_id,
+                this.state.explorers_location_ref,
+            );
+            let next_state =
+                AsteroidConversation::<WaitingAsteroidAck>::new(this.id, state_struct);
+            Some(Box::new(next_state) as Box<dyn Conversation + Send + Sync>)
+        }
+        Err(err) => {
+            let error_state = ErrorState::new(Box::new(err), this.id);
+            Some(Box::new(error_state)
+                as Box<dyn Conversation + Send + Sync>)
         }
     }
 }
 
-///This is the generic FSM struct, it takes the generic type State to ensure only methods of that state can be called
-pub(crate) struct AsteroidConversation<State> {
-    ///Conversation ID
-    id: ID,
-    ///Optional expected message to trigger the conversation
-    expected_message: Option<PossibleExpectedKinds>,
-    ///State of the FSM
-    state: State,
-}
+// --- WAITING ASTEROID ACK ---
 
-//SENDING ASTEROID IMPLEMENTATION
-impl Conversation for AsteroidConversation<SendingAsteroid> {
-    fn get_id(&self) -> ID {
-        self.id
-    }
+create_response_state!(
+    state: WaitingAsteroidAck,
+    conv: AsteroidConversation,
+    priority: 4,
+    timeout: Some(ASTEROID_ACK_TIMEOUT),
+    expected_msg: PossibleExpectedKinds::PlanetToOrchKind(PlanetToOrchestratorKind::AsteroidAck),
+    fields: { channels_manager: ChannelsManagerRef, planet_id: ID, explorers_location_ref: ExplorersLocationRef },
+    entities_id_closure: |this: &AsteroidConversation<WaitingAsteroidAck>| { return (Some(this.state.planet_id), None) },
+    transition: waiting_asteroid_ack_transition,
+    methods_settings: { },
+);
 
-    fn get_entities_ids(&self) -> (Option<ID>, Option<ID>) {
-        (Some(self.state.to_planet_struct.planet_id), None)
-    }
-
-    fn get_expected_kind(&self) -> Option<PossibleExpectedKinds> {
-        self.expected_message.clone()
-    }
-
-    ///Transition Function for [`SendingAsteroid`] state:
-    ///
-    /// Returns:
-    ///
-    /// [`ErrorState`] with [`CommonErrorTypes::MessageToPlanetFailed`] if the message has not been correctly sent to the planet
-    ///
-    /// [`ErrorState`] with [`CommonErrorTypes::PlanetSenderNotFound`] if the sender to the planet is not in the [`OrchToPlanetSenders`] list
-    ///
-    /// [`AsteroidConversation<WaitingAsteroidAck>`] if the asteroid has been correctly sent, going to the next state  
-    fn transition(
-        self: Box<Self>,
-        _msg_wrapped: Option<PossibleMessage>,
-    ) -> Option<Box<dyn Conversation + Send + Sync>> {
-        let asteroid = self.state.forge.generate_asteroid();
-        match self
-            .state
-            .to_planet_struct
-            .to_planet(OrchestratorToPlanet::Asteroid(asteroid))
-        {
-            Ok(()) => {
-                let state_struct = WaitingAsteroidAck::new(
-                    self.state.to_planet_struct,
-                    self.state.explorers_senders,
-                    self.state.explorers_location_ref,
-                );
-                let next_state =
-                    AsteroidConversation::<WaitingAsteroidAck>::new(self.id, state_struct);
-                Some(Box::new(next_state))
-            }
-            Err(err) => {
-                let error = match err {
-                    ToPlanetError::SendingMessageFailure(id) => {
-                        CommonErrorTypes::MessageToPlanetFailed(id)
-                    }
-                    ToPlanetError::SenderNotFound(id) => CommonErrorTypes::PlanetSenderNotFound(id),
-                };
-                let error_state = ErrorState::new(Box::new(error), self.id);
-                Some(Box::new(error_state)
-                    as Box<dyn Conversation + Send + Sync>)
-            }
-        }
-    }
-
-    fn get_priority(&self) -> i32 {
-        4
+impl PlanetContext for WaitingAsteroidAck {
+    fn get_planet_id(&self) -> ID {
+        self.planet_id
     }
 }
 
-impl AsteroidConversation<SendingAsteroid> {
-    pub(crate) fn new(id: ID, state: SendingAsteroid) -> Self {
-        Self {
-            id,
-            expected_message: None,
-            state,
-        }
+impl ChannelsContext for WaitingAsteroidAck {
+    fn get_channels_manager(&self) -> &ChannelsManagerRef {
+        &self.channels_manager
     }
 }
 
-//WAITING ACK IMPLEMENTATION
-impl Conversation for AsteroidConversation<WaitingAsteroidAck> {
-    fn get_id(&self) -> ID {
-        self.id
-    }
 
-    fn get_entities_ids(&self) -> (Option<ID>, Option<ID>) {
-        (Some(self.state.to_planet_struct.planet_id), None)
-    }
-
-    fn get_expected_kind(&self) -> Option<PossibleExpectedKinds> {
-        self.expected_message.clone()
-    }
-
-    ///Transition Function for [`SendingAsteroid`] state:
-    ///
-    /// Returns:
-    ///
-    /// [`ErrorState`] with [`CommonErrorTypes::WrongMessage`] if the trigger message is different from the expected one [`PlanetToOrchestrator::AsteroidAck`]
-    ///
-    /// [None] if the planet defends itself with a rocket, ending the conversation
-    ///
-    /// [`KillPlanetConversation<SendPlanetKill>`] if the planet cannot defend himself and has to be killed with a [`KillPlanetConversation`]  
-    fn transition(
-        self: Box<Self>,
-        msg_wrapped: Option<PossibleMessage>,
-    ) -> Option<Box<dyn Conversation + Send + Sync>> {
-        if let Some(PossibleMessage::PlanetToOrch(PlanetToOrchestrator::AsteroidAck {
-            planet_id,
-            rocket,
-        })) = msg_wrapped
-        {
-            if rocket.is_some() {
-                log_internal(
-                    LogTarget::AsteroidsSunrays,
-                    Channel::Debug,
-                    payload!(
-                        action : "Planet received an asteroid and defends with a rocket, closing conversation",
-                        planet_id : planet_id,
-                        conversation_id : self.id
-                    ),
-                );
-                return None;
-            }
-
+///Transition Function for [`WaitingAsteroidAck`] state:
+///
+/// Returns:
+///
+/// [`ErrorState`] with [`CommonErrorTypes::WrongMessage`] if the trigger message is different from the expected one [`PlanetToOrchestrator::AsteroidAck`]
+///
+/// [None] if the planet defends itself with a rocket, ending the conversation
+///
+/// [`KillPlanetConversation<SendPlanetKill>`] if the planet cannot defend himself and has to be killed with a [`KillPlanetConversation`]
+fn waiting_asteroid_ack_transition(this: Box<AsteroidConversation<WaitingAsteroidAck>>, msg:  Option<PossibleMessage>) -> Option<Box<dyn Conversation + Send + Sync>> {
+    if let Some(PossibleMessage::PlanetToOrch(PlanetToOrchestrator::AsteroidAck {
+               planet_id,
+                rocket,
+    })) = msg
+    {
+        if rocket.is_some() {
             log_internal(
                 LogTarget::AsteroidsSunrays,
-                Channel::Info,
+                Channel::Debug,
                 payload!(
+                        action : "Planet received an asteroid and defends with a rocket, closing conversation",
+                        planet_id : planet_id,
+                        conversation_id : this.id
+                ),
+            );
+            return None;
+        }
+
+        log_internal(
+            LogTarget::AsteroidsSunrays,
+            Channel::Info,
+            payload!(
                     action : "Planet received an asteroid and did not defend, so it will be killed",
                     planet_id : planet_id,
-                    conversation_id : self.id
+                    conversation_id : this.id
                 ),
-            );
+        );
 
-            //Transition to KillStateConversation
-            let new_state = KillPlanetConversation::<SendPlanetKill>::new(
-                self.id,
-                SendPlanetKill::new(
-                    self.state.to_planet_struct,
-                    self.state.explorers_location_ref,
-                    self.state.explorers_senders,
-                ),
-            );
-            return Some(Box::new(new_state));
-        }
-        //wrong message arrived, transitioning to ErrorState
-        let error_state = ErrorState::new(Box::new(CommonErrorTypes::WrongMessage), self.id);
-        Some(Box::new(error_state) as Box<dyn Conversation + Send + Sync>)
+        //Transition to KillStateConversation
+        let new_state = KillPlanetConversation::<SendPlanetKill>::new(
+            this.id,
+            SendPlanetKill::new(
+                this.state.channels_manager,
+                this.state.planet_id,
+                this.state.explorers_location_ref,
+            ),
+        );
+        return Some(Box::new(new_state) as Box<dyn Conversation + Send + Sync>);
     }
-
-    fn get_priority(&self) -> i32 {
-        4
-    }
-
-    /// Returns the timeout duration for waiting for `AsteroidAck`.
-    /// Asteroids are critical events - if the planet doesn't respond, it's considered destroyed.
-    fn get_timeout(&self) -> Option<Duration> {
-        Some(ASTEROID_ACK_TIMEOUT)
-    }
-}
-
-impl AsteroidConversation<WaitingAsteroidAck> {
-    fn new(id: ID, state: WaitingAsteroidAck) -> Self {
-        Self {
-            id,
-            expected_message: Some(PossibleExpectedKinds::PlanetToOrchKind(
-                PlanetToOrchestratorKind::AsteroidAck,
-            )),
-            state,
-        }
-    }
+    //Wrong message arrived, transitioning to error state
+    let error_state = ErrorState::new(Box::new(CommonErrorTypes::WrongMessage), this.id);
+    Some(Box::new(error_state) as Box<dyn Conversation + Send + Sync>)
 }
 
 #[cfg(test)]

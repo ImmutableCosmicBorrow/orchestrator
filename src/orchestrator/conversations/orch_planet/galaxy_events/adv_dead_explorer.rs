@@ -1,16 +1,16 @@
+use std::time::Duration;
 use crate::logging_utils::{LogTarget, log_internal};
-use crate::orchestrator::ExplorerBagContent;
+use crate::orchestrator::{ChannelsManagerRef, ExplorerBagContent};
 use crate::orchestrator::conversations::PossibleExpectedKinds::PlanetToOrchKind;
-use crate::orchestrator::conversations::{
-    CommonErrorTypes, Conversation, ErrorState, ErrorType, PossibleExpectedKinds, PossibleMessage,
-    ToPlanetError, ToPlanetStruct,
-};
-use crate::payload;
+use crate::orchestrator::conversations::{ChannelsContext, CommonErrorTypes, Conversation, ErrorState, ErrorType, PlanetCommunicator, PlanetContext, PossibleExpectedKinds, PossibleMessage, ToPlanetError, ToPlanetStruct};
+use crate::{create_request_state, create_response_state, define_conversation, payload};
 use common_game::logging::Channel;
 use common_game::protocols::orchestrator_planet::{
     OrchestratorToPlanet, PlanetToOrchestrator, PlanetToOrchestratorKind,
 };
 use common_game::utils::ID;
+use crate::globals::TIMEOUT;
+use crate::orchestrator::conversations::orch_planet::galaxy_events::sunray_scenario::WaitingSunrayAck;
 
 ///** Advertising Dead Explorer Conversation**
 ///
@@ -36,208 +36,139 @@ impl ErrorType for FailedToHandleOutgoingExplorer {
     }
 }
 
-/// Marker struct for FSM state
-///
-/// The conversation starts in the [`SendingOutgoingRequest`] state, which sends an
-/// [`OrchestratorToPlanet::OutgoingExplorerRequest`] when the [`Conversation::transition`] method is called.
-pub(crate) struct SendingDeadExpAdv {
-    /// A struct containing fields to send messages to the planet.
-    to_planet_struct: ToPlanetStruct,
-    /// The ID of the explorer attempting to leave the planet.
-    outgoing_explorer_id: ID,
+// --- ADVERTISING DEAD EXPLORER CONVERSATION ---
+
+define_conversation!(
+    name: AdvDeadExplorer
+);
+
+// --- SENDING DEAD EXPLORER ADV STATE ---
+
+create_request_state!(
+    state_name: SendingDeadExpAdv,
+    conv_name: AdvDeadExplorer,
+    priority: 4,
+    timeout: Some(TIMEOUT),
+    expected_msg: None,
+    fields: { 
+        channels_manager: ChannelsManagerRef,
+        planet_id: ID,
+        dead_explorer_id: ID,
+    },
+    entities_id_fn: |this: &AdvDeadExplorer<SendingDeadExpAdv>| {(Some(this.state.planet_id), None)},
+    transition_fn: send_dead_exp_adv_transition,
+    methods_settings: { },
+);
+
+impl PlanetContext for SendingDeadExpAdv {
+    fn get_planet_id(&self) -> ID {
+        self.planet_id
+    }
 }
 
-impl SendingDeadExpAdv {
-    /// Constructor for [`SendingDeadExpAdv`] state struct.
-    pub(crate) fn new(to_planet_struct: ToPlanetStruct, outgoing_explorer_id: ID) -> Self {
-        Self {
-            to_planet_struct,
-            outgoing_explorer_id,
+impl ChannelsContext for SendingDeadExpAdv {
+    fn get_channels_manager(&self) -> &ChannelsManagerRef {
+        &self.channels_manager
+    }
+}
+
+
+/// Transition Function for [`SendingDeadExpAdv`] state:
+///
+/// Returns:
+///
+/// [`ErrorState`] if the request failed to send to the planet or the sender to the planet is not found.
+///
+/// [`AdvDeadExplorer<WaitingDeadAdvResponse>`] if the request was sent successfully.
+fn send_dead_exp_adv_transition(this: Box<AdvDeadExplorer<SendingDeadExpAdv>>) -> Option<Box<dyn Conversation + Send + Sync>> {
+    match this
+        .state
+        .to_planet(OrchestratorToPlanet::OutgoingExplorerRequest {
+            explorer_id: this.state.planet_id,
+        }) {
+        Ok(()) => {
+            let planet_id = this.state.planet_id;
+            let state_struct = WaitingDeadAdvResponse::new(planet_id);
+            let next_state =
+                AdvDeadExplorer::<WaitingDeadAdvResponse>::new(this.id, state_struct);
+            Some(Box::new(next_state))
+        }
+        Err(err) => {
+
+            let error_state = ErrorState::new(Box::new(err), this.id);
+            Some(Box::new(error_state)
+                as Box<dyn Conversation + Send + Sync>)
         }
     }
 }
 
-/// Marker struct for FSM state
+// --- WAITING DEAD EXPLORER STATE DEFINITION ---
+
+create_response_state!(
+    state: WaitingDeadAdvResponse,
+    conv: AdvDeadExplorer,
+    priority: 1,
+    timeout: Some(TIMEOUT),
+    expected_msg: PlanetToOrchKind(PlanetToOrchestratorKind::OutgoingExplorerResponse),
+    fields: {
+        planet_id: ID,
+    },
+    entities_id_closure: |this: &AdvDeadExplorer<WaitingDeadAdvResponse>| { (Some(this.state.planet_id), None) },
+    transition: wait_dead_adv_response_transition,
+    methods_settings: {},
+);
+
+impl PlanetContext for WaitingDeadAdvResponse {
+    fn get_planet_id(&self) -> ID {
+        self.planet_id
+    }
+}
+
+
+/// Transition Function for [`WaitingDeadAdvResponse`] state:
 ///
-/// In the [`WaitingDeadAdvResponse`] state, the conversation expects a
-/// [`PlanetToOrchestrator::OutgoingExplorerResponse`] indicating that the planet has correctly eliminated the sender,
-/// to the dead explorer
+/// Returns:
 ///
-/// Depending on the response it either returns:
-/// * [`ErrorState`] with [`FailedToHandleOutgoingExplorer`] if an error occurred while eliminating the channel or none to end the conversation
-struct WaitingDeadAdvResponse {
-    /// ID of the planet we are moving the explorer from
-    planet_id: ID,
-}
-
-impl WaitingDeadAdvResponse {
-    /// The constructor for [`WaitingDeadAdvResponse`] state struct.
-    fn new(planet_id: ID) -> Self {
-        Self { planet_id }
-    }
-}
-
-/// Advertising Dead Explorer Conversation FSM
+/// [None] if the planet confirms the explorer departure, closing the conversation.
 ///
-/// This is the generic FSM struct that takes the generic type `State` to ensure only methods
-/// of that specific state can be called during the conversation.
-pub(crate) struct AdvDeadExplorer<State> {
-    /// Conversation ID.
-    id: ID,
-    /// Optional expected message to trigger the transition.
-    expected_message: Option<PossibleExpectedKinds>,
-    /// State of the FSM.
-    state: State,
-}
-
-// SENDING OUTGOING REQUEST IMPLEMENTATION
-impl Conversation for AdvDeadExplorer<SendingDeadExpAdv> {
-    fn get_id(&self) -> ID {
-        self.id
-    }
-
-    fn get_entities_ids(&self) -> (Option<ID>, Option<ID>) {
-        (Some(self.state.to_planet_struct.planet_id), None)
-    }
-
-    fn get_expected_kind(&self) -> Option<PossibleExpectedKinds> {
-        self.expected_message.clone()
-    }
-
-    /// Transition Function for [`SendingDeadExpAdv`] state:
-    ///
-    /// Returns:
-    ///
-    /// [`ErrorState`] if the request failed to send to the planet or the sender to the planet is not found.
-    ///
-    /// [`AdvDeadExplorer<WaitingDeadAdvResponse>`] if the request was sent successfully.
-    fn transition(
-        self: Box<Self>,
-        _msg_wrapped: Option<PossibleMessage>,
-    ) -> Option<Box<dyn Conversation + Send + Sync>> {
-        match self
-            .state
-            .to_planet_struct
-            .to_planet(OrchestratorToPlanet::OutgoingExplorerRequest {
-                explorer_id: self.state.outgoing_explorer_id,
-            }) {
-            Ok(()) => {
-                let planet_id = self.state.to_planet_struct.planet_id;
-                let state_struct = WaitingDeadAdvResponse::new(planet_id);
-                let next_state =
-                    AdvDeadExplorer::<WaitingDeadAdvResponse>::new(self.id, state_struct);
-                Some(Box::new(next_state))
-            }
-            Err(err) => {
-                let error = match err {
-                    ToPlanetError::SendingMessageFailure(id) => {
-                        CommonErrorTypes::MessageToPlanetFailed(id)
-                    }
-                    ToPlanetError::SenderNotFound(id) => CommonErrorTypes::PlanetSenderNotFound(id),
-                };
-                let error_state = ErrorState::new(Box::new(error), self.id);
-                Some(Box::new(error_state)
-                    as Box<dyn Conversation + Send + Sync>)
-            }
-        }
-    }
-
-    fn get_priority(&self) -> i32 {
-        4
-    }
-}
-
-impl AdvDeadExplorer<SendingDeadExpAdv> {
-    /// The constructor for [`AdvDeadExplorer`] in the [`SendingDeadExpAdv`] state.
-    pub(crate) fn new(id: ID, state: SendingDeadExpAdv) -> Self {
-        Self {
-            id,
-            expected_message: None,
-            state,
-        }
-    }
-}
-
-// WAITING OUTGOING RESPONSE IMPLEMENTATION
-impl Conversation for AdvDeadExplorer<WaitingDeadAdvResponse> {
-    fn get_id(&self) -> ID {
-        self.id
-    }
-
-    fn get_entities_ids(&self) -> (Option<ID>, Option<ID>) {
-        (Some(self.state.planet_id), None)
-    }
-
-    fn get_expected_kind(&self) -> Option<PossibleExpectedKinds> {
-        self.expected_message.clone()
-    }
-
-    /// Transition Function for [`WaitingDeadAdvResponse`] state:
-    ///
-    /// Returns:
-    ///
-    /// [`KillExplorersManager`] if the planet confirms the explorer departure.
-    ///
-    /// [`ErrorState`] if the planet returns an error response.
-    ///
-    /// Returns the manager anyway if a wrong message type is received (failsafe).
-    fn transition(
-        self: Box<Self>,
-        msg_wrapped: Option<PossibleMessage>,
-    ) -> Option<Box<dyn Conversation + Send + Sync>> {
-        if let Some(PossibleMessage::PlanetToOrch(
-            PlanetToOrchestrator::OutgoingExplorerResponse {
-                planet_id,
-                explorer_id,
-                res,
-            },
-        )) = msg_wrapped
-        {
-            return if res.is_ok() {
-                log_internal(
-                    LogTarget::Conversations,
-                    Channel::Trace,
-                    payload!(
+/// [`ErrorState`] if the planet returns an error response.
+fn wait_dead_adv_response_transition(this: Box<AdvDeadExplorer<WaitingDeadAdvResponse>>, msg: Option<PossibleMessage>) -> Option<Box<dyn Conversation + Send + Sync>> {
+    if let Some(PossibleMessage::PlanetToOrch(
+                    PlanetToOrchestrator::OutgoingExplorerResponse {
+                        planet_id,
+                        explorer_id,
+                        res,
+                    },
+                )) = msg
+    {
+        return if res.is_ok() {
+            log_internal(
+                LogTarget::Conversations,
+                Channel::Trace,
+                payload!(
                         action : "Planet correctly handled dead explorer, closing conversation",
                         planet_id : planet_id,
                         outgoing_explorer_id : explorer_id,
-                        conversation_id : self.id,
+                        conversation_id : this.id,
                     ),
-                );
-                None
-            } else {
-                //Explorer is killed but channel in planet is there!
-                let error = FailedToHandleOutgoingExplorer {
-                    planet_id,
-                    explorer_id,
-                };
-                let error_state = ErrorState::new(Box::new(error), self.id);
-                Some(Box::new(error_state)
-                    as Box<dyn Conversation + Send + Sync>)
+            );
+            None
+        } else {
+            //Explorer is killed but channel in planet is there!
+            let error = FailedToHandleOutgoingExplorer {
+                planet_id,
+                explorer_id,
             };
-        }
-
-        let error_state = ErrorState::new(Box::new(CommonErrorTypes::WrongMessage), self.id);
-        Some(Box::new(error_state) as Box<dyn Conversation + Send + Sync>)
+            let error_state = ErrorState::new(Box::new(error), this.id);
+            Some(Box::new(error_state)
+                as Box<dyn Conversation + Send + Sync>)
+        };
     }
 
-    fn get_priority(&self) -> i32 {
-        4
-    }
+    let error_state = ErrorState::new(Box::new(CommonErrorTypes::WrongMessage), this.id);
+    Some(Box::new(error_state) as Box<dyn Conversation + Send + Sync>)
 }
 
-impl AdvDeadExplorer<WaitingDeadAdvResponse> {
-    /// The constructor for [`AdvDeadExplorer`] in the [`WaitingDeadAdvResponse`] state.
-    pub(crate) fn new(id: ID, state: WaitingDeadAdvResponse) -> Self {
-        Self {
-            id,
-            expected_message: Some(PlanetToOrchKind(
-                PlanetToOrchestratorKind::OutgoingExplorerResponse,
-            )),
-            state,
-        }
-    }
-}
 
 #[cfg(test)]
 mod tests {

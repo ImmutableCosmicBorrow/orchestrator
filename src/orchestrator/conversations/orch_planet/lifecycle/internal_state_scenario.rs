@@ -1,11 +1,9 @@
+use crate::orchestrator::Duration;
 use crate::logging_utils::{LogTarget, log_internal};
-use crate::orchestrator::ExplorerBagContent;
+use crate::orchestrator::{ChannelsManagerRef, ExplorerBagContent};
 use crate::orchestrator::conversations::PossibleExpectedKinds::PlanetToOrchKind;
-use crate::orchestrator::conversations::{
-    CommonErrorTypes, Conversation, ErrorState, PossibleExpectedKinds, PossibleMessage,
-    ToPlanetError, ToPlanetStruct,
-};
-use crate::payload;
+use crate::orchestrator::conversations::{ChannelsContext, CommonErrorTypes, Conversation, ErrorState, PlanetCommunicator, PlanetContext, PossibleExpectedKinds, PossibleMessage, ToPlanetError, UiCommunicator};
+use crate::{create_request_state, create_response_state, define_conversation, payload};
 use crate::ui::OrchestratorToUiUpdate;
 use common_game::logging::Channel;
 use common_game::protocols::orchestrator_planet::{
@@ -13,6 +11,9 @@ use common_game::protocols::orchestrator_planet::{
 };
 use common_game::utils::ID;
 use crossbeam_channel::Sender;
+use crate::globals::TIMEOUT;
+use crate::orchestrator::conversations::orch_planet::galaxy_events::sunray_scenario::{SendSunray, SunrayConversation, WaitingSunrayAck};
+
 ///**Internal State Conversation**
 ///
 /// This module manages the conversation between the Orchestrator and a Planet regarding its internal state.
@@ -26,198 +27,134 @@ use crossbeam_channel::Sender;
 ///
 /// The conversation starts in the [`SendingInternalStateRequest`] state, which sends an
 /// [`OrchestratorToPlanet::InternalStateRequest`] when the [`Conversation::transition`] method is called.
-pub struct SendingInternalStateRequest {
-    /// A struct containing fields to send messages to the indicated planet
-    to_planet_struct: ToPlanetStruct,
-    /// Optional sender to forward planet state to UI
-    ui_sender: Option<Sender<OrchestratorToUiUpdate>>,
+
+// --- INTERNAL STATE CONVERSATION ---
+
+define_conversation!(
+    name: InternalStateConversation
+);
+
+// --- SENDING INTERNAL STATE REQUEST DEFINITION ---
+
+create_request_state!(
+    state_name: SendingInternalStateRequest,
+    conv_name: InternalStateConversation,
+    priority: 3,
+    timeout: Some(TIMEOUT),
+    expected_msg: None,
+    fields: {
+        channels_manager: ChannelsManagerRef,
+        planet_id: ID,
+    },
+    entities_id_fn: |this: &InternalStateConversation<SendingInternalStateRequest>| { (Some(this.state.planet_id), None) },
+    transition_fn: send_internal_state_req_transition,
+    methods_settings: {
+
+    },
+);
+impl PlanetContext for SendingInternalStateRequest {
+    fn get_planet_id(&self) -> ID {
+        self.planet_id
+    }
 }
 
-impl SendingInternalStateRequest {
-    /// Constructor for [`SendingInternalStateRequest`] state struct
-    pub fn new(
-        to_planet_struct: ToPlanetStruct,
-        ui_sender: Option<Sender<OrchestratorToUiUpdate>>,
-    ) -> Self {
-        Self {
-            to_planet_struct,
-            ui_sender,
+impl ChannelsContext for SendingInternalStateRequest {
+    fn get_channels_manager(&self) -> &ChannelsManagerRef {
+        &self.channels_manager
+    }
+}
+fn send_internal_state_req_transition(this: Box<InternalStateConversation<SendingInternalStateRequest>>) -> Option<Box<dyn Conversation + Send + Sync>> {
+    match this
+        .state
+        .to_planet(OrchestratorToPlanet::InternalStateRequest)
+    {
+        Ok(()) => {
+            let next_state = WaitingInternalStateResponse::new(this.state.planet_id, this.state.channels_manager);
+            let next_conv = InternalStateConversation::<WaitingInternalStateResponse>::new(
+                this.id,
+                next_state,
+            );
+            Some(Box::new(next_conv) as Box<dyn Conversation + Send + Sync>)
+        }
+        Err(err) => {
+            let error_state = ErrorState::new(Box::new(err), this.id);
+            Some(Box::new(error_state)
+                as Box<dyn Conversation + Send + Sync>)
         }
     }
 }
 
-/// Marker struct for FSM state
+// --- WAITING INTERNAL STATE RESPONSE ---
+
+create_response_state!(
+    state: WaitingInternalStateResponse,
+    conv: InternalStateConversation,
+    priority: 3,
+    timeout: Some(TIMEOUT),
+    expected_msg: PlanetToOrchKind(PlanetToOrchestratorKind::InternalStateResponse),
+    fields: {
+        planet_id: ID,
+        channels_manager: ChannelsManagerRef,
+    },
+    entities_id_closure: |this: &InternalStateConversation<WaitingInternalStateResponse>| { (Some(this.state.planet_id), None) },
+    transition: wait_internal_state_res_transition,
+    methods_settings: {
+
+    },
+);
+
+impl ChannelsContext for WaitingInternalStateResponse {
+    fn get_channels_manager(&self) -> &ChannelsManagerRef {
+        &self.channels_manager
+    }
+}
+
+// Implement trait to use default behavior of to_ui fn
+impl UiCommunicator for WaitingInternalStateResponse {}
+
+/// Transition Function for [`WaitingInternalStateResponse`] state:
 ///
-/// In the [`WaitingInternalStateResponse`] state, the conversation expects a
-/// [`PlanetToOrchestrator::InternalStateResponse`] message to complete the state retrieval.
-struct WaitingInternalStateResponse {
-    /// ID of the planet we are waiting for
-    planet_id: ID,
-    /// Optional sender to forward planet state to UI
-    ui_sender: Option<Sender<OrchestratorToUiUpdate>>,
-}
+/// Returns:
+///
+/// [None] if the state is successfully received and sent to the UI, closing the conversation
+///
+/// [`ErrorState`] with [`CommonErrorTypes::WrongMessage`] if the trigger message is different from the expected one [`PlanetToOrchestrator::InternalStateResponse`]
+/// [`ErrorState`] with [`CommonErrorTypes::MessageToUiFailed`] if the message sending to the UI fails\
+fn wait_internal_state_res_transition(this: Box<InternalStateConversation<WaitingInternalStateResponse>>, msg: Option<PossibleMessage>) -> Option<Box<dyn Conversation + Send + Sync>> {
+    if let Some(PossibleMessage::PlanetToOrch(PlanetToOrchestrator::InternalStateResponse {
+          planet_id,
+          planet_state,
+          })) = msg
+    {
 
-impl WaitingInternalStateResponse {
-    /// The constructor for [`WaitingInternalStateResponse`] state struct
-    fn new(planet_id: ID, ui_sender: Option<Sender<OrchestratorToUiUpdate>>) -> Self {
-        Self {
-            planet_id,
-            ui_sender,
-        }
-    }
-}
-
-/// Generic FSM struct for Internal State requests
-pub struct InternalStateConversation<State> {
-    /// Conversation ID
-    id: ID,
-    /// Optional expected message to trigger the conversation
-    expected_message: Option<PossibleExpectedKinds>,
-    /// State of the FSM
-    state: State,
-}
-
-// SENDING INTERNAL STATE REQUEST IMPLEMENTATION
-impl Conversation for InternalStateConversation<SendingInternalStateRequest> {
-    fn get_id(&self) -> ID {
-        self.id
-    }
-
-    fn get_entities_ids(&self) -> (Option<ID>, Option<ID>) {
-        (Some(self.state.to_planet_struct.planet_id), None)
-    }
-
-    fn get_expected_kind(&self) -> Option<PossibleExpectedKinds> {
-        self.expected_message.clone()
-    }
-
-    /// Transition Function for [`SendingInternalStateRequest`] state:
-    ///
-    /// Returns:
-    ///
-    /// [`ErrorState`] with [`CommonErrorTypes::MessageToPlanetFailed`] if the message has not been correctly sent to the planet
-    ///
-    /// [`ErrorState`] with [`CommonErrorTypes::PlanetSenderNotFound`] if the sender to the planet is not in the [`OrchToPlanetSenders`] list
-    ///
-    /// The next state: [`InternalStateConversation<WaitingInternalStateResponse>`] if the request was sent successfully.
-    fn transition(
-        self: Box<Self>,
-        _msg_wrapped: Option<PossibleMessage<ExplorerBagContent>>,
-    ) -> Option<Box<dyn Conversation + Send + Sync>> {
-        match self
-            .state
-            .to_planet_struct
-            .to_planet(OrchestratorToPlanet::InternalStateRequest)
-        {
-            Ok(()) => {
-                let next_state = InternalStateConversation::<WaitingInternalStateResponse>::new(
-                    self.id,
-                    self.state.to_planet_struct.planet_id,
-                    self.state.ui_sender.clone(),
-                );
-                Some(Box::new(next_state))
-            }
+        log_internal(
+            LogTarget::Conversations,
+            Channel::Debug,
+            payload!(
+                    action : "Planet sent its internal state",
+                    planet_id : planet_id,
+                    planet_state : format!("{planet_state:?}"),
+                    conversation_id : this.id
+                ),
+        );
+        // Send planet state to UI
+        return match this.state.to_ui(OrchestratorToUiUpdate::PlanetSnapshot(planet_id, planet_state)) {
+            Ok(()) => None,
             Err(err) => {
-                let error = match err {
-                    ToPlanetError::SendingMessageFailure(id) => {
-                        CommonErrorTypes::MessageToPlanetFailed(id)
-                    }
-                    ToPlanetError::SenderNotFound(id) => CommonErrorTypes::PlanetSenderNotFound(id),
-                };
-                let error_state = ErrorState::new(Box::new(error), self.id);
+                let error_state = ErrorState::new(Box::new(err), this.id);
                 Some(Box::new(error_state)
                     as Box<dyn Conversation + Send + Sync>)
             }
         }
     }
 
-    fn get_priority(&self) -> i32 {
-        3
-    }
+    //Wrong Message, close conversation
+    let error_state = ErrorState::new(Box::new(CommonErrorTypes::WrongMessage), this.id);
+    Some(Box::new(error_state) as Box<dyn Conversation + Send + Sync>)
 }
 
-impl InternalStateConversation<SendingInternalStateRequest> {
-    pub fn new(id: ID, state: SendingInternalStateRequest) -> Self {
-        Self {
-            id,
-            expected_message: None,
-            state,
-        }
-    }
-}
 
-// WAITING RESPONSE IMPLEMENTATION
-impl Conversation for InternalStateConversation<WaitingInternalStateResponse> {
-    fn get_id(&self) -> ID {
-        self.id
-    }
 
-    fn get_entities_ids(&self) -> (Option<ID>, Option<ID>) {
-        (Some(self.state.planet_id), None)
-    }
-
-    fn get_expected_kind(&self) -> Option<PossibleExpectedKinds> {
-        self.expected_message.clone()
-    }
-
-    /// Transition Function for [`WaitingInternalStateResponse`] state:
-    ///
-    /// Returns:
-    ///
-    /// [None] if the state is successfully received and sent to the UI, closing the conversation
-    ///
-    /// [`ErrorState`] with [`CommonErrorTypes::WrongMessage`] if the trigger message is different from the expected one [`PlanetToOrchestrator::InternalStateResponse`]
-    fn transition(
-        self: Box<Self>,
-        msg_wrapped: Option<PossibleMessage<ExplorerBagContent>>,
-    ) -> Option<Box<dyn Conversation + Send + Sync>> {
-        if let Some(PossibleMessage::PlanetToOrch(PlanetToOrchestrator::InternalStateResponse {
-            planet_id,
-            planet_state,
-        })) = msg_wrapped
-        {
-            // Send planet state to UI if sender is available
-            if let Some(ref sender) = self.state.ui_sender {
-                let _ = sender.send(OrchestratorToUiUpdate::PlanetSnapshot(
-                    planet_id,
-                    planet_state.clone(),
-                ));
-            }
-
-            log_internal(
-                LogTarget::Conversations,
-                Channel::Debug,
-                payload!(
-                    action : "Planet sent its internal state",
-                    planet_id : planet_id,
-                    planet_state : format!("{planet_state:?}"),
-                    conversation_id : self.id
-                ),
-            );
-            return None;
-        }
-
-        //Wrong Message, close conversation
-        let error_state = ErrorState::new(Box::new(CommonErrorTypes::WrongMessage), self.id);
-        Some(Box::new(error_state) as Box<dyn Conversation + Send + Sync>)
-    }
-
-    fn get_priority(&self) -> i32 {
-        3
-    }
-}
-
-impl InternalStateConversation<WaitingInternalStateResponse> {
-    fn new(id: ID, planet_id: ID, ui_sender: Option<Sender<OrchestratorToUiUpdate>>) -> Self {
-        Self {
-            id,
-            expected_message: Some(PlanetToOrchKind(
-                PlanetToOrchestratorKind::InternalStateResponse,
-            )),
-            state: WaitingInternalStateResponse::new(planet_id, ui_sender),
-        }
-    }
-}
 
 #[cfg(test)]
 mod tests {

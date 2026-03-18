@@ -30,12 +30,13 @@ use conversations::orch_explorer::lifecycle::kill_explorer::{
 use crossbeam_channel::{Receiver, Sender, select};
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, RwLock};
 use std::thread;
 use std::thread::JoinHandle;
 use std::time::Duration;
 
 pub type ExplorersLocationRef = Arc<Mutex<HashMap<ID, ID>>>;
+pub(crate) type ChannelsManagerRef = Arc<RwLock<ChannelsManager>>;
 
 #[derive(Clone, Copy, Debug)]
 pub enum ExplorerType {
