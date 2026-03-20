@@ -1,2 +1,5 @@
 /target
 /log
+.orchestrator_cli_history
+.idea
+.vscode

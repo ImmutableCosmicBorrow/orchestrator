@@ -15,3 +15,6 @@ coverage:
 
 doc:
     make doc
+
+cli:
+    make cli
