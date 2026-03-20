@@ -128,13 +128,11 @@ impl<T> PossibleMessage<T> {
                     ..
                 },
             )
-            | PossibleMessage::ExplorerToOrch(
-                ExplorerToOrchestrator::MovedToPlanetResult {
-                    planet_id,
-                    explorer_id, ..
-                }
-            )
-            => (Some(*planet_id), Some(*explorer_id)),
+            | PossibleMessage::ExplorerToOrch(ExplorerToOrchestrator::MovedToPlanetResult {
+                planet_id,
+                explorer_id,
+                ..
+            }) => (Some(*planet_id), Some(*explorer_id)),
 
             PossibleMessage::ExplorerToOrch(ExplorerToOrchestrator::TravelToPlanetRequest {
                 current_planet_id,

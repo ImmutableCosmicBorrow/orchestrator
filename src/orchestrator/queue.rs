@@ -234,6 +234,8 @@ impl<T: Debug + Eq + Hash> ConvoScheduler<T> {
             return None;
         }
 
+        self.handle_timeouts();
+
         let conversation = self.active_convos.lock().unwrap().remove(&id);
         let expected_kind = conversation.as_ref().unwrap().get_expected_kind();
         // Log dequeue before returning
