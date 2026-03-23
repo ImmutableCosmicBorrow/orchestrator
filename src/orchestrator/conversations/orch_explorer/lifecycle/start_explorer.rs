@@ -1,11 +1,10 @@
-use crate::globals::get_explorer_timeout;
-use crate::logging_utils::{LogTarget, log_internal};
-use crate::orchestrator::ExplorerBagContent;
-use crate::orchestrator::conversations::{
-    CommonErrorTypes, Conversation, ErrorState, PossibleExpectedKinds, PossibleMessage,
-    ToExplorerError, ToExplorerStruct,
-};
-use crate::payload;
+use crate::orchestrator::conversations::EntitiesIDTuple;
+use crate::globals::{get_explorer_timeout, TIMEOUT};
+use crate::logging_utils::{log_internal, LogTarget};
+use crate::orchestrator::conversations::PossibleExpectedKinds::ExplorerToOrchKind;
+use crate::orchestrator::conversations::{ChannelsContext, CommonErrorTypes, Conversation, ErrorState, ExplorerCommunicator, ExplorerContext, PossibleExpectedKinds, PossibleMessage};
+use crate::orchestrator::ChannelsManagerRef;
+use crate::{create_request_state, create_response_state, define_conversation, payload};
 use common_game::logging::Channel;
 use common_game::protocols::orchestrator_explorer::{
     ExplorerToOrchestrator, ExplorerToOrchestratorKind, OrchestratorToExplorer,
@@ -25,195 +24,137 @@ use std::time::Duration;
 ///
 /// The conversation starts in the [`SendingExplorerStart`] state, which sends an
 /// [`OrchestratorToExplorer::StartExplorerAI`] when the [`Conversation::transition`] method is called.
-pub(crate) struct SendingExplorerStart {
-    /// A struct containing fields to send messages to the specific explorer
-    to_explorer_struct: ToExplorerStruct,
-}
 
-impl SendingExplorerStart {
-    /// Constructor for [`SendingExplorerStart`] state struct
-    pub(crate) fn new(to_explorer_struct: ToExplorerStruct) -> Self {
-        Self { to_explorer_struct }
+// --- START EXPLORER CONVERSATION ---
+define_conversation!(
+    name: StartExplorerConversation
+);
+
+// --- SEND EXPLORER START DEFINITION ---
+create_request_state!(
+    state_name: SendingExplorerStart,
+    conv_name: StartExplorerConversation,
+    priority: 5,
+    timeout: Some(TIMEOUT),
+    expected_msg: None,
+    fields: {
+        channels_manager: ChannelsManagerRef,
+        explorer_id: ID,
+    },
+    entities_id_fn: |this: &StartExplorerConversation<SendingExplorerStart>| { (Some(this.state.explorer_id), None) },
+    transition_fn: send_explorer_start_transition,
+    methods_settings: {
+
+    },
+);
+
+impl ExplorerContext for SendingExplorerStart {
+    fn get_explorer_id(&self) -> ID {
+        self.explorer_id
     }
 }
 
-/// Marker struct for FSM state
+impl ChannelsContext for SendingExplorerStart {
+    fn get_channels_manager(&self) -> &ChannelsManagerRef {
+        &self.channels_manager
+    }
+}
+
+/// Transition Function for [`SendingExplorerStart`] state:
 ///
-/// In the [`WaitingExplorerStartResult`] state, the conversation expects an
-/// [`ExplorerToOrchestrator::StartExplorerAIResult`] message to confirm the AI has successfully initialized.
-struct WaitingExplorerStartResult {
-    /// ID of the explorer we are waiting for
-    explorer_id: ID,
-}
-
-impl WaitingExplorerStartResult {
-    /// The constructor for [`WaitingExplorerStartResult`] state struct
-    fn new(explorer_id: ID) -> Self {
-        Self { explorer_id }
-    }
-}
-
-/// Start Explorer Conversation FSM
+/// Returns:
 ///
-/// This is the generic FSM struct that takes the generic type `State` to ensure only methods
-/// of that specific state can be called during the conversation.
-pub(crate) struct StartExplorerConversation<State> {
-    /// Conversation ID
-    id: ID,
-    /// Optional expected message to trigger the transition
-    expected_message: Option<PossibleExpectedKinds>,
-    /// State of the FSM
-    state: State,
-}
-
-// SENDING EXPLORER START IMPLEMENTATION
-impl Conversation for StartExplorerConversation<SendingExplorerStart> {
-    fn get_id(&self) -> ID {
-        self.id
-    }
-
-    fn get_entities_ids(&self) -> (Option<ID>, Option<ID>) {
-        (None, Some(self.state.to_explorer_struct.explorer_id))
-    }
-
-    fn get_expected_kind(&self) -> Option<PossibleExpectedKinds> {
-        self.expected_message.clone()
-    }
-
-    /// Transition Function for [`SendingExplorerStart`] state:
-    ///
-    /// Returns:
-    ///
-    /// [`ErrorState`] with [`CommonErrorTypes::MessageToExplorerFailed`] if the request failed to send.
-    ///
-    /// [`ErrorState`] with [`CommonErrorTypes::ExplorerSenderNotFound`] if the communication channel is missing.
-    ///
-    /// The next state: [`StartExplorerConversation<WaitingExplorerStartResult>`] if the start command was sent successfully.
-    fn transition(
-        self: Box<Self>,
-        _msg_wrapped: Option<PossibleMessage<ExplorerBagContent>>,
-    ) -> Option<Box<dyn Conversation + Send + Sync>> {
-        match self
-            .state
-            .to_explorer_struct
-            .to_explorer(OrchestratorToExplorer::StartExplorerAI)
-        {
-            Ok(()) => {
-                let explorer_id = self.state.to_explorer_struct.explorer_id;
-                let next_state = StartExplorerConversation::<WaitingExplorerStartResult>::new(
-                    self.id,
-                    explorer_id,
-                );
-                Some(Box::new(next_state))
-            }
-            Err(err) => {
-                let error = match err {
-                    ToExplorerError::SendingMessageFailure(id) => {
-                        CommonErrorTypes::MessageToExplorerFailed(id)
-                    }
-                    ToExplorerError::SenderNotFound(id) => {
-                        CommonErrorTypes::ExplorerSenderNotFound(id)
-                    }
-                };
-                let error_state = ErrorState::new(Box::new(error), self.id);
-                Some(Box::new(error_state)
-                    as Box<dyn Conversation + Send + Sync>)
-            }
+/// [`ErrorState`] with [`CommonErrorTypes::MessageToExplorerFailed`] if the request failed to send.
+///
+/// [`ErrorState`] with [`CommonErrorTypes::ExplorerSenderNotFound`] if the communication channel is missing.
+///
+/// The next state: [`StartExplorerConversation<WaitingExplorerStartResult>`] if the start command was sent successfully.
+fn send_explorer_start_transition(this: Box<StartExplorerConversation<SendingExplorerStart>>) -> Option<Box<dyn Conversation + Send + Sync>> {
+    match this
+        .state
+        .to_explorer(OrchestratorToExplorer::StartExplorerAI)
+    {
+        Ok(()) => {
+            let next_state = WaitingExplorerStartResult::new(
+                this.state.explorer_id
+            );
+            let next_conv = StartExplorerConversation::<WaitingExplorerStartResult>::new(
+                this.id,
+                next_state,
+            );
+            Some(Box::new(next_conv))
         }
-    }
-
-    fn get_priority(&self) -> i32 {
-        5
-    }
-}
-
-impl StartExplorerConversation<SendingExplorerStart> {
-    /// The constructor for [`StartExplorerConversation`] in the [`SendingExplorerStart`] state
-    pub(crate) fn new(id: ID, state: SendingExplorerStart) -> Self {
-        Self {
-            id,
-            expected_message: None,
-            state,
+        Err(err) => {
+            let err_state = ErrorState::new(Box::new(err), this.id);
+            Some(Box::new(err_state) as Box<dyn Conversation + Send + Sync>)
         }
     }
 }
 
-// WAITING EXPLORER START RESULT IMPLEMENTATION
-impl Conversation for StartExplorerConversation<WaitingExplorerStartResult> {
-    fn get_id(&self) -> ID {
-        self.id
-    }
 
-    fn get_entities_ids(&self) -> (Option<ID>, Option<ID>) {
-        (None, Some(self.state.explorer_id))
-    }
+// --- WAITING EXPLORER START DEFINITION ---
 
-    fn get_expected_kind(&self) -> Option<PossibleExpectedKinds> {
-        self.expected_message.clone()
-    }
+create_response_state!(
+    state: WaitingExplorerStartResult,
+    conv: StartExplorerConversation,
+    priority: 5,
+    timeout: Some(get_explorer_timeout()),
+    expected_msg: ExplorerToOrchKind(ExplorerToOrchestratorKind::StartExplorerAIResult),
+    fields: {
+        explorer_id: ID
+    },
+    entities_id_closure: |this: &StartExplorerConversation<WaitingExplorerStartResult>| { (Some(this.state.explorer_id), None) },
+    transition: wait_exp_start_res_transition,
+    methods_settings: {
 
-    /// Transition Function for [`WaitingExplorerStartResult`] state:
-    ///
-    /// Returns:
-    ///
-    /// [None] if the [`ExplorerToOrchestrator::StartExplorerAIResult`] is successfully received, closing the conversation.
-    ///
-    /// [`ErrorState`] with [`CommonErrorTypes::WrongMessage`] if the received message does not match the expected result kind.
-    fn transition(
-        self: Box<Self>,
-        msg_wrapped: Option<PossibleMessage<ExplorerBagContent>>,
-    ) -> Option<Box<dyn Conversation + Send + Sync>> {
-        if let Some(PossibleMessage::ExplorerToOrch(
-            ExplorerToOrchestrator::StartExplorerAIResult { explorer_id },
-        )) = msg_wrapped
-        {
-            log_internal(
-                LogTarget::Conversations,
-                Channel::Info,
-                payload!(
+    },
+);
+
+
+
+impl ExplorerContext for WaitingExplorerStartResult {
+    fn get_explorer_id(&self) -> ID {
+        self.explorer_id
+    }
+}
+
+/// Transition Function for [`WaitingExplorerStartResult`] state:
+///
+/// Returns:
+///
+/// [None] if the [`ExplorerToOrchestrator::StartExplorerAIResult`] is successfully received, closing the conversation.
+///
+/// [`ErrorState`] with [`CommonErrorTypes::WrongMessage`] if the received message does not match the expected result kind.
+fn wait_exp_start_res_transition(this: Box<StartExplorerConversation<WaitingExplorerStartResult>>, msg: Option<PossibleMessage>) -> Option<Box<dyn Conversation + Send + Sync>> {
+    if let Some(PossibleMessage::ExplorerToOrch(
+                    ExplorerToOrchestrator::StartExplorerAIResult { explorer_id },
+    )) = msg
+    {
+        log_internal(
+            LogTarget::Conversations,
+            Channel::Info,
+            payload!(
                     action : "Started Explorer, closing conversation",
                     explorer_id : explorer_id,
-                    conversation_id : self.id
+                    conversation_id : this.id
                 ),
-            );
-            return None;
-        }
-
-        //Wrong Message, close conversation
-        let error_state = ErrorState::new(Box::new(CommonErrorTypes::WrongMessage), self.id);
-        Some(Box::new(error_state) as Box<dyn Conversation + Send + Sync>)
+        );
+        return None;
     }
 
-    fn get_priority(&self) -> i32 {
-        5
-    }
-
-    // Longer timeout, since it involves a communication with an Explorer
-    fn get_timeout(&self) -> Option<Duration> {
-        Some(get_explorer_timeout())
-    }
+    //Wrong Message, close conversation
+    let error_state = ErrorState::new(Box::new(CommonErrorTypes::WrongMessage), this.id);
+    Some(Box::new(error_state) as Box<dyn Conversation + Send + Sync>)
 }
 
-impl StartExplorerConversation<WaitingExplorerStartResult> {
-    /// The constructor for [`StartExplorerConversation`] in the [`WaitingExplorerStartResult`] state
-    fn new(id: ID, explorer_id: ID) -> Self {
-        Self {
-            id,
-            expected_message: Some(PossibleExpectedKinds::ExplorerToOrchKind(
-                ExplorerToOrchestratorKind::StartExplorerAIResult,
-            )),
-            state: WaitingExplorerStartResult::new(explorer_id),
-        }
-    }
-}
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::orchestrator::conversations::OrchToExplorerSenders;
     use crate::orchestrator::conversations::orch_explorer::test_utils::{
-        MakeSendersResult, make_empty_senders, make_senders_with, make_to_explorer_struct,
+        make_empty_senders, make_senders_with, make_to_explorer_struct, MakeSendersResult,
     };
+    use crate::orchestrator::conversations::OrchToExplorerSenders;
     use crossbeam_channel::unbounded;
     use std::collections::HashMap;
     use std::sync::{Arc, Mutex};

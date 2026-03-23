@@ -1,5 +1,5 @@
 use chrono::Duration;
-use crate::orchestrator::conversations::PossibleExpectedKinds;
+use crate::orchestrator::conversations::{EntitiesIDTuple, PossibleExpectedKinds};
 
 #[macro_export]
 macro_rules! create_response_state {
@@ -34,7 +34,7 @@ macro_rules! create_response_state {
             fn get_priority(&self) -> i32 { $pri }
             fn get_timeout(&self) -> Option<Duration> { $timeout }
             fn get_expected_kind(&self) -> Option<PossibleExpectedKinds> { Some($expected_msg) }
-            fn get_entities_ids(&self) -> (Option<ID>, Option<ID>) {
+            fn get_entities_ids(&self) -> EntitiesIDTuple {
                 ($entities_id_logic) (self)
             }
 

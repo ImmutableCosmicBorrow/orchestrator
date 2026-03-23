@@ -1,10 +1,8 @@
-use crate::globals::get_explorer_timeout;
+use crate::orchestrator::conversations::{EntitiesIDTuple, ExplorerCommunicator, UiCommunicator};
+use crate::globals::{get_explorer_timeout, TIMEOUT};
 use crate::logging_utils::{LogTarget, log_internal};
-use crate::orchestrator::conversations::{
-    CommonErrorTypes, Conversation, ErrorState, PossibleExpectedKinds, PossibleMessage,
-    ToExplorerError, ToExplorerStruct,
-};
-use crate::payload;
+use crate::orchestrator::conversations::{ChannelsContext, CommonErrorTypes, Conversation, ErrorState, ExplorerContext, PossibleExpectedKinds, PossibleMessage, ToExplorerError};
+use crate::{create_request_state, create_response_state, define_conversation, payload};
 use crate::ui::OrchestratorToUiUpdate;
 use common_explorer::ExplorerBagContent;
 use common_game::logging::Channel;
@@ -14,6 +12,9 @@ use common_game::protocols::orchestrator_explorer::{
 use common_game::utils::ID;
 use crossbeam_channel::Sender;
 use std::time::Duration;
+use crate::orchestrator::ChannelsManagerRef;
+use crate::orchestrator::conversations::orch_explorer::lifecycle::start_explorer::{SendingExplorerStart, WaitingExplorerStartResult};
+use crate::orchestrator::conversations::PossibleExpectedKinds::ExplorerToOrchKind;
 
 ///**Bag Content Conversation**
 ///
@@ -23,229 +24,162 @@ use std::time::Duration;
 ///
 /// The conversation flow starts by sending a request to the explorer and terminates once the
 /// bag content is received (intended for UI reporting).
-/// Marker struct for FSM state
-///
-/// The conversation starts in the [`SendingBagContentRequest`] state, which sends an
-/// [`OrchestratorToExplorer::BagContentRequest`] when the [`Conversation::transition`] method is called.
-pub struct SendingBagContentRequest {
-    /// A struct containing fields to send messages to the specific explorer
-    to_explorer_struct: ToExplorerStruct,
-    /// Optional sender to forward explorer snapshot to UI
-    ui_sender: Option<Sender<OrchestratorToUiUpdate>>,
+
+// --- EXPLORER BAG CONTENT CONVERSATION ---
+define_conversation!(
+    name: BagContentConversation
+);
+
+// --- SEND BAG CONTENT REQUEST DEFINITION ---
+create_request_state!(
+    state_name: SendingBagContentRequest,
+    conv_name: BagContentConversation,
+    priority: 3,
+    timeout: Some(TIMEOUT),
+    expected_msg: None,
+    fields: {
+        channels_manager: ChannelsManagerRef,
+        explorer_id: ID,
+    },
+    entities_id_fn: |this: &BagContentConversation<SendingBagContentRequest>| { (Some(this.state.explorer_id), None) },
+    transition_fn: send_bag_content_req_transition,
+    methods_settings: {
+
+    },
+);
+
+impl ExplorerContext for SendingBagContentRequest {
+    fn get_explorer_id(&self) -> ID {
+        self.explorer_id
+    }
 }
 
-impl SendingBagContentRequest {
-    /// Constructor for [`SendingBagContentRequest`] state struct
-    pub fn new(
-        to_explorer_struct: ToExplorerStruct,
-        ui_sender: Option<Sender<OrchestratorToUiUpdate>>,
-    ) -> Self {
-        Self {
-            to_explorer_struct,
-            ui_sender,
+impl ChannelsContext for SendingBagContentRequest {
+    fn get_channels_manager(&self) -> &ChannelsManagerRef {
+        &self.channels_manager
+    }
+}
+
+/// Transition Function for [`SendingBagContentRequest`] state:
+///
+/// Returns:
+///
+/// [`ErrorState`] with [`CommonErrorTypes::MessageToExplorerFailed`] if the request failed to send.
+///
+/// [`ErrorState`] with [`CommonErrorTypes::ExplorerSenderNotFound`] if the communication channel is missing.
+///
+/// The next state: [`BagContentConversation<WaitingBagContentResponse>`] if the request was sent successfully.
+fn send_bag_content_req_transition(this: Box<BagContentConversation<SendingBagContentRequest>>) -> Option<Box<dyn Conversation + Send + Sync>> {
+    match this
+        .state
+        .to_explorer(OrchestratorToExplorer::BagContentRequest)
+    {
+        Ok(()) => {
+            let next_state = WaitingBagContentResponse::new(this.state.explorer_id, this.state.channels_manager.clone());
+            let next_conv = BagContentConversation::<WaitingBagContentResponse>::new(
+                this.id,
+                next_state
+            );
+            Some(Box::new(next_conv))
+        }
+        Err(err) => {
+            let error_state = ErrorState::new(Box::new(err), this.id);
+            Some(Box::new(error_state)
+                as Box<dyn Conversation + Send + Sync>)
         }
     }
 }
 
-/// Marker struct for FSM state
+// --- WAIT BAG CONTENT RESPONSE DEFINITION ---
+
+create_response_state!(
+    state: WaitingBagContentResponse,
+    conv: BagContentConversation,
+    priority: 3,
+    timeout: Some(get_explorer_timeout()),
+    expected_msg: ExplorerToOrchKind(ExplorerToOrchestratorKind::BagContentResponse),
+    fields: {
+        explorer_id: ID,
+        channels_manager: ChannelsManagerRef
+    },
+    entities_id_closure: |this: &BagContentConversation<WaitingBagContentResponse>| { (Some(this.state.explorer_id), None) },
+    transition: wait_bag_content_res_transition,
+    methods_settings: {
+
+    },
+);
+
+
+
+impl ExplorerContext for WaitingBagContentResponse {
+    fn get_explorer_id(&self) -> ID {
+        self.explorer_id
+    }
+}
+
+impl ChannelsContext for WaitingBagContentResponse {
+    fn get_channels_manager(&self) -> &ChannelsManagerRef {
+        &self.channels_manager
+    }
+}
+
+// Use default behavior to send messages to UI
+impl UiCommunicator for WaitingBagContentResponse {}
+
+/// Transition Function for [`WaitingBagContentResponse`] state:
 ///
-/// In the [`WaitingBagContentResponse`] state, the conversation expects an
-/// [`ExplorerToOrchestrator::BagContentResponse`] message containing the items currently held by the explorer.
-struct WaitingBagContentResponse {
-    /// ID of the explorer we are waiting for
-    explorer_id: ID,
-    /// Optional sender to forward explorer snapshot to UI
-    ui_sender: Option<Sender<OrchestratorToUiUpdate>>,
-}
-
-impl WaitingBagContentResponse {
-    /// The constructor for [`WaitingBagContentResponse`] state struct
-    fn new(explorer_id: ID, ui_sender: Option<Sender<OrchestratorToUiUpdate>>) -> Self {
-        Self {
-            explorer_id,
-            ui_sender,
-        }
-    }
-}
-
-/// Bag Content Conversation FSM
+/// Returns:
 ///
-/// This is the generic FSM struct that takes the generic type `State` to ensure only methods
-/// of that specific state can be called during the conversation.
-pub struct BagContentConversation<State> {
-    /// Conversation ID
-    id: ID,
-    /// Optional expected message to trigger the transition
-    expected_message: Option<PossibleExpectedKinds>,
-    /// State of the FSM
-    state: State,
-}
+/// [None] if the [`ExplorerToOrchestrator::BagContentResponse`] is successfully received and processed, closing the conversation.
+///
+/// [`ErrorState`] with [`CommonErrorTypes::WrongMessage`] if the received message does not match the expected response kind.
+/// [`ErrorState`] with [`CommonErrorTypes::MessageToUiFailed`] if the update to the UI fails.
+fn wait_bag_content_res_transition(this: Box<BagContentConversation<WaitingBagContentResponse>>, msg: Option<PossibleMessage>) -> Option<Box<dyn Conversation + Send + Sync>> {
 
-// SENDING BAG CONTENT REQUEST IMPLEMENTATION
-impl Conversation for BagContentConversation<SendingBagContentRequest> {
-    fn get_id(&self) -> ID {
-        self.id
-    }
+    if let Some(PossibleMessage::ExplorerToOrch(ExplorerToOrchestrator::BagContentResponse {
+                                                    explorer_id,
+                                                    bag_content,
+                                                })) = msg
+    {
+        let bag_content_log = format!("{bag_content:?}");
 
-    fn get_entities_ids(&self) -> (Option<ID>, Option<ID>) {
-        (None, Some(self.state.to_explorer_struct.explorer_id))
-    }
-
-    fn get_expected_kind(&self) -> Option<PossibleExpectedKinds> {
-        self.expected_message.clone()
-    }
-
-    /// Transition Function for [`SendingBagContentRequest`] state:
-    ///
-    /// Returns:
-    ///
-    /// [`ErrorState`] with [`CommonErrorTypes::MessageToExplorerFailed`] if the request failed to send.
-    ///
-    /// [`ErrorState`] with [`CommonErrorTypes::ExplorerSenderNotFound`] if the communication channel is missing.
-    ///
-    /// The next state: [`BagContentConversation<WaitingBagContentResponse>`] if the request was sent successfully.
-    fn transition(
-        self: Box<Self>,
-        _msg_wrapped: Option<PossibleMessage<ExplorerBagContent>>,
-    ) -> Option<Box<dyn Conversation + Send + Sync>> {
-        match self
-            .state
-            .to_explorer_struct
-            .to_explorer(OrchestratorToExplorer::BagContentRequest)
-        {
+        return match this.state.to_ui(OrchestratorToUiUpdate::ExplorerSnapshot(explorer_id, bag_content)) {
             Ok(()) => {
-                let explorer_id = self.state.to_explorer_struct.explorer_id;
-                let next_state = BagContentConversation::<WaitingBagContentResponse>::new(
-                    self.id,
-                    explorer_id,
-                    self.state.ui_sender.clone(),
+                log_internal(
+                    LogTarget::Conversations,
+                    Channel::Debug,
+                    payload!(
+                            action : "Sent ExplorerBagContent to UI",
+                            explorer_id : explorer_id,
+                            conversation_id : this.id,
+                            bag_content : bag_content_log
+                        ),
                 );
-                Some(Box::new(next_state))
-            }
+                None
+            },
+
             Err(err) => {
-                let error = match err {
-                    ToExplorerError::SendingMessageFailure(id) => {
-                        CommonErrorTypes::MessageToExplorerFailed(id)
-                    }
-                    ToExplorerError::SenderNotFound(id) => {
-                        CommonErrorTypes::ExplorerSenderNotFound(id)
-                    }
-                };
-                let error_state = ErrorState::new(Box::new(error), self.id);
+                log_internal(
+                    LogTarget::Conversations,
+                    Channel::Warning,
+                    payload!(
+                            action : "Failed to send ExplorerBagContent to UI",
+                            explorer_id : explorer_id,
+                            conversation_id : this.id
+                        ),
+                );
+                let error_state = ErrorState::new(Box::new(err), this.id);
                 Some(Box::new(error_state)
                     as Box<dyn Conversation + Send + Sync>)
             }
         }
     }
 
-    fn get_priority(&self) -> i32 {
-        3
-    }
+    //Wrong Message, close conversation
+    let error_state = ErrorState::new(Box::new(CommonErrorTypes::WrongMessage), this.id);
+    Some(Box::new(error_state) as Box<dyn Conversation + Send + Sync>)
 }
 
-impl BagContentConversation<SendingBagContentRequest> {
-    /// The constructor for [`BagContentConversation`] in the [`SendingBagContentRequest`] state
-    pub fn new(id: ID, state: SendingBagContentRequest) -> Self {
-        Self {
-            id,
-            expected_message: None,
-            state,
-        }
-    }
-}
-
-// WAITING BAG CONTENT RESPONSE IMPLEMENTATION
-impl Conversation for BagContentConversation<WaitingBagContentResponse> {
-    fn get_id(&self) -> ID {
-        self.id
-    }
-
-    fn get_entities_ids(&self) -> (Option<ID>, Option<ID>) {
-        (None, Some(self.state.explorer_id))
-    }
-
-    fn get_expected_kind(&self) -> Option<PossibleExpectedKinds> {
-        self.expected_message.clone()
-    }
-
-    /// Transition Function for [`WaitingBagContentResponse`] state:
-    ///
-    /// Returns:
-    ///
-    /// [None] if the [`ExplorerToOrchestrator::BagContentResponse`] is successfully received and processed, closing the conversation.
-    ///
-    /// [`ErrorState`] with [`CommonErrorTypes::WrongMessage`] if the received message does not match the expected response kind.
-    fn transition(
-        self: Box<Self>,
-        msg_wrapped: Option<PossibleMessage<ExplorerBagContent>>,
-    ) -> Option<Box<dyn Conversation + Send + Sync>> {
-        if let Some(PossibleMessage::ExplorerToOrch(ExplorerToOrchestrator::BagContentResponse {
-            explorer_id,
-            bag_content,
-        })) = msg_wrapped
-        {
-            let bag_content_log = format!("{bag_content:?}");
-
-            // Send explorer snapshot to UI if sender is available
-            if let Some(ref sender) = self.state.ui_sender {
-                let res = sender.send(OrchestratorToUiUpdate::ExplorerSnapshot(
-                    explorer_id,
-                    bag_content,
-                ));
-
-                if res.is_err() {
-                    log_internal(
-                        LogTarget::Conversations,
-                        Channel::Warning,
-                        payload!(
-                            action : "Failed to send ExplorerBagContent to UI",
-                            explorer_id : explorer_id,
-                            conversation_id : self.id
-                        ),
-                    );
-                } else {
-                    log_internal(
-                        LogTarget::Conversations,
-                        Channel::Debug,
-                        payload!(
-                            action : "Sent ExplorerBagContent to UI",
-                            explorer_id : explorer_id,
-                            conversation_id : self.id,
-                            bag_content : bag_content_log
-                        ),
-                    );
-                }
-            }
-            return None;
-        }
-
-        //Wrong Message, close conversation
-        let error_state = ErrorState::new(Box::new(CommonErrorTypes::WrongMessage), self.id);
-        Some(Box::new(error_state) as Box<dyn Conversation + Send + Sync>)
-    }
-
-    fn get_priority(&self) -> i32 {
-        3
-    }
-
-    // Longer timeout, since it involves a communication with an Explorer
-    fn get_timeout(&self) -> Option<Duration> {
-        Some(get_explorer_timeout())
-    }
-}
-
-impl BagContentConversation<WaitingBagContentResponse> {
-    /// The constructor for [`BagContentConversation`] in the [`WaitingBagContentResponse`] state
-    fn new(id: ID, explorer_id: ID, ui_sender: Option<Sender<OrchestratorToUiUpdate>>) -> Self {
-        Self {
-            id,
-            expected_message: Some(PossibleExpectedKinds::ExplorerToOrchKind(
-                ExplorerToOrchestratorKind::BagContentResponse,
-            )),
-            state: WaitingBagContentResponse::new(explorer_id, ui_sender),
-        }
-    }
-}
 
 #[cfg(test)]
 mod tests {

@@ -1,18 +1,16 @@
-use crate::globals::get_explorer_timeout;
-use crate::logging_utils::{LogTarget, log_internal};
-use crate::orchestrator::ExplorerBagContent;
-use crate::orchestrator::conversations::{
-    CommonErrorTypes, Conversation, ErrorState, PossibleExpectedKinds, PossibleMessage,
-    ToExplorerError, ToExplorerStruct,
-};
-use crate::payload;
+use crate::globals::{get_explorer_timeout, TIMEOUT};
+use crate::logging_utils::{log_internal, LogTarget};
+use crate::orchestrator::conversations::PossibleExpectedKinds::ExplorerToOrchKind;
+use crate::orchestrator::conversations::{ChannelsContext, CommonErrorTypes, Conversation, ErrorState, ExplorerCommunicator, ExplorerContext, PossibleExpectedKinds, PossibleMessage};
+use crate::orchestrator::conversations::{EntitiesIDTuple, UiCommunicator};
+use crate::orchestrator::ChannelsManagerRef;
 use crate::ui::OrchestratorToUiUpdate;
+use crate::{create_request_state, create_response_state, define_conversation, payload};
 use common_game::logging::Channel;
 use common_game::protocols::orchestrator_explorer::{
     ExplorerToOrchestrator, ExplorerToOrchestratorKind, OrchestratorToExplorer,
 };
 use common_game::utils::ID;
-use crossbeam_channel::Sender;
 use std::ops::Mul;
 use std::time::Duration;
 
@@ -23,234 +21,177 @@ use std::time::Duration;
 /// It uses a Finite State Machine (FSM) to ensure that the request for combinations and the subsequent
 /// result list are handled in the correct order at compile time.
 ///
-/// The conversation flow starts by sending a request to the explorer and terminates once the
+/// The conversation flow starts by sending a request to the explorer to get the planet supported combinations and terminates once the
 /// [`ExplorerToOrchestrator::SupportedCombinationResult`] is received and processed.
-/// Marker struct for FSM state
-///
-/// The conversation starts in the [`SendingSupportedCombinationRequest`] state, which sends an
-/// [`OrchestratorToExplorer::SupportedCombinationRequest`] when the [`Conversation::transition`] method is called.
-pub(crate) struct SendingSupportedCombinationRequest {
-    /// A struct containing fields to send messages to the specific explorer
-    to_explorer_struct: ToExplorerStruct,
-    /// Optional sender to forward explorer snapshot to UI
-    ui_sender: Option<Sender<OrchestratorToUiUpdate>>,
+
+
+// --- SUPPORTED COMBINATION CONVERSATION ---
+define_conversation!(
+    name: SupportedCombinationConversation
+);
+
+// --- SEND SUPPORTED COMBINATION REQUEST DEFINITION ---
+create_request_state!(
+    state_name: SendingSupportedCombinationRequest,
+    conv_name: SupportedCombinationConversation,
+    priority: 2,
+    timeout: Some(TIMEOUT),
+    expected_msg: None,
+    fields: {
+        channels_manager: ChannelsManagerRef,
+        explorer_id: ID,
+    },
+    entities_id_fn: |this: &SupportedCombinationConversation<SendingSupportedCombinationRequest>| { (Some(this.state.explorer_id), None) },
+    transition_fn: send_supp_comb_req_transition,
+    methods_settings: {
+
+    },
+);
+
+impl ExplorerContext for SendingSupportedCombinationRequest {
+    fn get_explorer_id(&self) -> ID {
+        self.explorer_id
+    }
 }
 
-impl SendingSupportedCombinationRequest {
-    /// Constructor for [`SendingSupportedCombinationRequest`] state struct
-    pub(crate) fn new(
-        to_explorer_struct: ToExplorerStruct,
-        ui_sender: Option<Sender<OrchestratorToUiUpdate>>,
-    ) -> Self {
-        Self {
-            to_explorer_struct,
-            ui_sender,
+impl ChannelsContext for SendingSupportedCombinationRequest {
+    fn get_channels_manager(&self) -> &ChannelsManagerRef {
+        &self.channels_manager
+    }
+}
+/// Transition Function for [`SendingSupportedCombinationRequest`] state:
+///
+/// Returns:
+///
+/// [`ErrorState`] with [`CommonErrorTypes::MessageToExplorerFailed`] if the request failed to send.
+///
+/// [`ErrorState`] with [`CommonErrorTypes::ExplorerSenderNotFound`] if the communication channel is missing.
+///
+/// The next state: [`SupportedCombinationConversation<WaitingSupportedCombinationResult>`] if the request was sent successfully.
+fn send_supp_comb_req_transition(this: Box<SupportedCombinationConversation<SendingSupportedCombinationRequest>>) -> Option<Box<dyn Conversation + Send + Sync>> {
+    match this
+        .state
+        .to_explorer(OrchestratorToExplorer::SupportedCombinationRequest)
+    {
+        Ok(()) => {
+            let state_struct = WaitingSupportedCombinationResult::new(this.state.channels_manager, this.state.explorer_id);
+            let next_conv = SupportedCombinationConversation::<
+                WaitingSupportedCombinationResult,
+            >::new(
+                this.id, state_struct,
+            );
+            Some(Box::new(next_conv))
+        }
+
+        Err(err) => {
+            let error_state = ErrorState::new(Box::new(err), this.id);
+            Some(Box::new(error_state)
+                as Box<dyn Conversation + Send + Sync>)
         }
     }
 }
 
-/// Marker struct for FSM state
-///
-/// In the [`WaitingSupportedCombinationResult`] state, the conversation expects an
-/// [`ExplorerToOrchestrator::SupportedCombinationResult`] message containing the list of valid
-/// recipes or combinations available to the explorer.
-struct WaitingSupportedCombinationResult {
-    /// ID of the explorer we are waiting for
-    explorer_id: ID,
-    /// Optional sender to forward explorer snapshot to UI
-    ui_sender: Option<Sender<OrchestratorToUiUpdate>>,
+// --- WAITING SUPPORTED COMBINATION RESPONSE DEFINITION
+
+create_response_state!(
+    state: WaitingSupportedCombinationResult,
+    conv: SupportedCombinationConversation,
+    priority: 2,
+    timeout: Some(get_explorer_timeout().mul(2)),
+    expected_msg: ExplorerToOrchKind(ExplorerToOrchestratorKind::SupportedCombinationResult),
+    fields: {
+        channels_manager: ChannelsManagerRef,
+        explorer_id: ID,
+    },
+    entities_id_closure: |this: &SupportedCombinationConversation<WaitingSupportedCombinationResult>| { (Some(this.state.explorer_id), None) },
+    transition: wait_supp_comb_res_transition,
+    methods_settings: {
+
+    },
+);
+
+impl ExplorerContext for WaitingSupportedCombinationResult {
+    fn get_explorer_id(&self) -> ID {
+        self.explorer_id
+    }
 }
 
-impl WaitingSupportedCombinationResult {
-    /// The constructor for [`WaitingSupportedCombinationResult`] state struct
-    fn new(explorer_id: ID, ui_sender: Option<Sender<OrchestratorToUiUpdate>>) -> Self {
-        Self {
+impl ChannelsContext for WaitingSupportedCombinationResult {
+    fn get_channels_manager(&self) -> &ChannelsManagerRef {
+        &self.channels_manager
+    }
+}
+
+// Use dafault behavior for sending UI messages
+impl UiCommunicator for WaitingSupportedCombinationResult {}
+
+/// Transition Function for [`WaitingSupportedCombinationResult`] state:
+///
+/// Returns:
+///
+/// [None] if the [`ExplorerToOrchestrator::SupportedCombinationResult`] is successfully received, closing the conversation.
+///
+/// [`ErrorState`] with [`CommonErrorTypes::WrongMessage`] if the received message does not match the expected result kind.
+/// [`ErrorState`] with [`CommonErrorTypes::MessageToUiFailed`] if update to the UI failed
+fn wait_supp_comb_res_transition(this: Box<SupportedCombinationConversation<WaitingSupportedCombinationResult>>, msg: Option<PossibleMessage>) -> Option<Box<dyn Conversation + Send + Sync>> {
+
+    if let Some(PossibleMessage::ExplorerToOrch(
+                    ExplorerToOrchestrator::SupportedCombinationResult {
+                        explorer_id,
+                        combination_list,
+                    },
+    )) = msg
+    {
+        let combinations_log = format!("{combination_list:?}");
+
+        //Try sending update to the UI
+        return match this.state.to_ui(OrchestratorToUiUpdate::SupportedCombinations(
             explorer_id,
-            ui_sender,
-        }
-    }
-}
-
-/// Supported Combination Conversation FSM
-///
-/// This is the generic FSM struct that takes the generic type `State` to ensure only methods
-/// of that specific state can be called during the conversation.
-pub(crate) struct SupportedCombinationConversation<State> {
-    /// Conversation ID
-    id: ID,
-    /// Optional expected message to trigger the transition
-    expected_message: Option<PossibleExpectedKinds>,
-    /// State of the FSM
-    state: State,
-}
-
-// SENDING SUPPORTED COMBINATION REQUEST IMPLEMENTATION
-impl Conversation
-    for SupportedCombinationConversation<SendingSupportedCombinationRequest>
-{
-    fn get_id(&self) -> ID {
-        self.id
-    }
-
-    fn get_entities_ids(&self) -> (Option<ID>, Option<ID>) {
-        (None, Some(self.state.to_explorer_struct.explorer_id))
-    }
-
-    fn get_expected_kind(&self) -> Option<PossibleExpectedKinds> {
-        self.expected_message.clone()
-    }
-
-    /// Transition Function for [`SendingSupportedCombinationRequest`] state:
-    ///
-    /// Returns:
-    ///
-    /// [`ErrorState`] with [`CommonErrorTypes::MessageToExplorerFailed`] if the request failed to send.
-    ///
-    /// [`ErrorState`] with [`CommonErrorTypes::ExplorerSenderNotFound`] if the communication channel is missing.
-    ///
-    /// The next state: [`SupportedCombinationConversation<WaitingSupportedCombinationResult>`] if the request was sent successfully.
-    fn transition(
-        self: Box<Self>,
-        _msg_wrapped: Option<PossibleMessage<ExplorerBagContent>>,
-    ) -> Option<Box<dyn Conversation + Send + Sync>> {
-        match self
-            .state
-            .to_explorer_struct
-            .to_explorer(OrchestratorToExplorer::SupportedCombinationRequest)
-        {
+            combination_list,
+        )) {
             Ok(()) => {
-                let explorer_id = self.state.to_explorer_struct.explorer_id;
-                let next_state = SupportedCombinationConversation::<
-                    WaitingSupportedCombinationResult,
-                >::new(
-                    self.id, explorer_id, self.state.ui_sender.clone()
+                log_internal(
+                    LogTarget::Conversations,
+                    Channel::Debug,
+                    payload!(
+                            action : "Sent Supported Combination to UI",
+                            explorer_id : explorer_id,
+                            conversation_id : this.id,
+                            comb_list: combinations_log,
+                    ),
                 );
-                Some(Box::new(next_state))
-            }
+                None
+            },
+
             Err(err) => {
-                let error = match err {
-                    ToExplorerError::SendingMessageFailure(id) => {
-                        CommonErrorTypes::MessageToExplorerFailed(id)
-                    }
-                    ToExplorerError::SenderNotFound(id) => {
-                        CommonErrorTypes::ExplorerSenderNotFound(id)
-                    }
-                };
-                let error_state = ErrorState::new(Box::new(error), self.id);
+                log_internal(
+                    LogTarget::Conversations,
+                    Channel::Warning,
+                    payload!(
+                            action : "Failed to send Supported Combination to UI",
+                            explorer_id : explorer_id,
+                            conversation_id : this.id
+                        ),
+                );
+                let error_state = ErrorState::new(Box::new(err), this.id);
                 Some(Box::new(error_state)
                     as Box<dyn Conversation + Send + Sync>)
             }
-        }
+        };
     }
 
-    fn get_priority(&self) -> i32 {
-        2
-    }
-}
-
-impl SupportedCombinationConversation<SendingSupportedCombinationRequest> {
-    /// The constructor for [`SupportedCombinationConversation`] in the [`SendingSupportedCombinationRequest`] state
-    pub(crate) fn new(id: ID, state: SendingSupportedCombinationRequest) -> Self {
-        Self {
-            id,
-            expected_message: None,
-            state,
-        }
-    }
-}
-
-// WAITING SUPPORTED COMBINATION RESULT IMPLEMENTATION
-impl Conversation
-    for SupportedCombinationConversation<WaitingSupportedCombinationResult>
-{
-    fn get_id(&self) -> ID {
-        self.id
-    }
-
-    fn get_entities_ids(&self) -> (Option<ID>, Option<ID>) {
-        (None, Some(self.state.explorer_id))
-    }
-
-    fn get_expected_kind(&self) -> Option<PossibleExpectedKinds> {
-        self.expected_message.clone()
-    }
-
-    /// Transition Function for [`WaitingSupportedCombinationResult`] state:
-    ///
-    /// Returns:
-    ///
-    /// [None] if the [`ExplorerToOrchestrator::SupportedCombinationResult`] is successfully received, closing the conversation.
-    ///
-    /// [`ErrorState`] with [`CommonErrorTypes::WrongMessage`] if the received message does not match the expected result kind.
-    fn transition(
-        self: Box<Self>,
-        msg_wrapped: Option<PossibleMessage<ExplorerBagContent>>,
-    ) -> Option<Box<dyn Conversation + Send + Sync>> {
-        if let Some(PossibleMessage::ExplorerToOrch(
-            ExplorerToOrchestrator::SupportedCombinationResult {
-                explorer_id,
-                combination_list,
-            },
-        )) = msg_wrapped
-        {
-            let combinations_log = format!("{combination_list:?}");
-
-            // Send explorer snapshot to UI if sender is available
-            if let Some(ref sender) = self.state.ui_sender {
-                let _ = sender.send(OrchestratorToUiUpdate::SupportedCombinations(
-                    explorer_id,
-                    combination_list,
-                ));
-            }
-
-            log_internal(
-                LogTarget::Conversations,
-                Channel::Debug,
-                payload!(
-                    action : "Explorer sent supported combinations in its current Planet, closing conversation",
-                    explorer_id : explorer_id,
-                    supported_combinnations : combinations_log,
-                    conversation_id : self.id
-                ),
-            );
-            return None;
-        }
-
-        //Wrong Message, close conversation
-        let error_state = ErrorState::new(Box::new(CommonErrorTypes::WrongMessage), self.id);
-        Some(Box::new(error_state) as Box<dyn Conversation + Send + Sync>)
-    }
-
-    fn get_priority(&self) -> i32 {
-        2
-    }
-
-    // Longer timeout, since it involves an Explorer - Planet communication
-    fn get_timeout(&self) -> Option<Duration> {
-        Some(get_explorer_timeout().mul(2))
-    }
-}
-
-impl SupportedCombinationConversation<WaitingSupportedCombinationResult> {
-    /// The constructor for [`SupportedCombinationConversation`] in the [`WaitingSupportedCombinationResult`] state
-    fn new(id: ID, explorer_id: ID, ui_sender: Option<Sender<OrchestratorToUiUpdate>>) -> Self {
-        Self {
-            id,
-            expected_message: Some(PossibleExpectedKinds::ExplorerToOrchKind(
-                ExplorerToOrchestratorKind::SupportedCombinationResult,
-            )),
-            state: WaitingSupportedCombinationResult::new(explorer_id, ui_sender),
-        }
-    }
+    //Wrong Message, close conversation
+    let error_state = ErrorState::new(Box::new(CommonErrorTypes::WrongMessage),this.id);
+    Some(Box::new(error_state) as Box<dyn Conversation + Send + Sync>)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::orchestrator::conversations::OrchToExplorerSenders;
     use crate::orchestrator::conversations::orch_explorer::test_utils::{
-        MakeSendersResult, make_empty_senders, make_senders_with, make_to_explorer_struct,
+        make_empty_senders, make_senders_with, make_to_explorer_struct, MakeSendersResult,
     };
+    use crate::orchestrator::conversations::OrchToExplorerSenders;
     use common_game::components::resource::ComplexResourceType;
     use common_game::protocols::orchestrator_explorer::ExplorerToOrchestratorKind;
     use crossbeam_channel::unbounded;

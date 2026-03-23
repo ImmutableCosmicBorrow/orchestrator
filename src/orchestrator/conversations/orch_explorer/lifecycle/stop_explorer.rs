@@ -1,17 +1,17 @@
-use crate::globals::get_explorer_timeout;
+use crate::orchestrator::conversations::EntitiesIDTuple;
+use crate::globals::{get_explorer_timeout, TIMEOUT};
 use crate::logging_utils::{LogTarget, log_internal};
-use crate::orchestrator::ExplorerBagContent;
-use crate::orchestrator::conversations::{
-    CommonErrorTypes, Conversation, ErrorState, PossibleExpectedKinds, PossibleMessage,
-    ToExplorerError, ToExplorerStruct,
-};
-use crate::payload;
+use crate::orchestrator::{ChannelsManagerRef, ExplorerBagContent};
+use crate::orchestrator::conversations::{ChannelsContext, CommonErrorTypes, Conversation, ErrorState, ExplorerCommunicator, ExplorerContext, PossibleExpectedKinds, PossibleMessage, ToExplorerError};
+use crate::{create_request_state, create_response_state, define_conversation, payload};
 use common_game::logging::Channel;
 use common_game::protocols::orchestrator_explorer::{
     ExplorerToOrchestrator, ExplorerToOrchestratorKind, OrchestratorToExplorer,
 };
 use common_game::utils::ID;
 use std::time::Duration;
+use crate::orchestrator::conversations::orch_explorer::lifecycle::start_explorer::{SendingExplorerStart, WaitingExplorerStartResult};
+use crate::orchestrator::conversations::PossibleExpectedKinds::ExplorerToOrchKind;
 
 ///**Stop Explorer Conversation**
 ///
@@ -25,187 +25,124 @@ use std::time::Duration;
 ///
 /// The conversation starts in the [`SendingExplorerStop`] state, which sends an
 /// [`OrchestratorToExplorer::StopExplorerAI`] when the [`Conversation::transition`] method is called.
-pub(crate) struct SendingExplorerStop {
-    /// A struct containing fields to send messages to the specific explorer
-    to_explorer_struct: ToExplorerStruct,
-}
+// --- STOP EXPLORER CONVERSATION ---
+define_conversation!(
+    name: StopExplorerConversation
+);
 
-impl SendingExplorerStop {
-    /// Constructor for [`SendingExplorerStop`] state struct
-    pub(crate) fn new(to_explorer_struct: ToExplorerStruct) -> Self {
-        Self { to_explorer_struct }
+// --- SEND EXPLORER STOP DEFINITION ---
+create_request_state!(
+    state_name: SendingExplorerStop,
+    conv_name: StopExplorerConversation,
+    priority: 5,
+    timeout: Some(TIMEOUT),
+    expected_msg: None,
+    fields: {
+        channels_manager: ChannelsManagerRef,
+        explorer_id: ID,
+    },
+    entities_id_fn: |this: &StopExplorerConversation<SendingExplorerStop>| { (Some(this.state.explorer_id), None) },
+    transition_fn: send_explorer_stop_transition,
+    methods_settings: {
+
+    },
+);
+
+impl ExplorerContext for SendingExplorerStop {
+    fn get_explorer_id(&self) -> ID {
+        self.explorer_id
     }
 }
 
-/// Marker struct for FSM state
+impl ChannelsContext for SendingExplorerStop {
+    fn get_channels_manager(&self) -> &ChannelsManagerRef {
+        &self.channels_manager
+    }
+}
+
+/// Transition Function for [`SendingExplorerStop`] state:
 ///
-/// In the [`WaitingExplorerStopResult`] state, the conversation expects an
-/// [`ExplorerToOrchestrator::StopExplorerAIResult`] message to confirm the AI has successfully halted.
-pub(crate) struct WaitingExplorerStopResult {
-    /// ID of the explorer we are waiting for
-    explorer_id: ID,
-}
-
-impl WaitingExplorerStopResult {
-    /// The constructor for [`WaitingExplorerStopResult`] state struct
-    pub(crate) fn new(explorer_id: ID) -> Self {
-        Self { explorer_id }
-    }
-}
-
-/// Stop Explorer Conversation FSM
+/// Returns:
 ///
-/// This is the generic FSM struct that takes the generic type `State` to ensure only methods
-/// of that specific state can be called during the conversation.
-pub(crate) struct StopExplorerConversation<State> {
-    /// Conversation ID
-    id: ID,
-    /// Optional expected message to trigger the transition
-    expected_message: Option<PossibleExpectedKinds>,
-    /// State of the FSM
-    state: State,
-}
-
-// SENDING EXPLORER STOP IMPLEMENTATION
-impl Conversation for StopExplorerConversation<SendingExplorerStop> {
-    fn get_id(&self) -> ID {
-        self.id
-    }
-
-    fn get_entities_ids(&self) -> (Option<ID>, Option<ID>) {
-        (None, Some(self.state.to_explorer_struct.explorer_id))
-    }
-
-    fn get_expected_kind(&self) -> Option<PossibleExpectedKinds> {
-        self.expected_message.clone()
-    }
-
-    /// Transition Function for [`SendingExplorerStop`] state:
-    ///
-    /// Returns:
-    ///
-    /// [`ErrorState`] with [`CommonErrorTypes::MessageToExplorerFailed`] if the request failed to send.
-    ///
-    /// [`ErrorState`] with [`CommonErrorTypes::ExplorerSenderNotFound`] if the communication channel is missing.
-    ///
-    /// The next state: [`StopExplorerConversation<WaitingExplorerStopResult>`] if the stop command was sent successfully.
-    fn transition(
-        self: Box<Self>,
-        _msg_wrapped: Option<PossibleMessage<ExplorerBagContent>>,
-    ) -> Option<Box<dyn Conversation + Send + Sync>> {
-        match self
-            .state
-            .to_explorer_struct
-            .to_explorer(OrchestratorToExplorer::StopExplorerAI)
-        {
-            Ok(()) => {
-                let explorer_id = self.state.to_explorer_struct.explorer_id;
-                let next_state = StopExplorerConversation::<WaitingExplorerStopResult>::new(
-                    self.id,
-                    explorer_id,
-                );
-                Some(Box::new(next_state))
-            }
-            Err(err) => {
-                let error = match err {
-                    ToExplorerError::SendingMessageFailure(id) => {
-                        CommonErrorTypes::MessageToExplorerFailed(id)
-                    }
-                    ToExplorerError::SenderNotFound(id) => {
-                        CommonErrorTypes::ExplorerSenderNotFound(id)
-                    }
-                };
-                let error_state = ErrorState::new(Box::new(error), self.id);
-                Some(Box::new(error_state)
-                    as Box<dyn Conversation + Send + Sync>)
-            }
+/// [`ErrorState`] with [`CommonErrorTypes::MessageToExplorerFailed`] if the request failed to send.
+///
+/// [`ErrorState`] with [`CommonErrorTypes::ExplorerSenderNotFound`] if the communication channel is missing.
+///
+/// The next state: [`StopExplorerConversation<WaitingExplorerStopResult>`] if the stop command was sent successfully.
+fn send_explorer_stop_transition(this: Box<StopExplorerConversation<SendingExplorerStop>>) -> Option<Box<dyn Conversation + Send + Sync>> {
+    match this
+        .state
+        .to_explorer(OrchestratorToExplorer::StopExplorerAI)
+    {
+        Ok(()) => {
+            let next_state = WaitingExplorerStopResult::new(this.state.explorer_id);
+            let next_conv = StopExplorerConversation::<WaitingExplorerStopResult>::new(
+                this.id,
+                next_state,
+            );
+            Some(Box::new(next_conv))
         }
-    }
-
-    fn get_priority(&self) -> i32 {
-        5
-    }
-}
-
-impl StopExplorerConversation<SendingExplorerStop> {
-    /// The constructor for [`StopExplorerConversation`] in the [`SendingExplorerStop`] state
-    pub(crate) fn new(id: ID, state: SendingExplorerStop) -> Self {
-        Self {
-            id,
-            expected_message: None,
-            state,
+        Err(err) => {
+            let error_state = ErrorState::new(Box::new(err), this.id);
+            Some(Box::new(error_state)
+                as Box<dyn Conversation + Send + Sync>)
         }
     }
 }
 
-// WAITING EXPLORER STOP RESULT IMPLEMENTATION
-impl Conversation for StopExplorerConversation<WaitingExplorerStopResult> {
-    fn get_id(&self) -> ID {
-        self.id
-    }
+// --- WAITING EXPLORER STOP DEFINITION ---
 
-    fn get_entities_ids(&self) -> (Option<ID>, Option<ID>) {
-        (None, Some(self.state.explorer_id))
-    }
+create_response_state!(
+    state: WaitingExplorerStopResult,
+    conv: StopExplorerConversation,
+    priority: 5,
+    timeout: Some(get_explorer_timeout()),
+    expected_msg: ExplorerToOrchKind(ExplorerToOrchestratorKind::StopExplorerAIResult),
+    fields: {
+        explorer_id: ID
+    },
+    entities_id_closure: |this: &StopExplorerConversation<WaitingExplorerStopResult>| { (Some(this.state.explorer_id), None) },
+    transition: wait_exp_stop_res_transition,
+    methods_settings: {
 
-    fn get_expected_kind(&self) -> Option<PossibleExpectedKinds> {
-        self.expected_message.clone()
-    }
+    },
+);
 
-    /// Transition Function for [`WaitingExplorerStopResult`] state:
-    ///
-    /// Returns:
-    ///
-    /// [None] if the [`ExplorerToOrchestrator::StopExplorerAIResult`] is successfully received, closing the conversation.
-    ///
-    /// [`ErrorState`] with [`CommonErrorTypes::WrongMessage`] if the received message does not match the expected result kind.
-    fn transition(
-        self: Box<Self>,
-        msg_wrapped: Option<PossibleMessage<ExplorerBagContent>>,
-    ) -> Option<Box<dyn Conversation + Send + Sync>> {
-        if let Some(PossibleMessage::ExplorerToOrch(
-            ExplorerToOrchestrator::StopExplorerAIResult { explorer_id },
-        )) = msg_wrapped
-        {
-            log_internal(
-                LogTarget::Conversations,
-                Channel::Info,
-                payload!(
+impl ExplorerContext for WaitingExplorerStopResult {
+    fn get_explorer_id(&self) -> ID {
+        self.explorer_id
+    }
+}
+
+/// Transition Function for [`WaitingExplorerStopResult`] state:
+///
+/// Returns:
+///
+/// [None] if the [`ExplorerToOrchestrator::StopExplorerAIResult`] is successfully received, closing the conversation.
+///
+/// [`ErrorState`] with [`CommonErrorTypes::WrongMessage`] if the received message does not match the expected result kind. 
+fn wait_exp_stop_res_transition(this: Box<StopExplorerConversation<WaitingExplorerStopResult>>, msg: Option<PossibleMessage>) -> Option<Box<dyn Conversation + Send + Sync>> {
+    if let Some(PossibleMessage::ExplorerToOrch(
+                    ExplorerToOrchestrator::StopExplorerAIResult { explorer_id },
+                )) = msg
+    {
+        log_internal(
+            LogTarget::Conversations,
+            Channel::Info,
+            payload!(
                     action : "Stopped Explorer, closing conversation",
                     explorer_id : explorer_id,
-                    conversation_id : self.id
+                    conversation_id : this.id
                 ),
-            );
-            return None;
-        }
-
-        //Wrong Message, close conversation
-        let error_state = ErrorState::new(Box::new(CommonErrorTypes::WrongMessage), self.id);
-        Some(Box::new(error_state) as Box<dyn Conversation + Send + Sync>)
+        );
+        return None;
     }
 
-    fn get_priority(&self) -> i32 {
-        5
-    }
-
-    // Longer timeout, since it involves a communication with an Explorer
-    fn get_timeout(&self) -> Option<Duration> {
-        Some(get_explorer_timeout())
-    }
+    //Wrong Message, close conversation
+    let error_state = ErrorState::new(Box::new(CommonErrorTypes::WrongMessage), this.id);
+    Some(Box::new(error_state) as Box<dyn Conversation + Send + Sync>)
 }
 
-impl StopExplorerConversation<WaitingExplorerStopResult> {
-    /// The constructor for [`StopExplorerConversation`] in the [`WaitingExplorerStopResult`] state
-    fn new(id: ID, explorer_id: ID) -> Self {
-        Self {
-            id,
-            expected_message: Some(PossibleExpectedKinds::ExplorerToOrchKind(
-                ExplorerToOrchestratorKind::StopExplorerAIResult,
-            )),
-            state: WaitingExplorerStopResult::new(explorer_id),
-        }
-    }
-}
 
 #[cfg(test)]
 mod tests {

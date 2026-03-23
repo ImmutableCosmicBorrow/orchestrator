@@ -1,3 +1,4 @@
+use crate::orchestrator::conversations::EntitiesIDTuple;
 use crate::orchestrator::Duration;
 use crate::logging_utils::{LogTarget, log_internal};
 use crate::orchestrator::conversations::PossibleExpectedKinds::PlanetToOrchKind;
@@ -18,7 +19,6 @@ use crate::orchestrator::conversations::orch_planet::lifecycle::internal_state_s
 /// sends via its method [`Conversation::get_kill_explorers_vec`] the IDs of the explorers on the planet
 /// so that the Orchestrator can kill them
 ///
-/// Marker struct for FSM state
 ///
 /// The conversation starts in the [`SendPlanetKill`] state, which sends an
 /// [`OrchestratorToPlanet::KillPlanet`] message when the [`Conversation::transition`] method is called.

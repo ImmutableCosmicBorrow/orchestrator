@@ -1,3 +1,4 @@
+use crate::orchestrator::conversations::EntitiesIDTuple;
 use crate::orchestrator::Duration;
 use crate::logging_utils::{LogTarget, log_internal};
 use crate::orchestrator::{ChannelsManagerRef};

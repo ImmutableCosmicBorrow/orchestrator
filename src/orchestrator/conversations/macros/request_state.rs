@@ -1,5 +1,5 @@
 use chrono::Duration;
-use crate::orchestrator::conversations::{PossibleExpectedKinds, PossibleMessage, ErrorState, CommonErrorTypes};
+use crate::orchestrator::conversations::{PossibleExpectedKinds, PossibleMessage, ErrorState, CommonErrorTypes, EntitiesIDTuple};
 use crate::orchestrator::ExplorerBagContent;
 
 //Macro for defining request states (don't expect any message)
@@ -36,7 +36,7 @@ macro_rules! create_request_state {
             fn get_priority(&self) -> i32 { $pri }
             fn get_timeout(&self) -> Option<Duration> { $timeout }
             fn get_expected_kind(&self) -> Option<PossibleExpectedKinds> { $expected_msg }
-            fn get_entities_ids(&self) -> (Option<ID>, Option<ID>) {
+            fn get_entities_ids(&self) -> EntitiesIDTuple {
                 ($entities_id_logic) (self)
             }
             fn transition(

@@ -1,10 +1,8 @@
-use crate::globals::get_explorer_timeout;
+use crate::orchestrator::conversations::EntitiesIDTuple;
+use crate::globals::{get_explorer_timeout, TIMEOUT};
 use crate::logging_utils::{LogTarget, log_internal};
-use crate::orchestrator::conversations::{
-    CommonErrorTypes, Conversation, ErrorState, ErrorType, PossibleExpectedKinds, PossibleMessage,
-    ToExplorerError, ToExplorerStruct,
-};
-use crate::payload;
+use crate::orchestrator::conversations::{ChannelsContext, CommonErrorTypes, Conversation, ErrorState, ErrorType, ExplorerCommunicator, ExplorerContext, PossibleExpectedKinds, PossibleMessage, ToExplorerError};
+use crate::{create_request_state, create_response_state, define_conversation, payload};
 use common_explorer::ExplorerBagContent;
 use common_game::components::resource::BasicResourceType;
 use common_game::logging::Channel;
@@ -14,11 +12,14 @@ use common_game::protocols::orchestrator_explorer::{
 use common_game::utils::ID;
 use std::ops::Mul;
 use std::time::Duration;
+use crate::orchestrator::ChannelsManagerRef;
+use crate::orchestrator::conversations::orch_explorer::resources::combine_resource::{SendingCombineResourceRequest, WaitingCombineResourceResult};
+use crate::orchestrator::conversations::PossibleExpectedKinds::ExplorerToOrchKind;
 
 ///**Craft Resource Conversation**
 ///
 /// This module manages the conversation between the Orchestrator and an Explorer regarding
-/// the generation of basic resources.
+/// the manual generation of basic resources.
 /// It uses a Finite State Machine (FSM) to ensure that the resource generation request
 /// and the subsequent result are handled in the correct order at compile time.
 ///
@@ -43,222 +44,147 @@ impl ErrorType for CraftingFailed {
     }
 }
 
-/// Marker struct for FSM state
-///
-/// The conversation starts in the [`SendingCraftResourceRequest`] state, which sends an
-/// [`OrchestratorToExplorer::GenerateResourceRequest`] when the [`Conversation::transition`] method is called.
-pub struct SendingCraftResourceRequest {
-    /// A struct containing fields to send messages to the specific explorer
-    to_explorer_struct: ToExplorerStruct,
-    /// The basic resource type intended to be generated
-    to_craft: BasicResourceType,
+// --- CRAFT RESOURCE CONVERSATION ---
+define_conversation!(
+    name: CraftResourceConversation
+);
+
+// --- SEND CRAFT RESOURCE REQUEST DEFINITION ---
+create_request_state!(
+    state_name: SendingCraftResourceRequest,
+    conv_name: CraftResourceConversation,
+    priority: 2,
+    timeout: Some(TIMEOUT),
+    expected_msg: None,
+    fields: {
+        channels_manager: ChannelsManagerRef,
+        explorer_id: ID,
+        to_craft: BasicResourceType,
+    },
+    entities_id_fn: |this: &CraftResourceConversation<SendingCraftResourceRequest>| { (Some(this.state.explorer_id), None) },
+    transition_fn: send_craft_resource_req_transition,
+    methods_settings: {
+
+    },
+);
+impl ExplorerContext for SendingCraftResourceRequest {
+    fn get_explorer_id(&self) -> ID {
+        self.explorer_id
+    }
 }
 
-impl SendingCraftResourceRequest {
-    /// Constructor for [`SendingCraftResourceRequest`] state struct
-    pub fn new(to_explorer_struct: ToExplorerStruct, to_craft: BasicResourceType) -> Self {
-        Self {
-            to_explorer_struct,
-            to_craft,
+impl ChannelsContext for SendingCraftResourceRequest {
+    fn get_channels_manager(&self) -> &ChannelsManagerRef {
+        &self.channels_manager
+    }
+}
+
+/// Transition Function for [`SendingCraftResourceRequest`] state:
+///
+/// Returns:
+///
+/// [`ErrorState`] if the request failed to send to the explorer.
+///
+/// [`CraftResourceConversation<WaitingCraftResourceResult>`] if the request was sent successfully.
+fn send_craft_resource_req_transition(this: Box<CraftResourceConversation<SendingCraftResourceRequest>>) -> Option<Box<dyn Conversation + Send + Sync>> {
+    match this.state.to_explorer(
+        OrchestratorToExplorer::GenerateResourceRequest {
+            to_generate: this.state.to_craft,
+        },
+    ) {
+        Ok(()) => {
+            
+            let state_struct =
+                WaitingCraftResourceResult::new(this.state.explorer_id, this.state.to_craft);
+            let next_conv = CraftResourceConversation::<WaitingCraftResourceResult>::new(
+                this.id,
+                state_struct,
+            );
+            Some(Box::new(next_conv))
+        }
+        Err(err) => {
+            let error_state = ErrorState::new(Box::new(err), this.id);
+            Some(Box::new(error_state)
+                as Box<dyn Conversation + Send + Sync>)
         }
     }
 }
 
-/// Marker struct for FSM state
+// --- WAITING CRAFT RESOURCE RESPONSE DEFINITION
+
+create_response_state!(
+    state: WaitingCraftResourceResult,
+    conv: CraftResourceConversation,
+    priority: 2,
+    timeout: Some(get_explorer_timeout().mul(2)), //longer timeout since involves Explorer - Planet Conversation
+    expected_msg: ExplorerToOrchKind(ExplorerToOrchestratorKind::GenerateResourceResponse),
+    fields: {
+        explorer_id: ID,
+        to_craft: BasicResourceType,
+    },
+    entities_id_closure: |this: &CraftResourceConversation<WaitingCraftResourceResult>| { (Some(this.state.explorer_id), None) },
+    transition: wait_craft_resource_res_transition,
+    methods_settings: {
+
+    },
+);
+
+impl ExplorerContext for WaitingCraftResourceResult {
+    fn get_explorer_id(&self) -> ID {
+        self.explorer_id
+    }
+}
+
+/// Transition Function for [`WaitingCraftResourceResult`] state:
 ///
-/// In the [`WaitingCraftResourceResult`] state, the conversation expects an
-/// [`ExplorerToOrchestrator::GenerateResourceResponse`] message indicating whether
-/// the generation process was successful.
-struct WaitingCraftResourceResult {
-    /// ID of the explorer we are waiting for
-    explorer_id: ID,
-    /// The resource type being generated (carried over for error reporting)
-    to_craft: BasicResourceType,
-}
-
-impl WaitingCraftResourceResult {
-    /// The constructor for [`WaitingCraftResourceResult`] state struct
-    fn new(explorer_id: ID, to_craft: BasicResourceType) -> Self {
-        Self {
-            explorer_id,
-            to_craft,
-        }
-    }
-}
-
-/// Craft Resource Conversation FSM
+/// Returns:
 ///
-/// This is the generic FSM struct that takes the generic type `State` to ensure only methods
-/// of that specific state can be called during the conversation.
-pub struct CraftResourceConversation<State> {
-    /// Conversation ID
-    id: ID,
-    /// Optional expected message to trigger the transition
-    expected_message: Option<PossibleExpectedKinds>,
-    /// State of the FSM
-    state: State,
-}
-
-// SENDING CRAFT RESOURCE REQUEST IMPLEMENTATION
-impl Conversation for CraftResourceConversation<SendingCraftResourceRequest> {
-    fn get_id(&self) -> ID {
-        self.id
-    }
-
-    fn get_entities_ids(&self) -> (Option<ID>, Option<ID>) {
-        (None, Some(self.state.to_explorer_struct.explorer_id))
-    }
-
-    fn get_expected_kind(&self) -> Option<PossibleExpectedKinds> {
-        self.expected_message.clone()
-    }
-
-    /// Transition Function for [`SendingCraftResourceRequest`] state:
-    ///
-    /// Returns:
-    ///
-    /// [`ErrorState`] if the request failed to send to the explorer.
-    ///
-    /// [`CraftResourceConversation<WaitingCraftResourceResult>`] if the request was sent successfully.
-    fn transition(
-        self: Box<Self>,
-        _msg_wrapped: Option<PossibleMessage<ExplorerBagContent>>,
-    ) -> Option<Box<dyn Conversation + Send + Sync>> {
-        match self.state.to_explorer_struct.to_explorer(
-            OrchestratorToExplorer::GenerateResourceRequest {
-                to_generate: self.state.to_craft,
-            },
-        ) {
+/// [None] if the [`ExplorerToOrchestrator::GenerateResourceResponse`] returns `Ok(())`, closing the conversation.
+///
+/// [`ErrorState`] with [`CraftingFailed`] if the explorer returns an error.
+///
+/// [`ErrorState`] with [`CommonErrorTypes::WrongMessage`] if an unexpected message is received.
+fn wait_craft_resource_res_transition(this: Box<CraftResourceConversation<WaitingCraftResourceResult>>, msg: Option<PossibleMessage>) -> Option<Box<dyn Conversation + Send + Sync>> {
+    if let Some(PossibleMessage::ExplorerToOrch(
+                    ExplorerToOrchestrator::GenerateResourceResponse {
+                        explorer_id,
+                        generated,
+                    },
+    )) = msg
+    {
+        return match generated {
             Ok(()) => {
-                let explorer_id = self.state.to_explorer_struct.explorer_id;
-                let state_struct =
-                    WaitingCraftResourceResult::new(explorer_id, self.state.to_craft);
-                let next_state = CraftResourceConversation::<WaitingCraftResourceResult>::new(
-                    self.id,
-                    state_struct,
+                log_internal(
+                    LogTarget::Conversations,
+                    Channel::Debug,
+                    payload!(
+                            action : "Explorer generated a resource correctly, closing conversation",
+                            explorer_id : explorer_id,
+                            resource : format!("{:?}",this.state.to_craft),
+                            conversation_id : this.id
+                        ),
                 );
-                Some(Box::new(next_state))
+                None
             }
-            Err(err) => {
-                let error = match err {
-                    ToExplorerError::SendingMessageFailure(id) => {
-                        CommonErrorTypes::MessageToExplorerFailed(id)
-                    }
-                    ToExplorerError::SenderNotFound(id) => {
-                        CommonErrorTypes::ExplorerSenderNotFound(id)
-                    }
+            
+            Err(e) => {
+                let error_struct = CraftingFailed {
+                    explorer_id,
+                    err: e,
+                    resource: this.state.to_craft,
                 };
-                let error_state = ErrorState::new(Box::new(error), self.id);
+                let error_state = ErrorState::new(Box::new(error_struct), this.id);
                 Some(Box::new(error_state)
                     as Box<dyn Conversation + Send + Sync>)
             }
-        }
+        };
     }
 
-    fn get_priority(&self) -> i32 {
-        2
-    }
+    //Wrong Message, close conversation
+    let error_state = ErrorState::new(Box::new(CommonErrorTypes::WrongMessage), this.id);
+    Some(Box::new(error_state) as Box<dyn Conversation + Send + Sync>)
 }
 
-impl CraftResourceConversation<SendingCraftResourceRequest> {
-    /// The constructor for [`CraftResourceConversation`] in the [`SendingCraftResourceRequest`] state
-    pub fn new(id: ID, state: SendingCraftResourceRequest) -> Self {
-        Self {
-            id,
-            expected_message: None,
-            state,
-        }
-    }
-}
-
-// WAITING CRAFT RESOURCE RESULT IMPLEMENTATION
-impl Conversation for CraftResourceConversation<WaitingCraftResourceResult> {
-    fn get_id(&self) -> ID {
-        self.id
-    }
-
-    fn get_entities_ids(&self) -> (Option<ID>, Option<ID>) {
-        (None, Some(self.state.explorer_id))
-    }
-
-    fn get_expected_kind(&self) -> Option<PossibleExpectedKinds> {
-        self.expected_message.clone()
-    }
-
-    /// Transition Function for [`WaitingCraftResourceResult`] state:
-    ///
-    /// Returns:
-    ///
-    /// [None] if the [`ExplorerToOrchestrator::GenerateResourceResponse`] returns `Ok(())`, closing the conversation.
-    ///
-    /// [`ErrorState`] with [`CraftingFailed`] if the explorer returns an error.
-    ///
-    /// [`ErrorState`] with [`CommonErrorTypes::WrongMessage`] if an unexpected message is received.
-    fn transition(
-        self: Box<Self>,
-        msg_wrapped: Option<PossibleMessage<ExplorerBagContent>>,
-    ) -> Option<Box<dyn Conversation + Send + Sync>> {
-        if let Some(PossibleMessage::ExplorerToOrch(
-            ExplorerToOrchestrator::GenerateResourceResponse {
-                explorer_id,
-                generated,
-            },
-        )) = msg_wrapped
-        {
-            return match generated {
-                Ok(()) => {
-                    log_internal(
-                        LogTarget::Conversations,
-                        Channel::Debug,
-                        payload!(
-                            action : "Explorer generated a resource correctly, closing conversation",
-                            explorer_id : explorer_id,
-                            resource : format!("{:?}",self.state.to_craft),
-                            conversation_id : self.id
-                        ),
-                    );
-                    None
-                }
-                Err(e) => {
-                    let error_struct = CraftingFailed {
-                        explorer_id,
-                        err: e,
-                        resource: self.state.to_craft,
-                    };
-                    let error_state = ErrorState::new(Box::new(error_struct), self.id);
-                    Some(Box::new(error_state)
-                        as Box<dyn Conversation + Send + Sync>)
-                }
-            };
-        }
-
-        //Wrong Message, close conversation
-        let error_state = ErrorState::new(Box::new(CommonErrorTypes::WrongMessage), self.id);
-        Some(Box::new(error_state) as Box<dyn Conversation + Send + Sync>)
-    }
-
-    fn get_priority(&self) -> i32 {
-        2
-    }
-
-    // Longer timeout, since it involves an Explorer - Planet communication
-    fn get_timeout(&self) -> Option<Duration> {
-        Some(get_explorer_timeout().mul(2))
-    }
-}
-
-impl CraftResourceConversation<WaitingCraftResourceResult> {
-    /// The constructor for [`CraftResourceConversation`] in the [`WaitingCraftResourceResult`] state
-    fn new(id: ID, state: WaitingCraftResourceResult) -> Self {
-        Self {
-            id,
-            expected_message: Some(PossibleExpectedKinds::ExplorerToOrchKind(
-                ExplorerToOrchestratorKind::GenerateResourceResponse,
-            )),
-            state,
-        }
-    }
-}
 
 #[cfg(test)]
 mod tests {

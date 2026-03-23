@@ -20,7 +20,6 @@ pub(crate) mod orch_explorer;
 pub(crate) mod orch_planet;
 pub(crate) mod util;
 pub mod macros;
-pub mod send_msg_helpers;
 //TODO: CREATE TRAIT FOR COMMS WITH PLANET AND EXPLORERS AND CLEAN THIS FILE
 
 ///**The Conversation Trait**
@@ -32,7 +31,7 @@ pub trait Conversation: Send + Sync {
     /// Returns the unique ID of the conversation instance.
     fn get_id(&self) -> ID;
     /// Returns the tuple (`planet_id`, `explorer_id`) that represent the entities involved by the conversation. One or both may be `None`.
-    fn get_entities_ids(&self) -> (Option<ID>, Option<ID>);
+    fn get_entities_ids(&self) -> EntitiesIDTuple;
     /// Returns the specific message type this state is waiting for, if any.
     fn get_expected_kind(&self) -> Option<PossibleExpectedKinds>;
     /// Consumes the current state and a message to produce the next state in the sequence.
@@ -82,6 +81,11 @@ pub trait Conversation: Send + Sync {
         )
     }
 }
+
+/// **Entities ID Tuple**
+/// Type that indicates the entities involved in a conversation
+/// Composed of two optional ID as every conversation has 0 up to 2 entities which interact
+pub(crate) type EntitiesIDTuple = (Option<ID>, Option<ID>);
 
 /// **Expected Message Kinds**
 ///
@@ -369,5 +373,9 @@ impl Conversation for ErrorState {
 
     fn get_error_details(&self) -> Option<String> {
         Some(self.error.stringify())
+    }
+
+    fn get_timeout(&self) -> Option<Duration> {
+        None
     }
 }

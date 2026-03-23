@@ -1,3 +1,4 @@
+use crate::orchestrator::conversations::EntitiesIDTuple;
 use crate::orchestrator::Duration;
 use crate::logging_utils::{LogTarget, log_internal};
 use crate::orchestrator::{ChannelsManagerRef, ExplorerBagContent};
@@ -119,7 +120,7 @@ impl UiCommunicator for WaitingInternalStateResponse {}
 /// [None] if the state is successfully received and sent to the UI, closing the conversation
 ///
 /// [`ErrorState`] with [`CommonErrorTypes::WrongMessage`] if the trigger message is different from the expected one [`PlanetToOrchestrator::InternalStateResponse`]
-/// [`ErrorState`] with [`CommonErrorTypes::MessageToUiFailed`] if the message sending to the UI fails\
+/// [`ErrorState`] with [`CommonErrorTypes::MessageToUiFailed`] if the message sending to the UI fails
 fn wait_internal_state_res_transition(this: Box<InternalStateConversation<WaitingInternalStateResponse>>, msg: Option<PossibleMessage>) -> Option<Box<dyn Conversation + Send + Sync>> {
     if let Some(PossibleMessage::PlanetToOrch(PlanetToOrchestrator::InternalStateResponse {
           planet_id,
