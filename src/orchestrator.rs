@@ -14,8 +14,6 @@ use crate::{get_id_manager, payload};
 use crate::channels_manager::ChannelsManager;
 use crate::globals::{get_game_step, set_game_step};
 use crate::logging_utils::{LogTarget, log_internal, log_msg_from};
-use crate::orchestrator::conversations::ToExplorerStruct;
-use crate::orchestrator::conversations::ToPlanetStruct;
 use crate::ui::{OrchestratorToUiUpdate, UiToOrchestratorCommand};
 use common_explorer::ExplorerAI;
 pub(crate) use common_explorer::ExplorerBagContent;
@@ -25,7 +23,7 @@ use common_game::protocols::orchestrator_explorer::ExplorerToOrchestrator;
 use common_game::protocols::orchestrator_planet::PlanetToOrchestrator;
 use common_game::utils::ID;
 use conversations::orch_explorer::lifecycle::kill_explorer::{
-    KillExplorerConversation, SendingKillExplorer,
+    KillExplorerConversation,
 };
 use crossbeam_channel::{Receiver, Sender, select};
 use std::collections::HashMap;

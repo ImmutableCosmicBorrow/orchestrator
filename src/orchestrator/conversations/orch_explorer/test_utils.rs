@@ -2,9 +2,6 @@
 use crate::channels_manager::OrchToExplorerSenders;
 use crate::channels_manager::OrchToPlanetSenders;
 #[cfg(test)]
-use crate::orchestrator::conversations::ToExplorerStruct;
-use crate::orchestrator::conversations::ToPlanetStruct;
-#[cfg(test)]
 use common_game::protocols::orchestrator_explorer::OrchestratorToExplorer;
 use common_game::utils::ID;
 
