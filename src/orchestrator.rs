@@ -32,6 +32,7 @@ use std::sync::{Arc, Mutex, RwLock};
 use std::thread;
 use std::thread::JoinHandle;
 use std::time::Duration;
+use crate::orchestrator::convo_factory::ConvoFactory;
 
 pub type ExplorersLocationRef = Arc<Mutex<HashMap<ID, ID>>>;
 pub(crate) type ChannelsManagerRef = Arc<RwLock<ChannelsManager>>;
@@ -44,9 +45,10 @@ pub enum ExplorerType {
 }
 
 pub struct Orchestrator {
-    channels_manager: Arc<ChannelsManager>,
+    channels_manager: ChannelsManagerRef,
     forge: Arc<Forge>,
-    pub(crate) convo_scheduler: ConvoScheduler,
+    pub(crate) convo_scheduler: Arc<ConvoScheduler>,
+    convo_factory: ConvoFactory,
     pub(crate) galaxy: PlanetMap,
     pub(crate) explorers_location: ExplorersLocationRef,
     planet_threads: Arc<Mutex<HashMap<ID, JoinHandle<()>>>>,
@@ -83,17 +85,19 @@ impl Orchestrator {
         // Set static variable GAME_STEP
         set_game_step(game_step);
 
-        let channels_manager = Arc::new(ChannelsManager::new(ui_sender, ui_receiver));
+        let channels_manager = Arc::new(RwLock::new(ChannelsManager::new(ui_sender, ui_receiver)));
+        let convo_scheduler = Arc::new(ConvoScheduler::new());
 
         // galaxy_loader now returns 2 values (galaxy and planet_threads), all channels are distributed inside using
         // channels manager APIs
-        let (galaxy, planet_threads) = galaxy_loader(file_path, channels_manager.as_ref());
+        let (galaxy, planet_threads) = galaxy_loader(file_path, channels_manager.clone());
 
         let mut orchestrator = Self {
             forge: Arc::new(Forge::new().expect("Couldn't create forge!")),
             galaxy,
-            channels_manager,
-            convo_scheduler: ConvoScheduler::new(),
+            channels_manager: channels_manager.clone(),
+            convo_scheduler: convo_scheduler.clone(),
+            convo_factory: ConvoFactory::new(channels_manager, convo_scheduler),
             explorers_location: Arc::new(Mutex::new(HashMap::new())),
             planet_threads: Arc::new(Mutex::new(planet_threads)), // threads were spawned in galaxy_loader/create_planet_with_channels
             explorer_threads: HashMap::new(),
@@ -126,9 +130,9 @@ impl Orchestrator {
     ) {
         // Check where to spawn Explorers
         let planet_id = spawn_planet
-            .filter(|id| self.channels_manager.to_planet_senders_contains(*id))
+            .filter(|id| self.channels_manager.read().unwrap().to_planet_senders_contains(*id))
             .unwrap_or_else(|| {
-                let fallback_id = self.channels_manager.to_planet_senders_next_id().expect("Planet senders hashmap is empty");
+                let fallback_id = self.channels_manager.read().unwrap().to_planet_senders_next_id().expect("Planet senders hashmap is empty");
                 // Log only if a planet was actually requested but not found
                 if let Some(requested_id) = spawn_planet {
                     log_internal(
@@ -160,25 +164,28 @@ impl Orchestrator {
     /// Panics if a mutex lock is poisoned.
     pub fn run(&mut self) {
         // Send PlanetStart to all Planets
-        let planet_senders = self.channels_manager.get_to_planet_senders_struct_ref();
+
+        //Save the guard so that it is not dropped
+        let manager_guard = self.channels_manager.read().unwrap();
+        
+        let planet_senders = manager_guard.get_to_planet_senders_struct_ref();
         for (id, _) in planet_senders.lock().unwrap().iter() {
-            convo_factory::create_start_planet_conversation(
-                &self.convo_scheduler,
-                planet_senders,
+            self.convo_factory.create_start_planet_conversation(
                 *id,
             );
         }
 
         // Send ExplorerStart to all Explorers
-        let explorer_senders = self.channels_manager.get_orch_to_exp_senders_struct_ref();
+        let explorer_senders = manager_guard.get_orch_to_exp_senders_struct_ref();
         for (id, _) in explorer_senders.lock().unwrap().iter() {
-            convo_factory::create_start_explorer_conversation(
-                &self.convo_scheduler,
-                explorer_senders,
+            self.convo_factory.create_start_explorer_conversation(
                 *id,
             );
         }
 
+        //drops the guard as it is not needed anymore
+        drop(manager_guard);
+        
         // Start message processing thread
         self.process_messages();
 
@@ -186,9 +193,9 @@ impl Orchestrator {
         self.start_background_event_senders();
 
         //Get receiving channels
-        let from_planets_rcv = self.channels_manager.get_from_planet_rcv();
-        let from_explorers_rcv = self.channels_manager.get_from_explorers_rcv();
-        let from_ui_rcv = self.channels_manager.get_ui_receiver();
+        let from_planets_rcv = self.channels_manager.read().unwrap().get_from_planet_rcv();
+        let from_explorers_rcv = self.channels_manager.read().unwrap().get_from_explorers_rcv();
+        let from_ui_rcv = self.channels_manager.read().unwrap().get_ui_receiver();
         // Main loop
         loop {
             let timeout = crossbeam_channel::after(get_game_step() + Duration::from_millis(1000));
@@ -320,193 +327,7 @@ impl Orchestrator {
     pub fn get_galaxy(&self) -> &PlanetMap {
         &self.galaxy
     }
-
-    /// for creating orchestrator conversations and controlling entities.
-    pub fn ask_neighbors(&self, explorer_id: ID) {
-        convo_factory::create_neighbors_request_conversation(
-            &self.galaxy,
-            &self.convo_scheduler,
-            self.channels_manager.get_orch_to_exp_senders_struct_ref(),
-            explorer_id,
-        );
-    }
-
-    /// Create travel-to-planet conversation.
-    pub fn make_manual_travel_to_planet_request(
-        &self,
-        explorer_id: ID,
-        current_planet_id: Option<ID>,
-        dst_planet_id: ID,
-    ) {
-        //TODO: CHANGE THIS TO CREATE WAITING TRAVEL PLANET REQUEST
-        convo_factory::create_send_manual_move_conversation(
-            &self.convo_scheduler,
-            self.channels_manager.get_planet_explorer_struct(),
-            self.channels_manager.get_orch_to_exp_senders_struct_ref(),
-            self.channels_manager.get_to_planet_senders_struct_ref(),
-            &self.explorers_location,
-            explorer_id,
-            current_planet_id,
-            dst_planet_id,
-        );
-    }
-
-    /// Create internal state conversation for a planet.
-    pub fn ask_internal_state(&self, planet_id: ID) {
-        convo_factory::create_internal_state_conversation(
-            &self.convo_scheduler,
-            self.channels_manager.get_to_planet_senders_struct_ref(),
-            self.channels_manager.get_ui_sender(),
-            planet_id,
-        );
-    }
-
-    /// Create bag content conversation for an explorer.
-    pub fn ask_bag_content(&self, explorer_id: ID) {
-        convo_factory::create_bag_content_conversation(
-            &self.convo_scheduler,
-            self.channels_manager.get_orch_to_exp_senders_struct_ref(),
-            self.channels_manager.get_ui_sender(),
-            explorer_id,
-        );
-    }
-
-    /// Create generate resource conversation.
-    pub fn generate_resource(
-        &self,
-        explorer_id: ID,
-        resource_type: common_game::components::resource::BasicResourceType,
-    ) {
-        convo_factory::create_generate_resource_conversation(
-            &self.convo_scheduler,
-            self.channels_manager.get_orch_to_exp_senders_struct_ref(),
-            explorer_id,
-            resource_type,
-        );
-    }
-
-    /// Create combine resource conversation.
-    pub fn combine_resource(
-        &self,
-        explorer_id: ID,
-        resource_type: common_game::components::resource::ComplexResourceType,
-    ) {
-        convo_factory::create_combine_resource_conversation(
-            &self.convo_scheduler,
-            self.channels_manager.get_orch_to_exp_senders_struct_ref(),
-            explorer_id,
-            resource_type,
-        );
-    }
-
-    /// Start explorer AI conversation.
-    pub fn start_explorer_ai(&self, explorer_id: ID) {
-        convo_factory::create_start_explorer_conversation(
-            &self.convo_scheduler,
-            self.channels_manager.get_orch_to_exp_senders_struct_ref(),
-            explorer_id,
-        );
-    }
-
-    /// Stop explorer AI conversation.
-    pub fn stop_explorer_ai(&self, explorer_id: ID) {
-        convo_factory::create_stop_explorer_conversation(
-            &self.convo_scheduler,
-            self.channels_manager.get_orch_to_exp_senders_struct_ref(),
-            explorer_id,
-        );
-    }
-
-    /// Kill explorer conversation.
-    pub fn kill_explorer(&self, explorer_id: ID, planet_id: ID, handle_outgoing: bool) {
-        convo_factory::create_kill_explorer_conversation(
-            &self.convo_scheduler,
-            self.channels_manager.get_orch_to_exp_senders_struct_ref(),
-            self.channels_manager.get_to_planet_senders_struct_ref(),
-            &self.explorers_location,
-            explorer_id,
-            planet_id,
-            handle_outgoing,
-        );
-    }
-
-    /// Reset explorer conversation.
-    pub fn reset_explorer(&self, explorer_id: ID) {
-        convo_factory::create_reset_explorer_conversation(
-            &self.convo_scheduler,
-            self.channels_manager.get_orch_to_exp_senders_struct_ref(),
-            explorer_id,
-        );
-    }
-
-    /// Start planet AI conversation.
-    pub fn start_planet_ai(&self, planet_id: ID) {
-        convo_factory::create_start_planet_conversation(
-            &self.convo_scheduler,
-            self.channels_manager.get_to_planet_senders_struct_ref(),
-            planet_id,
-        );
-    }
-
-    /// Stop planet AI conversation.
-    pub fn stop_planet_ai(&self, planet_id: ID) {
-        convo_factory::create_stop_planet_conversation(
-            &self.convo_scheduler,
-            self.channels_manager.get_to_planet_senders_struct_ref(),
-            planet_id,
-        );
-    }
-
-    pub fn kill_planet(&self, planet_id: ID) {
-        convo_factory::create_kill_planet_conversation(
-            &self.convo_scheduler,
-            self.channels_manager.get_to_planet_senders_struct_ref(),
-            self.channels_manager.get_orch_to_exp_senders_struct_ref(),
-            &self.explorers_location,
-            planet_id,
-        );
-    }
-
-    /// Supported resources conversation.
-    pub fn ask_supported_resources(&self, explorer_id: ID) {
-        convo_factory::create_supported_resources_conversation(
-            &self.convo_scheduler,
-            self.channels_manager.get_orch_to_exp_senders_struct_ref(),
-            self.channels_manager.get_ui_sender(),
-            explorer_id,
-        );
-    }
-
-    pub fn ask_supported_combinations(&self, explorer_id: ID) {
-        convo_factory::create_supported_combinations_conversation(
-            &self.convo_scheduler,
-            self.channels_manager.get_orch_to_exp_senders_struct_ref(),
-            self.channels_manager.get_ui_sender(),
-            explorer_id,
-        );
-    }
-
-    pub fn send_asteroid(&self, planet_id: ID) {
-        convo_factory::create_asteroid_conversation(
-            &self.convo_scheduler,
-            self.channels_manager.get_to_planet_senders_struct_ref(),
-            self.channels_manager.get_ui_sender_ref(),
-            &self.forge,
-            &self.explorers_location,
-            self.channels_manager.get_orch_to_exp_senders_struct_ref(),
-            planet_id,
-        );
-    }
-
-    pub fn send_sunray(&self, planet_id: ID) {
-        convo_factory::create_sunray_conversation(
-            &self.convo_scheduler,
-            self.channels_manager.get_to_planet_senders_struct_ref(),
-            self.channels_manager.get_ui_sender_ref(),
-            &self.forge,
-            planet_id,
-        );
-    }
+    
 
     /// Toggles between manual and automatic mode for the orchestrator.
     ///
@@ -515,7 +336,8 @@ impl Orchestrator {
     /// Panics if a mutex lock is poisoned.
     pub fn change_mode(&mut self) {
         self.manual_mode = !self.manual_mode;
-        let explorer_senders = self.channels_manager.get_orch_to_exp_senders_struct();
+        
+        let explorer_senders = self.channels_manager.read().unwrap().get_orch_to_exp_senders_struct();
 
         if self.manual_mode {
             log_internal(
@@ -526,9 +348,11 @@ impl Orchestrator {
                 ),
             );
 
+            //Stop all explorers
             for explorer_id in explorer_senders.lock().unwrap().keys() {
-                self.stop_explorer_ai(*explorer_id);
+                self.convo_factory.create_stop_explorer_conversation(*explorer_id);
             }
+            //stop events
             background_events::disable_asteroids();
         } else {
             log_internal(
@@ -538,16 +362,18 @@ impl Orchestrator {
                     action : "Orchestrator switched to AUTOMATIC mode",
                 ),
             );
+            //Start all Explorers
             for explorer_id in explorer_senders.lock().unwrap().keys() {
-                self.start_explorer_ai(*explorer_id);
+                self.convo_factory.create_start_explorer_conversation(*explorer_id);
             }
+            //Start Events
             background_events::enable_asteroids();
         }
     }
 
     fn start_background_event_senders(&self) {
         background_events::init_background_event_scheduler(
-            Arc::clone(&self.channels_manager),
+            self.channels_manager.clone(),
             self.forge.clone(),
             self.explorers_location.clone(),
             self.convo_scheduler.clone(),

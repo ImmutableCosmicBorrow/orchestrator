@@ -9,7 +9,7 @@ use super::state::SchedulerState;
 use super::timing;
 use crate::channels_manager::ChannelsManager;
 use crate::orchestrator::queue::ConvoScheduler;
-use crate::orchestrator::{ExplorerBagContent, ExplorersLocationRef};
+use crate::orchestrator::{ChannelsManagerRef, ExplorerBagContent, ExplorersLocationRef};
 use crate::planet::PlanetMap;
 use common_game::components::forge::Forge;
 use common_game::utils::ID;
@@ -26,10 +26,10 @@ struct SchedulerController {
 static SCHEDULER_CTRL: OnceLock<SchedulerController> = OnceLock::new();
 
 pub(super) fn init_background_event_scheduler(
-    channels_manager: Arc<ChannelsManager>,
+    channels_manager: ChannelsManagerRef,
     forge: Arc<Forge>,
     explorers_location: ExplorersLocationRef,
-    convo_scheduler: ConvoScheduler,
+    convo_scheduler: Arc<ConvoScheduler>,
     galaxy: PlanetMap,
 ) {
     let controller = scheduler_ctrl();

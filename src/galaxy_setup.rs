@@ -15,6 +15,7 @@ use std::collections::HashMap;
 use std::path::Path;
 use std::thread;
 use std::thread::JoinHandle;
+use crate::orchestrator::ChannelsManagerRef;
 
 // Planets are removed from PlanetMap and stopped via OrchestratorToPlanet message.
 pub(crate) type OrchPlanSenderMap = HashMap<ID, Sender<OrchestratorToPlanet>>;
@@ -24,15 +25,15 @@ pub(crate) type PlanetThreadMap = HashMap<ID, JoinHandle<()>>;
 // Option: spawn planet threads at creation time.
 // Returns a JoinHandle<()> for the spawned planet thread.
 pub(crate) fn spawn_planet_with_channels(
-    channels_manager: &ChannelsManager,
+    channels_manager: ChannelsManagerRef,
     planet_id: ID,
 ) -> JoinHandle<()> {
     //create Orchestrator to Planet channels
-    let (_tx_orch_in, rx_orch_in) = channels_manager.create_orch_to_planet_channel(planet_id);
+    let (_tx_orch_in, rx_orch_in) = channels_manager.read().unwrap().create_orch_to_planet_channel(planet_id);
     //create Explorer to Planet channel (fix the receiver for the planet)
-    let (_tx_expl_in, rx_expl_in) = channels_manager.create_exp_to_planet_channel(planet_id);
+    let (_tx_expl_in, rx_expl_in) = channels_manager.read().unwrap().create_exp_to_planet_channel(planet_id);
     //get the sender to send messages to the Orchestrator
-    let tx_orch_out = channels_manager.get_from_planets_sender();
+    let tx_orch_out = channels_manager.read().unwrap().get_from_planets_sender();
 
     let planet_res = match IdManager::planet_kind(planet_id) {
         PlanetKind::Trip => crate::planet_factory::create_trip_planet(
@@ -132,7 +133,7 @@ pub(crate) fn spawn_planet_with_channels(
 
 pub fn galaxy_loader(
     file_path: &Path,
-    channels_manager: &ChannelsManager,
+    channels_manager: ChannelsManagerRef,
 ) -> (PlanetMap, PlanetThreadMap) {
     use std::collections::HashMap;
     use std::fs::File;
@@ -178,12 +179,12 @@ pub fn galaxy_loader(
         // Runtime: spawn planet threads once per unique id, including neighbors.
         planet_threads
             .entry(id)
-            .or_insert_with(|| spawn_planet_with_channels(channels_manager, id));
+            .or_insert_with(|| spawn_planet_with_channels(channels_manager.clone(), id));
 
         for &neighbor_id in &neighbors {
             planet_threads
                 .entry(neighbor_id)
-                .or_insert_with(|| spawn_planet_with_channels(channels_manager, neighbor_id));
+                .or_insert_with(|| spawn_planet_with_channels(channels_manager.clone(), neighbor_id));
         }
     }
 

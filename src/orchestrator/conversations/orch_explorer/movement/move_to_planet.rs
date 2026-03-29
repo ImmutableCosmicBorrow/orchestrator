@@ -1,9 +1,9 @@
 mod errors;
-mod incoming_explorer;
-mod manual_move_to_planet;
-mod move_explorer;
-mod outgoing_explorer;
-mod wait_travel_request;
+pub(crate) mod incoming_explorer;
+pub (crate) mod manual_move_to_planet;
+pub(crate) mod move_explorer;
+pub(crate) mod outgoing_explorer;
+pub(crate) mod wait_travel_request;
 
 use crate::channels_manager::PlanetExplorerChannels;
 use crate::orchestrator::ExplorersLocationRef;

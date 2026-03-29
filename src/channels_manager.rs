@@ -11,6 +11,9 @@ use crossbeam_channel::{Receiver, Sender};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
+//TODO: ADD DOCUMENTATION
+//TODO: MAYBE DELETE SMART POINTERS INSIDE AS THEY'RE NOT NEEDED (ALREADY PROTECTED BY THE RWLOCK OUTSIDE)
+
 pub(crate) type OrchToPlanetSenders = Arc<Mutex<OrchPlanSenderMap>>;
 pub(crate) type OrchToExplorerSenders = Arc<Mutex<HashMap<ID, Sender<OrchestratorToExplorer>>>>;
 //HashMap PlanetId, Receiver<OrchToPlanet>, saves receivers that are given to planets to communicate with orchestrator
