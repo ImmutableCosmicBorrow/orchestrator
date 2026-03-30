@@ -8,7 +8,7 @@ use super::planning;
 use super::state::SchedulerState;
 use super::timing;
 use crate::channels_manager::ChannelsManager;
-use crate::orchestrator::queue::ConvoScheduler;
+use crate::convo_manager::queue::ConvoScheduler;
 use crate::orchestrator::{ChannelsManagerRef, ExplorerBagContent, ExplorersLocationRef};
 use crate::planet::PlanetMap;
 use common_game::components::forge::Forge;
@@ -16,6 +16,7 @@ use common_game::utils::ID;
 use std::sync::{Arc, Mutex, OnceLock};
 use std::thread::{self, JoinHandle};
 use std::time::{Duration, Instant};
+use crate::convo_manager::convo_factory::ConvoFactory;
 
 const REGIME_STEP_INTERVAL: Duration = Duration::from_secs(30);
 
@@ -29,7 +30,7 @@ pub(super) fn init_background_event_scheduler(
     channels_manager: ChannelsManagerRef,
     forge: Arc<Forge>,
     explorers_location: ExplorersLocationRef,
-    convo_scheduler: Arc<ConvoScheduler>,
+    convo_factory: Arc<ConvoFactory>,
     galaxy: PlanetMap,
 ) {
     let controller = scheduler_ctrl();
@@ -42,7 +43,7 @@ pub(super) fn init_background_event_scheduler(
     control::reset_shutdown_flag();
 
     let world = Arc::new(WorldCtx::new(galaxy, explorers_location));
-    let dispatch_ctx = Arc::new(DispatchCtx::new(channels_manager, forge, convo_scheduler));
+    let dispatch_ctx = Arc::new(DispatchCtx::new(channels_manager, forge, convo_factory));
 
     let handle = thread::spawn({
         let world = Arc::clone(&world);

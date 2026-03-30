@@ -1,61 +1,44 @@
-use crate::globals::get_id_manager;
-use crate::orchestrator::conversations;
+use common_game::logging::Channel;
+use common_game::utils::ID;
+use crate::convo_manager::ConvoManager;
+use crate::{get_id_manager, payload};
+use crate::logging_utils::{log_internal, LogTarget};
+use crate::orchestrator::{conversations, ChannelsManagerRef, ExplorersLocationRef};
 use crate::orchestrator::conversations::orch_explorer::lifecycle::kill_explorer::{KillExplorerConversation, SendingExplorerKill};
 use crate::orchestrator::conversations::orch_explorer::lifecycle::reset_explorer::{ResetExplorerConversation, SendingExplorerReset};
 use crate::orchestrator::conversations::orch_explorer::lifecycle::start_explorer::{SendingExplorerStart, StartExplorerConversation};
 use crate::orchestrator::conversations::orch_explorer::lifecycle::stop_explorer::{SendingExplorerStop, StopExplorerConversation};
 use crate::orchestrator::conversations::orch_explorer::movement::move_to_planet::manual_move_to_planet::SendManualMoveRequest;
-use crate::orchestrator::conversations::orch_explorer::movement::move_to_planet::wait_travel_request::WaitingTravelRequest;
 use crate::orchestrator::conversations::orch_explorer::movement::move_to_planet::MoveToPlanetConversation;
+use crate::orchestrator::conversations::orch_explorer::movement::move_to_planet::wait_travel_request::WaitingTravelRequest;
 use crate::orchestrator::conversations::orch_explorer::movement::neighbors_discovery::{NeighborsDiscoveryConversation, WaitingNeighborsRequest};
 use crate::orchestrator::conversations::orch_explorer::resources::bag_content_scenario::{BagContentConversation, SendingBagContentRequest};
 use crate::orchestrator::conversations::orch_explorer::resources::combine_resource::{CombineResourceConversation, SendingCombineResourceRequest};
 use crate::orchestrator::conversations::orch_explorer::resources::craft_resource::{CraftResourceConversation, SendingCraftResourceRequest};
 use crate::orchestrator::conversations::orch_explorer::resources::supported_combination::{SendingSupportedCombinationRequest, SupportedCombinationConversation};
 use crate::orchestrator::conversations::orch_explorer::resources::supported_resources::{SendingSupportedResourcesRequest, SupportedResourcesConversation};
-use crate::orchestrator::conversations::orch_planet::galaxy_events::asteroid_scenario::{AsteroidConversation, SendingAsteroid};
-use crate::orchestrator::conversations::orch_planet::galaxy_events::sunray_scenario::{SendSunray, SunrayConversation};
-use crate::orchestrator::conversations::orch_planet::lifecycle::internal_state_scenario::SendingInternalStateRequest;
-use crate::orchestrator::conversations::orch_planet::lifecycle::kill_planet::{KillPlanetConversation, SendPlanetKill};
-use crate::orchestrator::conversations::orch_planet::lifecycle::start_planet::{SendingPlanetStart, StartPlanetConversation};
-use crate::orchestrator::conversations::orch_planet::lifecycle::stop_planet::{SendingPlanetStop, StopPlanetConversation};
-use crate::orchestrator::conversations::orch_planet;
-use crate::orchestrator::ExplorersLocationRef;
-use crate::orchestrator::{log_internal, LogTarget};
-use crate::orchestrator::{ChannelsManagerRef, ConvoScheduler};
-use crate::payload;
 use crate::planet::PlanetMap;
-use crate::OrchestratorToUiUpdate;
-use common_game::components::forge::Forge;
-use common_game::logging::Channel;
-use common_game::utils::ID;
-use std::sync::Arc;
 
-pub(crate) struct ConvoFactory {
-    channels_manager: ChannelsManagerRef,
-    convo_scheduler: Arc<ConvoScheduler>,
-}
+//TODO: FIX TO USE ORCH CONTEXT
 
-impl ConvoFactory {
-    
-    pub(crate) fn new(channels_manager: ChannelsManagerRef, convo_scheduler: Arc<ConvoScheduler>) -> Self {
-        Self { channels_manager, convo_scheduler }
-    }
+impl ConvoManager {
+
     pub(crate) fn create_neighbors_request_conversation(
         &self,
         galaxy: &PlanetMap,
         explorer_id: ID,
+        channels_manager: ChannelsManagerRef,
     ) -> ID {
         let state =
             WaitingNeighborsRequest::new(
-                self.channels_manager.clone(),
+                channels_manager.clone(),
                 explorer_id,
                 galaxy.clone(),
             );
 
         let id = get_id_manager().get_next_conversation_id();
         let new_conv = NeighborsDiscoveryConversation::<WaitingNeighborsRequest>::new(id, state);
-           
+
 
         self.convo_scheduler.add_conversation(Box::new(new_conv)
             as Box<dyn conversations::Conversation + Send + Sync>);
@@ -70,7 +53,7 @@ impl ConvoFactory {
             explorer_id: explorer_id
         ),
         );
-        
+
         id
     }
 
@@ -81,11 +64,12 @@ impl ConvoFactory {
         explorer_id: ID,
         current_planet_id: Option<ID>,
         dst_planet_id: ID,
+        channels_manager: ChannelsManagerRef
     ) -> ID {
 
-        
+
         let state = SendManualMoveRequest::new(
-            self.channels_manager.clone(),
+            channels_manager.clone(),
             explorer_id,
             current_planet_id,
             dst_planet_id,
@@ -121,10 +105,11 @@ impl ConvoFactory {
         explorer_id: ID,
         current_planet_id: ID,
         dst_planet_id: ID,
+        channels_manager: ChannelsManagerRef,
     ) -> ID {
-        
+
         let state = WaitingTravelRequest::new(
-            self.channels_manager.clone(),
+            channels_manager.clone(),
             explorer_id,
             current_planet_id,
             galaxy,
@@ -152,41 +137,15 @@ impl ConvoFactory {
         id
     }
 
-    pub(crate) fn create_internal_state_conversation(
-        &self,
-        planet_id: ID,
-    ) -> ID {
-        let id = get_id_manager().get_next_conversation_id();
-        
-        let state = SendingInternalStateRequest::new(self.channels_manager.clone(), planet_id);
 
-        let new_conv = orch_planet::lifecycle::internal_state_scenario::InternalStateConversation::<
-            SendingInternalStateRequest,
-        >::new(id, state);
-
-        self.convo_scheduler.add_conversation(Box::new(new_conv)
-            as Box<dyn conversations::Conversation + Send + Sync>);
-
-        log_internal(
-            LogTarget::Conversations,
-            Channel::Trace,
-            payload!(
-            event: "ScheduleConversation",
-            conversation_id: id,
-            kind: "InternalState",
-            planet_id: planet_id
-        ),
-        );
-
-        id
-    }
 
     pub(crate) fn create_bag_content_conversation(
         &self,
         explorer_id: ID,
+        channels_manager: ChannelsManagerRef
     ) -> ID {
         let state = SendingBagContentRequest::new(
-            self.channels_manager.clone(),
+            channels_manager.clone(),
             explorer_id,
         );
         let id = get_id_manager().get_next_conversation_id();
@@ -213,10 +172,11 @@ impl ConvoFactory {
         &self,
         explorer_id: ID,
         resource_type: common_game::components::resource::BasicResourceType,
+        channels_manager: ChannelsManagerRef,
     ) -> ID {
-        
+
         let state = SendingCraftResourceRequest::new(
-            self.channels_manager.clone(),
+            channels_manager.clone(),
             explorer_id,
             resource_type,
         );
@@ -247,9 +207,10 @@ impl ConvoFactory {
         &self,
         explorer_id: ID,
         resource_type: common_game::components::resource::ComplexResourceType,
+        channels_manager: ChannelsManagerRef
     ) -> ID {
         let state = SendingCombineResourceRequest::new(
-            self.channels_manager.clone(),
+            channels_manager.clone(),
             explorer_id,
             resource_type,
         );
@@ -279,15 +240,16 @@ impl ConvoFactory {
     pub(crate) fn create_start_explorer_conversation(
         &self,
         explorer_id: ID,
+        channels_manager: ChannelsManagerRef
     ) -> ID {
         let state = SendingExplorerStart::new(
-            self.channels_manager.clone(),
+            channels_manager.clone(),
             explorer_id,
         );
         let id = get_id_manager().get_next_conversation_id();
         let new_conv =
             StartExplorerConversation::<
-               SendingExplorerStart,
+                SendingExplorerStart,
             >::new(id, state);
 
         self.convo_scheduler.add_conversation(Box::new(new_conv)
@@ -310,9 +272,10 @@ impl ConvoFactory {
     pub(crate) fn create_stop_explorer_conversation(
         &self,
         explorer_id: ID,
+        channels_manager: ChannelsManagerRef
     ) -> ID {
         let state = SendingExplorerStop::new(
-            self.channels_manager.clone(),
+            channels_manager.clone(),
             explorer_id,
         );
         let id = get_id_manager().get_next_conversation_id();
@@ -343,9 +306,10 @@ impl ConvoFactory {
         explorer_id: ID,
         planet_id: ID,
         handle_outgoing: bool,
+        channels_manager: ChannelsManagerRef
     ) -> ID {
         let state = SendingExplorerKill::new(
-            self.channels_manager.clone(),
+            channels_manager.clone(),
             explorer_id,
             explorers_location.clone(),
             handle_outgoing,
@@ -375,9 +339,10 @@ impl ConvoFactory {
     pub(crate) fn create_reset_explorer_conversation(
         &self,
         explorer_id: ID,
+        channels_manager: ChannelsManagerRef
     ) -> ID {
         let state = SendingExplorerReset::new(
-            self.channels_manager.clone(),
+            channels_manager.clone(),
             explorer_id,
         );
         let id = get_id_manager().get_next_conversation_id();
@@ -403,99 +368,13 @@ impl ConvoFactory {
         id
     }
 
-    pub(crate) fn create_start_planet_conversation(
-        &self,
-        planet_id: ID,
-    ) -> ID {
-        let state = SendingPlanetStart::new(self.channels_manager.clone(), planet_id);
-        let id = get_id_manager().get_next_conversation_id();
-        let new_conv = StartPlanetConversation::<
-            SendingPlanetStart,
-        >::new(id, state);
-
-        self.convo_scheduler.add_conversation(Box::new(new_conv)
-            as Box<dyn conversations::Conversation + Send + Sync>);
-
-        log_internal(
-            LogTarget::Conversations,
-            Channel::Trace,
-            payload!(
-            event: "ScheduleConversation",
-            conversation_id: id,
-            kind: "StartPlanet",
-            planet_id: planet_id
-        ),
-        );
-
-        id
-    }
-
-    pub(crate) fn create_stop_planet_conversation(
-        &self,
-        planet_id: ID,
-    ) -> ID {
-        let state = SendingPlanetStop::new(self.channels_manager.clone(), planet_id);
-        let id = get_id_manager().get_next_conversation_id();
-        let new_conv = StopPlanetConversation::<
-            SendingPlanetStop,
-        >::new(id, state);
-
-        self.convo_scheduler.add_conversation(Box::new(new_conv)
-            as Box<dyn conversations::Conversation + Send + Sync>);
-
-        log_internal(
-            LogTarget::Conversations,
-            Channel::Trace,
-            payload!(
-            event: "ScheduleConversation",
-            conversation_id: id,
-            kind: "StopPlanet",
-            planet_id: planet_id
-        ),
-        );
-
-        id
-    }
-
-    pub(crate) fn create_kill_planet_conversation(
-        &self,
-        explorers_location: &ExplorersLocationRef,
-        planet_id: ID,
-    ) -> ID {
-        let state = SendPlanetKill::new(
-            self.channels_manager.clone(),
-            planet_id,
-            explorers_location.clone(),
-        );
-        let id = get_id_manager().get_next_conversation_id();
-        let new_conv = KillPlanetConversation::<
-            SendPlanetKill,
-        >::new(id, state);
-
-        self.convo_scheduler.add_conversation(Box::new(new_conv)
-            as Box<dyn conversations::Conversation + Send + Sync>);
-
-        log_internal(
-            LogTarget::Conversations,
-            Channel::Trace,
-            payload!(
-            event: "ScheduleConversation",
-            conversation_id: id,
-            kind: "KillPlanet",
-            planet_id: planet_id
-        ),
-        );
-
-        id
-    }
-
     pub(crate) fn create_supported_resources_conversation(
         &self,
         explorer_id: ID,
     ) -> ID {
         let state =
             SendingSupportedResourcesRequest::new(
-                self.channels_manager.clone(),
+                self.orch_context.channels_manager.clone(),
                 explorer_id,
             );
         let id = get_id_manager().get_next_conversation_id();
@@ -525,13 +404,13 @@ impl ConvoFactory {
         explorer_id: ID,
     ) -> ID {
         let state =
-           SendingSupportedCombinationRequest::new(
-                self.channels_manager.clone(),
+            SendingSupportedCombinationRequest::new(
+                self.orch_context.channels_manager.clone(),
                 explorer_id,
             );
         let id = get_id_manager().get_next_conversation_id();
         let new_conv =
-           SupportedCombinationConversation::<
+            SupportedCombinationConversation::<
                 SendingSupportedCombinationRequest,
             >::new(id, state);
 
@@ -552,81 +431,4 @@ impl ConvoFactory {
         id
     }
 
-    pub(crate) fn create_asteroid_conversation(
-        &self,
-        forge: &Arc<Forge>,
-        explorers_location: &ExplorersLocationRef,
-        planet_id: ID,
-    ) -> ID {
-        let state = SendingAsteroid::new(
-            self.channels_manager.clone(),
-            planet_id,
-            forge.clone(),
-            explorers_location.clone(),
-        );
-        let id = get_id_manager().get_next_conversation_id();
-        let new_conv = AsteroidConversation::<
-            SendingAsteroid,
-        >::new(id, state);
-
-        self.convo_scheduler.add_conversation(Box::new(new_conv)
-            as Box<dyn conversations::Conversation + Send + Sync>);
-        
-        //TODO: IS THIS NEEDED? DO WE INSERT IN THE CONVOS AS THE OTHERS?
-        self.channels_manager.read().unwrap().get_ui_sender()
-            .send(OrchestratorToUiUpdate::SendAutoAsteroid(planet_id))
-            .unwrap();
-
-        log_internal(
-            LogTarget::AsteroidsSunrays,
-            Channel::Trace,
-            payload!(
-            event: "ScheduleConversation",
-            conversation_id: id,
-            kind: "Asteroid",
-            planet_id: planet_id
-        ),
-        );
-        id
-    }
-
-    pub(crate) fn create_sunray_conversation(
-        &self,
-        forge: &Arc<Forge>,
-        planet_id: ID,
-    ) -> ID {
-        let state = SendSunray::new(
-            self.channels_manager.clone(),
-            planet_id,
-            forge.clone(),
-        );
-        let id = get_id_manager().get_next_conversation_id();
-        let new_conv = SunrayConversation::<
-            SendSunray,
-        >::new(id, state);
-
-        self.convo_scheduler.add_conversation(Box::new(new_conv)
-            as Box<dyn conversations::Conversation + Send + Sync>);
-        
-        //TODO: IS THIS NEEDED? DO WE INSERT IN THE CONVOS AS THE OTHERS?
-        self.channels_manager.read().unwrap().get_ui_sender()
-            .send(OrchestratorToUiUpdate::SendAutoSunray(planet_id))
-            .unwrap();
-
-        // Log scheduling of sunray conversation
-        log_internal(
-            LogTarget::AsteroidsSunrays,
-            Channel::Trace,
-            payload!(
-            event: "ScheduleConversation",
-            conversation_id: id,
-            kind: "Sunray",
-            planet_id: planet_id
-        ),
-        );
-
-        id
-    }  
 }
-
-

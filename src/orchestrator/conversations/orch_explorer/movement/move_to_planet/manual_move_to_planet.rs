@@ -32,7 +32,7 @@ create_request_state!(
         dst_planet_id: ID,
         explorers_location_ref: ExplorersLocationRef,
     },
-    entities_id_fn: |this: &MoveToPlanetConversation<SendManualMoveRequest>  | { (Some(this.state.explorer_id), Some(this.state.dst_planet_id)) },
+    entities_id_fn: |this: &MoveToPlanetConversation<SendManualMoveRequest>  | { (Some(this.state.dst_planet_id), Some(this.state.explorer_id)) },
     transition_fn: send_manual_move_req_transition,
     methods_settings: {
 

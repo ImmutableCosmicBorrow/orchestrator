@@ -45,7 +45,7 @@ create_request_state!(
         dst_planet_id: ID,
         explorers_location_ref: ExplorersLocationRef,
     },
-    entities_id_fn: |this: &MoveToPlanetConversation<SendOutgoingRequest>  | { (Some(this.state.explorer_id), Some(this.state.curr_planet_id)) },
+    entities_id_fn: |this: &MoveToPlanetConversation<SendOutgoingRequest>  | { (Some(this.state.curr_planet_id), Some(this.state.explorer_id)) },
     transition_fn: send_incoming_req_transition,
     methods_settings: {
 
@@ -154,7 +154,7 @@ create_response_state!(
         dst_planet_id: ID,
         explorers_location_ref: ExplorersLocationRef,
     },
-    entities_id_closure: |this: &MoveToPlanetConversation<WaitingOutgoingResponse>| { (Some(this.state.explorer_id), Some(this.state.curr_planet_id)) },
+    entities_id_closure: |this: &MoveToPlanetConversation<WaitingOutgoingResponse>| { (Some(this.state.curr_planet_id), Some(this.state.explorer_id)) },
     transition: wait_outgoing_res_transition,
     methods_settings: {
 
@@ -200,7 +200,7 @@ fn wait_outgoing_res_transition(this: Box<MoveToPlanetConversation<WaitingOutgoi
                                  planet_id,
                                  explorer_id,
                                  res,
-                             },
+    },
     )) = msg
     {
         return if res.is_ok() {

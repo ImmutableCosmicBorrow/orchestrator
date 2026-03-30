@@ -41,7 +41,7 @@ create_request_state!(
         channels_manager: ChannelsManagerRef,
         explorer_id: ID,
     },
-    entities_id_fn: |this: &SupportedCombinationConversation<SendingSupportedCombinationRequest>| { (Some(this.state.explorer_id), None) },
+    entities_id_fn: |this: &SupportedCombinationConversation<SendingSupportedCombinationRequest>| { (None, Some(this.state.explorer_id)) },
     transition_fn: send_supp_comb_req_transition,
     methods_settings: {
 
@@ -103,7 +103,7 @@ create_response_state!(
         channels_manager: ChannelsManagerRef,
         explorer_id: ID,
     },
-    entities_id_closure: |this: &SupportedCombinationConversation<WaitingSupportedCombinationResult>| { (Some(this.state.explorer_id), None) },
+    entities_id_closure: |this: &SupportedCombinationConversation<WaitingSupportedCombinationResult>| { (None, Some(this.state.explorer_id)) },
     transition: wait_supp_comb_res_transition,
     methods_settings: {
 

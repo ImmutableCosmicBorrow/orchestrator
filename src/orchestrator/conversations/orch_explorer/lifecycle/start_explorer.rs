@@ -41,7 +41,7 @@ create_request_state!(
         channels_manager: ChannelsManagerRef,
         explorer_id: ID,
     },
-    entities_id_fn: |this: &StartExplorerConversation<SendingExplorerStart>| { (Some(this.state.explorer_id), None) },
+    entities_id_fn: |this: &StartExplorerConversation<SendingExplorerStart>| { (None, Some(this.state.explorer_id)) },
     transition_fn: send_explorer_start_transition,
     methods_settings: {
 
@@ -103,7 +103,7 @@ create_response_state!(
     fields: {
         explorer_id: ID
     },
-    entities_id_closure: |this: &StartExplorerConversation<WaitingExplorerStartResult>| { (Some(this.state.explorer_id), None) },
+    entities_id_closure: |this: &StartExplorerConversation<WaitingExplorerStartResult>| { (None, Some(this.state.explorer_id)) },
     transition: wait_exp_start_res_transition,
     methods_settings: {
 

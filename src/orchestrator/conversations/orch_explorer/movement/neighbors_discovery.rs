@@ -47,7 +47,7 @@ create_request_state!(
         explorer_id: ID,
         neighbors_list: Vec<ID>
     },
-    entities_id_fn: |this: &NeighborsDiscoveryConversation<SendingNeighbors>  | { (Some(this.state.explorer_id), None) },
+    entities_id_fn: |this: &NeighborsDiscoveryConversation<SendingNeighbors>  | { (None, Some(this.state.explorer_id)) },
     transition_fn: send_neighbors_transition,
     methods_settings: {
 
@@ -112,7 +112,7 @@ create_response_state!(
         explorer_id: ID,
         galaxy: PlanetMap
     },
-    entities_id_closure: |this: &NeighborsDiscoveryConversation<WaitingNeighborsRequest>| { (Some(this.state.explorer_id), None) },
+    entities_id_closure: |this: &NeighborsDiscoveryConversation<WaitingNeighborsRequest>| { (None, Some(this.state.explorer_id)) },
     transition: wait_neighbors_req_transition,
     methods_settings: {
 

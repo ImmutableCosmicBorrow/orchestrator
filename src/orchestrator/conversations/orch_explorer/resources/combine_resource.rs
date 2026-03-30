@@ -62,7 +62,7 @@ create_request_state!(
         explorer_id: ID,
         to_combine: ComplexResourceType
     },
-    entities_id_fn: |this: &CombineResourceConversation<SendingCombineResourceRequest>| { (Some(this.state.explorer_id), None) },
+    entities_id_fn: |this: &CombineResourceConversation<SendingCombineResourceRequest>| { (None, Some(this.state.explorer_id)) },
     transition_fn: send_comb_resource_req_transition,
     methods_settings: {
 
@@ -123,7 +123,7 @@ create_response_state!(
         explorer_id: ID,
         to_combine: ComplexResourceType
     },
-    entities_id_closure: |this: &CombineResourceConversation<WaitingCombineResourceResult>| { (Some(this.state.explorer_id), None) },
+    entities_id_closure: |this: &CombineResourceConversation<WaitingCombineResourceResult>| { (None, Some(this.state.explorer_id)) },
     transition: wait_comb_resource_res_transition,
     methods_settings: {
 

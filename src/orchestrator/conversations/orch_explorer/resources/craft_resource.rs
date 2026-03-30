@@ -61,7 +61,7 @@ create_request_state!(
         explorer_id: ID,
         to_craft: BasicResourceType,
     },
-    entities_id_fn: |this: &CraftResourceConversation<SendingCraftResourceRequest>| { (Some(this.state.explorer_id), None) },
+    entities_id_fn: |this: &CraftResourceConversation<SendingCraftResourceRequest>| { (None, Some(this.state.explorer_id)) },
     transition_fn: send_craft_resource_req_transition,
     methods_settings: {
 
@@ -122,7 +122,7 @@ create_response_state!(
         explorer_id: ID,
         to_craft: BasicResourceType,
     },
-    entities_id_closure: |this: &CraftResourceConversation<WaitingCraftResourceResult>| { (Some(this.state.explorer_id), None) },
+    entities_id_closure: |this: &CraftResourceConversation<WaitingCraftResourceResult>| { (None, Some(this.state.explorer_id)) },
     transition: wait_craft_resource_res_transition,
     methods_settings: {
 

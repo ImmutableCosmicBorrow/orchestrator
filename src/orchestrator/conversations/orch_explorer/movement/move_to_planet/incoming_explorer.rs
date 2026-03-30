@@ -39,7 +39,7 @@ create_request_state!(
         dst_planet_id: ID,
         explorers_location_ref: ExplorersLocationRef,
     },
-    entities_id_fn: |this: &MoveToPlanetConversation<SendIncomingRequest>  | { (Some(this.state.explorer_id), Some(this.state.dst_planet_id)) },
+    entities_id_fn: |this: &MoveToPlanetConversation<SendIncomingRequest>  | { (Some(this.state.dst_planet_id), Some(this.state.explorer_id)) },
     transition_fn: send_incoming_req_transition,
     methods_settings: {
 
@@ -149,7 +149,7 @@ create_response_state!(
         dst_planet_id: ID,
         explorers_location_ref: ExplorersLocationRef,
     },
-    entities_id_closure: |this: &MoveToPlanetConversation<WaitingIncomingResponse>| { (Some(this.state.explorer_id), Some(this.state.dst_planet_id)) },
+    entities_id_closure: |this: &MoveToPlanetConversation<WaitingIncomingResponse>| { (Some(this.state.dst_planet_id), Some(this.state.explorer_id)) },
     transition: wait_incoming_res_transition,
     methods_settings: {
 

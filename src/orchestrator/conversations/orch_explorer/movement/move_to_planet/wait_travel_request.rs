@@ -45,7 +45,7 @@ create_response_state!(
         galaxy: PlanetMap,
         explorers_location: ExplorersLocationRef,
     },
-    entities_id_closure: |this: &MoveToPlanetConversation<WaitingTravelRequest>| { (Some(this.state.explorer_id), Some(this.state.curr_planet_id)) },
+    entities_id_closure: |this: &MoveToPlanetConversation<WaitingTravelRequest>| { (Some(this.state.curr_planet_id), Some(this.state.explorer_id)) },
     transition: wait_travel_req_transition,
     methods_settings: {
 

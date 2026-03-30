@@ -41,7 +41,7 @@ create_request_state!(
         channels_manager: ChannelsManagerRef,
         explorer_id: ID,
     },
-    entities_id_fn: |this: &StopExplorerConversation<SendingExplorerStop>| { (Some(this.state.explorer_id), None) },
+    entities_id_fn: |this: &StopExplorerConversation<SendingExplorerStop>| { (None, Some(this.state.explorer_id)) },
     transition_fn: send_explorer_stop_transition,
     methods_settings: {
 
@@ -101,7 +101,7 @@ create_response_state!(
     fields: {
         explorer_id: ID
     },
-    entities_id_closure: |this: &StopExplorerConversation<WaitingExplorerStopResult>| { (Some(this.state.explorer_id), None) },
+    entities_id_closure: |this: &StopExplorerConversation<WaitingExplorerStopResult>| { (None, Some(this.state.explorer_id)) },
     transition: wait_exp_stop_res_transition,
     methods_settings: {
 

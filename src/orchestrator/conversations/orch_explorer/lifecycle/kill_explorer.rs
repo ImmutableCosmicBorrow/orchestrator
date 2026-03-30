@@ -50,7 +50,7 @@ create_request_state!(
         explorers_location_ref: ExplorersLocationRef,
         handle_outgoing: bool,
     },
-    entities_id_fn: |this: &KillExplorerConversation<SendingExplorerKill>| { (Some(this.state.explorer_id), None) },
+    entities_id_fn: |this: &KillExplorerConversation<SendingExplorerKill>| {  (None, Some(this.state.explorer_id)) },
     transition_fn: send_explorer_kill_transition,
     methods_settings: {
 
@@ -131,7 +131,7 @@ create_response_state!(
         handle_outgoing: bool,
         explorers_location_ref: ExplorersLocationRef,
     },
-    entities_id_closure: |this: &KillExplorerConversation<WaitingKillExplorerResult>| { (Some(this.state.explorer_id), None) },
+    entities_id_closure: |this: &KillExplorerConversation<WaitingKillExplorerResult>| { (None, Some(this.state.explorer_id)) },
     transition: wait_exp_kill_res_transition,
     methods_settings: {
 
@@ -420,7 +420,7 @@ mod tests {
         assert_eq!(conv.get_entities_ids(), (None, Some(EXPLORER_ID)));
         assert_eq!(
             conv.get_expected_kind(),
-            Some(PossibleExpectedKinds::ExplorerToOrchKind(
+            Some(ExplorerToOrchKind(
                 ExplorerToOrchestratorKind::KillExplorerResult
             ))
         );

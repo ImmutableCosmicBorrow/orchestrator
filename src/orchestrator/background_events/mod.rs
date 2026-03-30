@@ -16,11 +16,12 @@ pub(super) enum EventKind {
 }
 
 use crate::channels_manager::ChannelsManager;
-use crate::orchestrator::queue::ConvoScheduler;
+use crate::convo_manager::queue::ConvoScheduler;
 use crate::orchestrator::{ChannelsManagerRef, ExplorerBagContent, ExplorersLocationRef};
 use crate::planet::PlanetMap;
 use common_game::components::forge::Forge;
 use std::sync::Arc;
+use crate::convo_manager::convo_factory::ConvoFactory;
 
 pub(super) struct BackgroundEventsGuard(control::BackgroundEventsGuard);
 
@@ -80,14 +81,14 @@ pub(super) fn init_background_event_scheduler(
     channels_manager: ChannelsManagerRef,
     forge: Arc<Forge>,
     explorers_location: ExplorersLocationRef,
-    convo_scheduler: Arc<ConvoScheduler>,
+    convo_factory: Arc<ConvoFactory>,
     galaxy: PlanetMap,
 ) {
     scheduler::init_background_event_scheduler(
         channels_manager,
         forge,
         explorers_location,
-        convo_scheduler,
+        convo_factory,
         galaxy,
     );
 }

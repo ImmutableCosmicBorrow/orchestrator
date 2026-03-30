@@ -42,7 +42,7 @@ create_request_state!(
         channels_manager: ChannelsManagerRef,
         explorer_id: ID,
     },
-    entities_id_fn: |this: &SupportedResourcesConversation<SendingSupportedResourcesRequest>| { (Some(this.state.explorer_id), None) },
+    entities_id_fn: |this: &SupportedResourcesConversation<SendingSupportedResourcesRequest>| { (None, Some(this.state.explorer_id)) },
     transition_fn: send_supp_resources_req_transition,
     methods_settings: {
 
@@ -106,7 +106,7 @@ create_response_state!(
         channels_manager: ChannelsManagerRef,
         explorer_id: ID,
     },
-    entities_id_closure: |this: &SupportedResourcesConversation<WaitingSupportedResourcesResult>| { (Some(this.state.explorer_id), None) },
+    entities_id_closure: |this: &SupportedResourcesConversation<WaitingSupportedResourcesResult>| { (None, Some(this.state.explorer_id)) },
     transition: wait_supp_resources_res_transition,
     methods_settings: {
 

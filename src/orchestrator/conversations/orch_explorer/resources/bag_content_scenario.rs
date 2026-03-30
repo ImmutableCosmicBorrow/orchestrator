@@ -41,7 +41,7 @@ create_request_state!(
         channels_manager: ChannelsManagerRef,
         explorer_id: ID,
     },
-    entities_id_fn: |this: &BagContentConversation<SendingBagContentRequest>| { (Some(this.state.explorer_id), None) },
+    entities_id_fn: |this: &BagContentConversation<SendingBagContentRequest>| { (None, Some(this.state.explorer_id)) },
     transition_fn: send_bag_content_req_transition,
     methods_settings: {
 
@@ -102,7 +102,7 @@ create_response_state!(
         explorer_id: ID,
         channels_manager: ChannelsManagerRef
     },
-    entities_id_closure: |this: &BagContentConversation<WaitingBagContentResponse>| { (Some(this.state.explorer_id), None) },
+    entities_id_closure: |this: &BagContentConversation<WaitingBagContentResponse>| { (None, Some(this.state.explorer_id)) },
     transition: wait_bag_content_res_transition,
     methods_settings: {
 
