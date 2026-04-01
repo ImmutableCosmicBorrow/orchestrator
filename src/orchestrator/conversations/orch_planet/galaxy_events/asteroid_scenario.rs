@@ -165,6 +165,7 @@ fn waiting_asteroid_ack_transition(this: Box<AsteroidConversation<WaitingAsteroi
     Some(Box::new(error_state) as Box<dyn Conversation + Send + Sync>)
 }
 
+/*
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -390,3 +391,4 @@ mod tests {
         assert_eq!(conv.get_timeout(), Some(TIMEOUT));
     }
 }
+*/

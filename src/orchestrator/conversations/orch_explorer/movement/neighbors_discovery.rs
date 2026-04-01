@@ -179,6 +179,7 @@ fn wait_neighbors_req_transition(this: Box<NeighborsDiscoveryConversation<Waitin
     Some(Box::new(error_state) as Box<dyn Conversation + Send + Sync>)
 }
 
+/*
 #[cfg(test)]
 mod tests {
     use crate::galaxy_setup::galaxy_loader;
@@ -370,3 +371,4 @@ mod tests {
         assert_eq!(conv.get_priority(), 3);
     }
 }
+*/

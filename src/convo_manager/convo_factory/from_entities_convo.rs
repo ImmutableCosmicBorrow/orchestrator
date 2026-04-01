@@ -1,7 +1,10 @@
+use common_game::logging::Channel;
 use common_game::protocols::orchestrator_explorer::ExplorerToOrchestrator;
 use common_game::utils::ID;
 use crate::convo_manager::ConvoManager;
+use crate::logging_utils::{log_internal, LogTarget};
 use crate::orchestrator::conversations::{PossibleExpectedKinds, PossibleMessage};
+use crate::payload;
 
 impl ConvoManager {
     pub(crate) fn try_create_conversation(
@@ -16,20 +19,14 @@ impl ConvoManager {
                     explorer_id,
                     current_planet_id: _,
                 } => Some(self.create_neighbors_request_conversation(
-                    &self.orch_context.galaxy
+                    *explorer_id,
                 )
                 ),
                 ExplorerToOrchestrator::TravelToPlanetRequest {
                     explorer_id,
                     current_planet_id,
                     dst_planet_id,
-                } => Some(convo_factory::create_waiting_travel_to_planet_request_conversation(
-                    &self.convo_scheduler,
-                    self.galaxy.clone(),
-                    self.channels_manager.get_planet_explorer_struct(),
-                    self.channels_manager.get_orch_to_exp_senders_struct_ref(),
-                    self.channels_manager.get_to_planet_senders_struct_ref(),
-                    &self.explorers_location,
+                } => Some(self.create_waiting_travel_to_planet_request_conversation(
                     *explorer_id,
                     *current_planet_id,
                     *dst_planet_id,

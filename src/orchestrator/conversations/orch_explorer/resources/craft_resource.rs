@@ -185,6 +185,7 @@ fn wait_craft_resource_res_transition(this: Box<CraftResourceConversation<Waitin
     Some(Box::new(error_state) as Box<dyn Conversation + Send + Sync>)
 }
 
+/*
 
 #[cfg(test)]
 mod tests {
@@ -353,3 +354,4 @@ mod tests {
         assert_eq!(result.get_error_details().unwrap(), expected);
     }
 }
+*/

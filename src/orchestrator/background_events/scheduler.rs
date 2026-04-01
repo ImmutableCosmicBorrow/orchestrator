@@ -7,16 +7,11 @@ use super::dispatch;
 use super::planning;
 use super::state::SchedulerState;
 use super::timing;
-use crate::channels_manager::ChannelsManager;
-use crate::convo_manager::queue::ConvoScheduler;
-use crate::orchestrator::{ChannelsManagerRef, ExplorerBagContent, ExplorersLocationRef};
-use crate::planet::PlanetMap;
-use common_game::components::forge::Forge;
 use common_game::utils::ID;
 use std::sync::{Arc, Mutex, OnceLock};
 use std::thread::{self, JoinHandle};
 use std::time::{Duration, Instant};
-use crate::convo_manager::convo_factory::ConvoFactory;
+use crate::convo_manager::ConvoManager;
 
 const REGIME_STEP_INTERVAL: Duration = Duration::from_secs(30);
 
@@ -27,12 +22,11 @@ struct SchedulerController {
 static SCHEDULER_CTRL: OnceLock<SchedulerController> = OnceLock::new();
 
 pub(super) fn init_background_event_scheduler(
-    channels_manager: ChannelsManagerRef,
-    forge: Arc<Forge>,
-    explorers_location: ExplorersLocationRef,
-    convo_factory: Arc<ConvoFactory>,
-    galaxy: PlanetMap,
+    convo_manager: Arc<Mutex<ConvoManager>>,
 ) {
+    let convo_manager_guard = convo_manager.lock().unwrap();
+    let orch_context = convo_manager_guard.get_orch_context_ref();
+    
     let controller = scheduler_ctrl();
     let mut handle_guard = controller.handle.lock().unwrap();
 
@@ -42,8 +36,8 @@ pub(super) fn init_background_event_scheduler(
 
     control::reset_shutdown_flag();
 
-    let world = Arc::new(WorldCtx::new(galaxy, explorers_location));
-    let dispatch_ctx = Arc::new(DispatchCtx::new(channels_manager, forge, convo_factory));
+    let world = Arc::new(WorldCtx::new(orch_context.get_galaxy(), orch_context.get_explorers_location()));
+    let dispatch_ctx = Arc::new(DispatchCtx::new(convo_manager.clone()));
 
     let handle = thread::spawn({
         let world = Arc::clone(&world);

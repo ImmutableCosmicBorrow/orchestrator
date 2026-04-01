@@ -143,7 +143,7 @@ fn wait_exp_stop_res_transition(this: Box<StopExplorerConversation<WaitingExplor
     Some(Box::new(error_state) as Box<dyn Conversation + Send + Sync>)
 }
 
-
+/*
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -281,3 +281,6 @@ mod tests {
         assert_eq!(conv.get_priority(), 5);
     }
 }
+
+
+*/

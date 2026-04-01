@@ -15,7 +15,7 @@ pub(super) fn dispatch(event: PlannedEvent, world: &WorldCtx, dispatch_ctx: &Dis
     }
 }
 
-fn dispatch_asteroid(event: PlannedEvent, world: &WorldCtx, dispatch_ctx: &DispatchCtx) {
+fn dispatch_asteroid(event: PlannedEvent, _world_ctx: &WorldCtx, dispatch_ctx: &DispatchCtx) {
 
     log_internal(
         LogTarget::AsteroidsSunrays,
@@ -23,11 +23,7 @@ fn dispatch_asteroid(event: PlannedEvent, world: &WorldCtx, dispatch_ctx: &Dispa
         payload!(action: "Sending asteroid", planet_id: event.planet_id),
     );
 
-    dispatch_ctx.convo_factory.create_asteroid_conversation(
-        &dispatch_ctx.forge,
-        &world.explorers_location,
-        event.planet_id
-    );
+    dispatch_ctx.convo_manager.lock().unwrap().create_asteroid_conversation(event.planet_id);
 }
 
 fn dispatch_sunray(event: PlannedEvent, dispatch_ctx: &DispatchCtx) {
@@ -38,8 +34,5 @@ fn dispatch_sunray(event: PlannedEvent, dispatch_ctx: &DispatchCtx) {
         payload!(action: "Sending sunray", planet_id: event.planet_id),
     );
 
-    dispatch_ctx.convo_factory.create_sunray_conversation(
-        &dispatch_ctx.forge,
-        event.planet_id
-    );
+    dispatch_ctx.convo_manager.lock().unwrap().create_sunray_conversation(event.planet_id);
 }

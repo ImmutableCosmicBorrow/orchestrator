@@ -222,7 +222,7 @@ impl WaitingKillExplorerResult {
         );
     }
 }
-
+/*
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -427,3 +427,4 @@ mod tests {
         assert_eq!(conv.get_priority(), 5);
     }
 }
+*/

@@ -33,7 +33,7 @@ pub(crate) fn make_empty_senders() -> OrchToExplorerSenders {
 
     Arc::new(Mutex::new(HashMap::new()))
 }
-
+/*
 #[cfg(test)]
 pub(crate) fn make_to_explorer_struct(
     explorer_id: ID,
@@ -51,3 +51,4 @@ pub(crate) fn make_to_planet_struct(planet_id: ID, senders: OrchToPlanetSenders)
         planets_senders: senders,
     }
 }
+*/

@@ -3,18 +3,18 @@
 use crate::orchestrator::{ChannelsManagerRef, ExplorerBagContent, ExplorersLocationRef};
 use crate::planet::PlanetMap;
 use common_game::components::forge::Forge;
-use std::sync::Arc;
-use crate::convo_manager::convo_factory::ConvoFactory;
+use std::sync::{Arc, Mutex};
+use crate::convo_manager::ConvoManager;
 
+
+//TODO: MAYBE SIMPLIFY AND JUST TAKE CONVO_MANAGER?
 pub(super) struct WorldCtx {
     pub(super) galaxy: PlanetMap,
     pub(super) explorers_location: ExplorersLocationRef,
 }
 
 pub(super) struct DispatchCtx {
-    pub(super) channels_manager: ChannelsManagerRef,
-    pub(super) forge: Arc<Forge>,
-    pub(super) convo_factory: Arc<ConvoFactory>,
+    pub(super) convo_manager : Arc<Mutex<ConvoManager>>,
 }
 
 impl WorldCtx {
@@ -28,14 +28,10 @@ impl WorldCtx {
 
 impl DispatchCtx {
     pub(super) fn new(
-        channels_manager: ChannelsManagerRef,
-        forge: Arc<Forge>,
-        convo_factory: Arc<ConvoFactory>,
+        convo_manager: Arc<Mutex<ConvoManager>>
     ) -> Self {
         Self {
-            channels_manager,
-            forge,
-            convo_factory,
+            convo_manager,
         }
     }
 }

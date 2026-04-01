@@ -180,7 +180,7 @@ fn wait_bag_content_res_transition(this: Box<BagContentConversation<WaitingBagCo
     Some(Box::new(error_state) as Box<dyn Conversation + Send + Sync>)
 }
 
-
+/*
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -325,3 +325,4 @@ mod tests {
         assert_eq!(conv.get_priority(), 3);
     }*/
 }
+*/

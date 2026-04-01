@@ -1,3 +1,4 @@
+use common_game::components::resource::{BasicResourceType, ComplexResourceType};
 use common_game::logging::Channel;
 use common_game::utils::ID;
 use crate::convo_manager::ConvoManager;
@@ -25,15 +26,13 @@ impl ConvoManager {
 
     pub(crate) fn create_neighbors_request_conversation(
         &self,
-        galaxy: &PlanetMap,
         explorer_id: ID,
-        channels_manager: ChannelsManagerRef,
     ) -> ID {
         let state =
             WaitingNeighborsRequest::new(
-                channels_manager.clone(),
+                self.orch_context.channels_manager.clone(),
                 explorer_id,
-                galaxy.clone(),
+                self.orch_context.galaxy.clone(),
             );
 
         let id = get_id_manager().get_next_conversation_id();
@@ -60,20 +59,18 @@ impl ConvoManager {
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn create_send_manual_move_conversation(
         &self,
-        explorers_location: &ExplorersLocationRef,
         explorer_id: ID,
         current_planet_id: Option<ID>,
         dst_planet_id: ID,
-        channels_manager: ChannelsManagerRef
     ) -> ID {
 
 
         let state = SendManualMoveRequest::new(
-            channels_manager.clone(),
+            self.orch_context.channels_manager.clone(),
             explorer_id,
             current_planet_id,
             dst_planet_id,
-            explorers_location.clone(),
+            self.orch_context.explorers_location.clone(),
         );
 
         let id = get_id_manager().get_next_conversation_id();
@@ -100,20 +97,17 @@ impl ConvoManager {
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn create_waiting_travel_to_planet_request_conversation(
         &self,
-        galaxy: PlanetMap,
-        explorers_location: &ExplorersLocationRef,
         explorer_id: ID,
         current_planet_id: ID,
         dst_planet_id: ID,
-        channels_manager: ChannelsManagerRef,
     ) -> ID {
 
         let state = WaitingTravelRequest::new(
-            channels_manager.clone(),
+            self.orch_context.channels_manager.clone(),
             explorer_id,
             current_planet_id,
-            galaxy,
-            explorers_location.clone(),
+            self.orch_context.galaxy.clone(),
+            self.orch_context.explorers_location.clone(),
         );
 
         let id = get_id_manager().get_next_conversation_id();
@@ -142,10 +136,9 @@ impl ConvoManager {
     pub(crate) fn create_bag_content_conversation(
         &self,
         explorer_id: ID,
-        channels_manager: ChannelsManagerRef
     ) -> ID {
         let state = SendingBagContentRequest::new(
-            channels_manager.clone(),
+            self.orch_context.channels_manager.clone(),
             explorer_id,
         );
         let id = get_id_manager().get_next_conversation_id();
@@ -171,12 +164,11 @@ impl ConvoManager {
     pub(crate) fn create_generate_resource_conversation(
         &self,
         explorer_id: ID,
-        resource_type: common_game::components::resource::BasicResourceType,
-        channels_manager: ChannelsManagerRef,
+        resource_type: BasicResourceType,
     ) -> ID {
 
         let state = SendingCraftResourceRequest::new(
-            channels_manager.clone(),
+            self.orch_context.channels_manager.clone(),
             explorer_id,
             resource_type,
         );
@@ -206,11 +198,10 @@ impl ConvoManager {
     pub(crate) fn create_combine_resource_conversation(
         &self,
         explorer_id: ID,
-        resource_type: common_game::components::resource::ComplexResourceType,
-        channels_manager: ChannelsManagerRef
+        resource_type: ComplexResourceType,
     ) -> ID {
         let state = SendingCombineResourceRequest::new(
-            channels_manager.clone(),
+            self.orch_context.channels_manager.clone(),
             explorer_id,
             resource_type,
         );
@@ -240,10 +231,9 @@ impl ConvoManager {
     pub(crate) fn create_start_explorer_conversation(
         &self,
         explorer_id: ID,
-        channels_manager: ChannelsManagerRef
     ) -> ID {
         let state = SendingExplorerStart::new(
-            channels_manager.clone(),
+            self.orch_context.channels_manager.clone(),
             explorer_id,
         );
         let id = get_id_manager().get_next_conversation_id();
@@ -272,10 +262,9 @@ impl ConvoManager {
     pub(crate) fn create_stop_explorer_conversation(
         &self,
         explorer_id: ID,
-        channels_manager: ChannelsManagerRef
     ) -> ID {
         let state = SendingExplorerStop::new(
-            channels_manager.clone(),
+            self.orch_context.channels_manager.clone(),
             explorer_id,
         );
         let id = get_id_manager().get_next_conversation_id();
@@ -302,16 +291,14 @@ impl ConvoManager {
 
     pub(crate) fn create_kill_explorer_conversation(
         &self,
-        explorers_location: &ExplorersLocationRef,
         explorer_id: ID,
         planet_id: ID,
         handle_outgoing: bool,
-        channels_manager: ChannelsManagerRef
     ) -> ID {
         let state = SendingExplorerKill::new(
-            channels_manager.clone(),
+            self.orch_context.channels_manager.clone(),
             explorer_id,
-            explorers_location.clone(),
+            self.orch_context.explorers_location.clone(),
             handle_outgoing,
         );
         let id = get_id_manager().get_next_conversation_id();
@@ -339,10 +326,9 @@ impl ConvoManager {
     pub(crate) fn create_reset_explorer_conversation(
         &self,
         explorer_id: ID,
-        channels_manager: ChannelsManagerRef
     ) -> ID {
         let state = SendingExplorerReset::new(
-            channels_manager.clone(),
+            self.orch_context.channels_manager.clone(),
             explorer_id,
         );
         let id = get_id_manager().get_next_conversation_id();
