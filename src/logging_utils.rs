@@ -58,61 +58,7 @@ fn emit_with_target(event: &LogEvent, target: &str) {
         Channel::Debug => log::Level::Debug,
         Channel::Trace => log::Level::Trace,
     };
-    // Format the event first and strip the internal `ts: <digits>, ` or `timestamp_unix: <digits>`
-    // entry to avoid having the timestamp duplicated in the log output.
-    let mut msg = format!("{event}");
-    if let Some(start) = msg.find("ts: ").or_else(|| msg.find("timestamp_unix: ")) {
-        let rel_comma = msg[start..].find(',');
-        let rel_brace = msg[start..].find('}');
-        let rel_end = match (rel_comma, rel_brace) {
-            (Some(c), Some(b)) => Some(std::cmp::min(c, b)),
-            (Some(c), None) => Some(c),
-            (None, Some(b)) => Some(b),
-            (None, None) => None,
-        };
-        if let Some(rel) = rel_end {
-            let mut end = start + rel + 1; // include comma or brace
-            if msg.as_bytes().get(end) == Some(&b' ') {
-                end += 1; // also remove the following space if present
-            }
-            msg.replace_range(start..end, "");
-        }
-    }
-
-    // Remove `sender: none, ` and `receiver: none, ` first (common case)
-    let patterns_with_comma = ["sender: none, ", "receiver: none, "];
-    for pat in &patterns_with_comma {
-        while let Some(pos) = msg.find(pat) {
-            msg.replace_range(pos..pos + pat.len(), "");
-        }
-    }
-
-    // Then remove any remaining `sender: none` / `receiver: none`,
-    // also removing a preceding comma if present (field was last).
-    let patterns = ["sender: none", "receiver: none"];
-    for pat in &patterns {
-        while let Some(pos) = msg.find(pat) {
-            let mut start = pos;
-            if start >= 2 && &msg[start - 2..start] == ", " {
-                start -= 2;
-            } else if start >= 1 && &msg[start - 1..start] == "," {
-                start -= 1;
-            }
-            let mut end = pos + pat.len();
-            if msg.as_bytes().get(end) == Some(&b' ') {
-                end += 1;
-            }
-            msg.replace_range(start..end, "");
-        }
-    }
-
-    // Cleanup: remove a trailing comma before a closing brace and collapse double spaces
-    msg = msg.replace(", }", " }");
-    while msg.contains("  ") {
-        msg = msg.replacen("  ", " ", 1);
-    }
-
-    let msg = format_log_event_from_string(msg);
+    let msg = format_log_event_from_string(format!("{event}"));
     log::log!(target: target, level, "{msg}");
 }
 
@@ -139,13 +85,18 @@ fn format_log_event_from_string(mut msg: String) -> String {
     }
 
     // Remove `sender: none` / `receiver: none` patterns
-    let patterns_with_comma = ["sender: none, ", "receiver: none, "];
+    let patterns_with_comma = [
+        "sender: none, ",
+        "receiver: none, ",
+        "sender: None, ",
+        "receiver: None, ",
+    ];
     for pat in &patterns_with_comma {
         while let Some(pos) = msg.find(pat) {
             msg.replace_range(pos..pos + pat.len(), "");
         }
     }
-    let patterns = ["sender: none", "receiver: none"];
+    let patterns = ["sender: none", "receiver: none", "sender: None", "receiver: None"];
     for pat in &patterns {
         while let Some(pos) = msg.find(pat) {
             let mut start = pos;
@@ -169,6 +120,50 @@ fn format_log_event_from_string(mut msg: String) -> String {
     }
 
     msg
+}
+
+/// If a message contains a `LogEvent { ... }` payload, normalize that payload
+/// by stripping duplicated timestamp fields and empty sender/receiver fields.
+fn sanitize_log_message(message: &str) -> String {
+    if let Some(start) = message.find("LogEvent {") {
+        let (prefix, event_part) = message.split_at(start);
+        let cleaned_event = format_log_event_from_string(event_part.to_string());
+        format!("{prefix}{cleaned_event}")
+    } else {
+        message.to_string()
+    }
+}
+
+/// Load a local `.env` file (if present) and set the variables into the
+/// process environment. This intentionally overrides any existing values so
+/// that `.env` takes precedence over the terminal environment.
+use std::collections::HashMap;
+
+fn read_local_dotenv() -> HashMap<String, String> {
+    let mut map = HashMap::new();
+    if let Ok(content) = std::fs::read_to_string(".env") {
+        for raw_line in content.lines() {
+            let line = raw_line.trim();
+            if line.is_empty() || line.starts_with('#') {
+                continue;
+            }
+            let mut parts = line.splitn(2, '=');
+            let key = parts.next().unwrap().trim();
+            if key.is_empty() {
+                continue;
+            }
+            let mut value = parts.next().unwrap_or("").trim().to_string();
+            if value.len() >= 2 {
+                let first = value.chars().next().unwrap();
+                let last = value.chars().last().unwrap();
+                if (first == '"' && last == '"') || (first == '\'' && last == '\'') {
+                    value = value[1..value.len() - 1].to_string();
+                }
+            }
+            map.insert(key.to_string(), value);
+        }
+    }
+    map
 }
 
 // ── Public logging helpers ──────────────────────────────────────────────
@@ -247,57 +242,73 @@ fn open_log_file(dir: &str, filename: &str) -> std::fs::File {
 /// # Panics
 /// Panics if the log directory or any log file cannot be created/opened.
 pub fn start_logger() {
-    std::fs::create_dir_all("log").expect("failed to create log/ directory");
+    // Read local `.env` (if present); terminal environment variables take
+    // precedence. Use `.env` only as a fallback for `RUST_LOG` and `LOG_DIR`.
+    let dotenv_map = read_local_dotenv();
+
+    let log_root = std::env::var("LOG_DIR")
+        .ok()
+        .or_else(|| dotenv_map.get("LOG_DIR").cloned())
+        .unwrap_or_else(|| "log".to_string());
+    std::fs::create_dir_all(&log_root).expect("failed to create log/ directory");
 
     let now = chrono::Local::now();
     let log_filename = format!("{}.log", now.format("%Y_%m_%d_%H-%M-%S"));
 
     let level = std::env::var("RUST_LOG")
         .ok()
+        .or_else(|| dotenv_map.get("RUST_LOG").cloned())
         .and_then(|s| s.parse::<log::LevelFilter>().ok())
         .unwrap_or(log::LevelFilter::Info);
 
     let format =
         |out: fern::FormatCallback, message: &std::fmt::Arguments, record: &log::Record| {
+            let raw_message = format!("{message}");
+            let cleaned_message = sanitize_log_message(&raw_message);
             out.finish(format_args!(
                 "[{} {} {}] {}",
                 humantime::format_rfc3339_seconds(std::time::SystemTime::now()),
                 record.level(),
                 record.target(),
-                message,
+                cleaned_message,
             ));
         };
+
+    let asteroids_sunrays_dir = format!("{log_root}/asteroids_sunrays");
+    let conversations_dir = format!("{log_root}/conversations");
+    let general_dir = format!("{log_root}/general");
+    let channel_messages_dir = format!("{log_root}/channel_messages");
+    let common_game_dir = format!("{log_root}/common_game");
+    let shared_dir = format!("{log_root}/all");
 
     let asteroids_sunrays = fern::Dispatch::new()
         .format(format)
         .filter(|meta| meta.target().starts_with(TARGET_ASTEROIDS_SUNRAYS))
-        .chain(open_log_file("log/asteroids_sunrays", &log_filename));
+        .chain(open_log_file(&asteroids_sunrays_dir, &log_filename));
 
     let conversations = fern::Dispatch::new()
         .format(format)
         .filter(|meta| meta.target().starts_with(TARGET_CONVERSATIONS))
-        .chain(open_log_file("log/conversations", &log_filename));
+        .chain(open_log_file(&conversations_dir, &log_filename));
 
     let general = fern::Dispatch::new()
         .format(format)
         .filter(|meta| meta.target().starts_with(TARGET_GENERAL))
-        .chain(open_log_file("log/general", &log_filename));
+        .chain(open_log_file(&general_dir, &log_filename));
 
     let channel_messages = fern::Dispatch::new()
         .format(format)
         .filter(|meta| meta.target().starts_with(TARGET_CHANNEL_MESSAGES))
-        .chain(open_log_file("log/channel_messages", &log_filename));
+        .chain(open_log_file(&channel_messages_dir, &log_filename));
 
     // Everything that does NOT come from orchestrator targets (e.g. common_game, planet crates, explorer crates)
     let common_game = fern::Dispatch::new()
         .format(format)
         .filter(|meta| !meta.target().starts_with("orch::"))
-        .chain(open_log_file("log/common_game", &log_filename));
+        .chain(open_log_file(&common_game_dir, &log_filename));
 
     // Shared file: all messages regardless of target
-    let shared = fern::Dispatch::new()
-        .format(format)
-        .chain(open_log_file("log/all", &log_filename));
+    let shared = fern::Dispatch::new().format(format).chain(open_log_file(&shared_dir, &log_filename));
 
     // Terminal output: all orchestrator logs go to stderr as well, with color
     let terminal = fern::Dispatch::new()
@@ -312,12 +323,14 @@ pub fn start_logger() {
             };
             let target = record.target().dimmed();
             let timestamp = humantime::format_rfc3339_seconds(std::time::SystemTime::now());
+            let raw_message = format!("{message}");
+            let cleaned_message = sanitize_log_message(&raw_message);
             out.finish(format_args!(
                 "[{} {} {}] {}",
                 timestamp.to_string().dimmed(),
                 level_str,
                 target,
-                message,
+                cleaned_message,
             ));
         })
         .chain(std::io::stderr());
