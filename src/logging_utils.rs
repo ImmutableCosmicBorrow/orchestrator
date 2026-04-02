@@ -58,7 +58,28 @@ fn emit_with_target(event: &LogEvent, target: &str) {
         Channel::Debug => log::Level::Debug,
         Channel::Trace => log::Level::Trace,
     };
-    log::log!(target: target, level, "{event}");
+    // Format the event first and strip the internal `ts: <digits>, ` or `timestamp_unix: <digits>`
+    // entry to avoid having the timestamp duplicated in the log output.
+    let mut msg = format!("{event}");
+    if let Some(start) = msg.find("ts: ").or_else(|| msg.find("timestamp_unix: ")) {
+        let rel_comma = msg[start..].find(',');
+        let rel_brace = msg[start..].find('}');
+        let rel_end = match (rel_comma, rel_brace) {
+            (Some(c), Some(b)) => Some(std::cmp::min(c, b)),
+            (Some(c), None) => Some(c),
+            (None, Some(b)) => Some(b),
+            (None, None) => None,
+        };
+        if let Some(rel) = rel_end {
+            let mut end = start + rel + 1; // include comma or brace
+            if msg.as_bytes().get(end) == Some(&b' ') {
+                end += 1; // also remove the following space if present
+            }
+            msg.replace_range(start..end, "");
+        }
+    }
+
+    log::log!(target: target, level, "{msg}");
 }
 
 // ── Public logging helpers ──────────────────────────────────────────────
