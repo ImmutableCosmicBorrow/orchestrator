@@ -376,6 +376,11 @@ impl Orchestrator {
         background_events::enable_asteroids();
     }
 
+    fn stop_background_event_senders(&self) {
+        background_events::disable_sunrays();
+        background_events::disable_asteroids();
+    }
+
     fn handle_message(&mut self, message: PossibleMessage<ExplorerBagContent>) {
         let message_kind = message.to_kind_type();
         let entities_ids = message.get_entity_ids();
@@ -516,24 +521,40 @@ impl Orchestrator {
                 self.shutdown_requested = true;
             }
             PauseGame => {
-                background_events::disable_asteroids();
-                background_events::disable_sunrays();
+                self.stop_background_event_senders();
+
+                for explorer_id in self.channels_manager.get_orch_to_exp_senders_struct().lock().unwrap().keys() {
+                    self.routing().stop_explorer_ai(*explorer_id);
+                }
+                
+                for planet_id in self.channels_manager.get_to_planet_senders_struct().lock().unwrap().keys() {
+                    self.routing().stop_planet_ai(*planet_id);
+                }
+
                 log_internal(
                     LogTarget::General,
                     Channel::Info,
                     payload!(
-                        action : "Received PauseGame command from UI. Pausing background events",
+                        action : "Received PauseGame command from UI. Pausing background events and planet/explorer AIs",
                     ),
                 );
             }
             ResumeGame => {
-                background_events::enable_asteroids();
-                background_events::enable_sunrays();
+                self.start_background_event_senders();
+
+                for explorer_id in self.channels_manager.get_orch_to_exp_senders_struct().lock().unwrap().keys() {
+                    self.routing().start_explorer_ai(*explorer_id);
+                }
+                
+                for planet_id in self.channels_manager.get_to_planet_senders_struct().lock().unwrap().keys() {
+                    self.routing().start_planet_ai(*planet_id);
+                }
+                
                 log_internal(
                     LogTarget::General,
                     Channel::Info,
                     payload!(
-                        action : "Received ResumeGame command from UI. Resuming background events",
+                        action : "Received ResumeGame command from UI. Resuming background events and planet/explorer AIs",
                     ),
                 );
             }
