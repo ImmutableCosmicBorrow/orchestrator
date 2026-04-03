@@ -1,6 +1,6 @@
 pub(crate) use crate::channels_manager::{OrchToExplorerSenders, OrchToPlanetSenders};
 use crate::globals::TIMEOUT;
-use crate::logging_utils::{LogTarget, log_internal, log_msg_to};
+use crate::logging::{LogTarget, log_internal, log_msg_to};
 use crate::orchestrator::ExplorerBagContent;
 use crate::payload;
 use common_game::logging::{ActorType, Channel, EventType};

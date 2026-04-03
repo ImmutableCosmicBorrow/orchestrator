@@ -1,5 +1,5 @@
 use crate::id::IdManager;
-use crate::logging_utils::{LogTarget, log_internal};
+use crate::logging::{LogTarget, log_internal};
 use crate::payload;
 use crate::planet::{PlanetMap, add_planet_with_neighbors};
 

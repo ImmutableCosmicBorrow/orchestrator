@@ -3,7 +3,7 @@
 use super::EventKind;
 use super::context::{DispatchCtx, WorldCtx};
 use super::state::PlannedEvent;
-use crate::logging_utils::{LogTarget, log_internal};
+use crate::logging::{LogTarget, log_internal};
 use crate::orchestrator::convo_factory;
 use crate::payload;
 use common_game::logging::Channel;

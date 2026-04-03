@@ -13,7 +13,7 @@ use crate::{get_id_manager, payload};
 
 use crate::channels_manager::ChannelsManager;
 use crate::globals::{get_game_step, set_game_step};
-use crate::logging_utils::{LogTarget, log_internal, log_msg_from};
+use crate::logging::{LogTarget, log_internal, log_msg_from};
 use crate::orchestrator::conversations::ToExplorerStruct;
 use crate::orchestrator::conversations::ToPlanetStruct;
 use crate::ui::{OrchestratorToUiUpdate, UiToOrchestratorCommand};

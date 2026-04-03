@@ -20,8 +20,6 @@ macro_rules! payload {
     }};
 }
 
-// ── Public logging helpers ──────────────────────────────────────────────
-
 /// Creates and emits a log event with `ActorType::Orchestrator` as sender
 pub fn log_msg_to(
     target: LogTarget,

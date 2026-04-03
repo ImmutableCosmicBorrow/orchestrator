@@ -1,4 +1,4 @@
-use crate::logging_utils::{LogTarget, log_msg_to};
+use crate::logging::{LogTarget, log_msg_to};
 use crate::orchestrator::conversations::orch_explorer::movement::move_to_planet::WaitingOutgoingResponse;
 use crate::orchestrator::conversations::orch_explorer::movement::move_to_planet::errors::MoveToPlanetErrors;
 use crate::orchestrator::conversations::orch_explorer::movement::move_to_planet::{
