@@ -1,5 +1,5 @@
 use crate::convo_manager::queue::{ConversationMap, PQueue};
-use crate::logging_utils::{LogTarget, log_internal};
+use crate::logging::{LogTarget, log_internal};
 use crate::orchestrator::conversations::{Conversation, PossibleExpectedKinds, PossibleMessage};
 use crate::payload;
 use common_game::logging::Channel;
@@ -75,6 +75,8 @@ impl ConvoScheduler {
     }
 
     /// Check if a specific conversation has timed out.
+    // TODO: this is not currently used, but might be useful for specific checks in the conversation transitions, to handle timeouts more gracefully than just going to the error state.
+    #[allow(dead_code)]
     pub fn is_timed_out(&self, convo_id: ID) -> bool {
         let timeouts = self.timeouts.lock().unwrap();
         if let Some((start, duration)) = timeouts.get(&convo_id) {
@@ -194,6 +196,8 @@ impl ConvoScheduler {
             self.queue.push(id, priority);
             return None;
         }
+
+        self.handle_timeouts();
 
         let conversation = self.active_convos.lock().unwrap().remove(&id);
         let expected_kind = conversation.as_ref().unwrap().get_expected_kind();
@@ -405,6 +409,8 @@ mod tests {
             }
         }
 
+        // TODO: add tests that actually trigger the transition and check that the state is updated accordingly, to verify that the conversations retrieved from the scheduler are the same ones that were added and that their methods work as expected.
+        #[allow(dead_code)]
         fn transitions(&self) -> usize {
             self.state.lock().unwrap().transitions
         }
@@ -739,6 +745,8 @@ mod tests {
             }
         }
 
+        // TODO: add tests that trigger the timeout and check that the on_timeout logic is executed as expected, by checking that the on_timeout_called flag is set to true after handling timeouts.
+        #[allow(dead_code)]
         fn was_timeout_called(&self) -> bool {
             *self.on_timeout_called.lock().unwrap()
         }

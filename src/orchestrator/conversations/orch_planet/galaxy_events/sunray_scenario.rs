@@ -1,6 +1,6 @@
 use crate::convo_manager::OrchContextRef;
 use crate::globals::TIMEOUT;
-use crate::logging_utils::{LogTarget, log_internal};
+use crate::logging::{LogTarget, log_internal};
 use crate::orchestrator::ChannelsManagerRef;
 use crate::orchestrator::conversations::EntitiesIDTuple;
 use crate::orchestrator::conversations::PossibleExpectedKinds::PlanetToOrchKind;
@@ -52,6 +52,9 @@ create_request_state!(
 /// [`ErrorState`] with [`CommonErrorTypes::PlanetSenderNotFound`] if the sender to the planet is not in the list
 ///
 /// The next state: [`SunrayConversation<WaitingSunrayAck>`] if the sunray was sent successfully.
+// TODO: check if we can remove allows
+#[allow(clippy::unnecessary_wraps)]
+#[allow(clippy::boxed_local)]
 fn send_sunray_transition(
     this: Box<SunrayConversation<SendSunray>>,
 ) -> Option<Box<dyn Conversation + Send + Sync>> {
@@ -99,6 +102,9 @@ create_response_state!(
 /// [None] if the [`PlanetToOrchestrator::SunrayAck`] is successfully received, ending the conversation.
 ///
 /// [`ErrorState`] with [`CommonErrorTypes::WrongMessage`] if the trigger message is different from the expected one.
+// TODO: check if we can remove allows
+#[allow(clippy::boxed_local)]
+#[allow(clippy::needless_pass_by_value)]
 fn wait_sunray_ack_transition(
     this: Box<SunrayConversation<WaitingSunrayAck>>,
     msg: Option<PossibleMessage>,
@@ -125,6 +131,9 @@ fn wait_sunray_ack_transition(
 //On timeout function, this state does not use the default implementation of the trait
 /// Called when the conversation times out waiting for `SunrayAck`.
 /// Logs a warning - the conversation is simply terminated.
+// TODO: check if we can remove allows
+#[allow(clippy::boxed_local)]
+#[allow(clippy::needless_pass_by_value)]
 fn on_timeout(this: Box<SunrayConversation<WaitingSunrayAck>>) {
     log_internal(
         LogTarget::AsteroidsSunrays,

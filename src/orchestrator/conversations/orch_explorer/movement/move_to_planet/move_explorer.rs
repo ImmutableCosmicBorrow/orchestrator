@@ -1,6 +1,6 @@
 use crate::convo_manager::OrchContextRef;
 use crate::globals::{TIMEOUT, get_explorer_timeout};
-use crate::logging_utils::{LogTarget, log_internal};
+use crate::logging::{LogTarget, log_internal};
 use crate::orchestrator::ChannelsManagerRef;
 use crate::orchestrator::conversations::EntitiesIDTuple;
 use crate::orchestrator::conversations::ExplorerCommunicator;
@@ -21,11 +21,11 @@ use common_game::utils::ID;
 use crossbeam_channel::Sender;
 use std::time::Duration;
 
-///**Move To Planet Conversation - Send Move Request**
-///
-/// This state serves as the "Command Dispatch" phase. It bridges the gap between the successful
-/// Orchestrator-Planet handshake and the Explorer's actual transition. Its primary role is to
-/// provide the Explorer with the communication channels to interact with its new planet.
+//**Move To Planet Conversation - Send Move Request**
+//
+// This state serves as the "Command Dispatch" phase. It bridges the gap between the successful
+// Orchestrator-Planet handshake and the Explorer's actual transition. Its primary role is to
+// provide the Explorer with the communication channels to interact with its new planet.
 
 // SEND MOVE REQUEST DEFINITION
 create_request_state!(
@@ -121,9 +121,9 @@ impl SendMoveRequest {
     }
 }
 
-///**Move To Planet Conversation - Wait Move To Planet Response**
-///
-/// This is the final terminal state in the movement sequence. It updates the location of the explorer in the structure held by the Orchestrator.
+//**Move To Planet Conversation - Wait Move To Planet Response**
+//
+// This is the final terminal state in the movement sequence. It updates the location of the explorer in the structure held by the Orchestrator.
 // WAIT MOVE TO PLANET RESPONSE IMPLEMENTATION
 create_response_state!(
     state: WaitMoveToPlanetResponse,

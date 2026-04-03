@@ -1,6 +1,6 @@
 use crate::convo_manager::OrchContextRef;
 use crate::globals::{TIMEOUT, get_explorer_timeout};
-use crate::logging_utils::{LogTarget, log_internal};
+use crate::logging::{LogTarget, log_internal};
 use crate::orchestrator::ChannelsManagerRef;
 use crate::orchestrator::conversations::PossibleExpectedKinds::ExplorerToOrchKind;
 use crate::orchestrator::conversations::{
@@ -17,14 +17,14 @@ use common_game::protocols::orchestrator_explorer::{
 use common_game::utils::ID;
 use std::time::Duration;
 
-///**Bag Content Conversation**
-///
-/// This module manages the conversation between the Orchestrator and an Explorer regarding the contents of their bag.
-/// It uses a Finite State Machine (FSM) to ensure that the inventory request and response are handled
-/// in the correct order at compile time.
-///
-/// The conversation flow starts by sending a request to the explorer and terminates once the
-/// bag content is received (intended for UI reporting).
+//**Bag Content Conversation**
+//
+// This module manages the conversation between the Orchestrator and an Explorer regarding the contents of their bag.
+// It uses a Finite State Machine (FSM) to ensure that the inventory request and response are handled
+// in the correct order at compile time.
+//
+// The conversation flow starts by sending a request to the explorer and terminates once the
+// bag content is received (intended for UI reporting).
 
 // --- EXPLORER BAG CONTENT CONVERSATION ---
 define_conversation!(

@@ -1,6 +1,6 @@
 use crate::convo_manager::OrchContextRef;
 use crate::globals::{TIMEOUT, get_explorer_timeout};
-use crate::logging_utils::{LogTarget, log_internal};
+use crate::logging::{LogTarget, log_internal};
 use crate::orchestrator::ChannelsManagerRef;
 use crate::orchestrator::conversations::PossibleExpectedKinds::ExplorerToOrchKind;
 use crate::orchestrator::conversations::{
@@ -28,9 +28,7 @@ use std::time::Duration;
 /// The conversation flow starts by sending a [`OrchestratorToExplorer::CombineResourceRequest`] to the explorer and terminates
 /// once the [`ExplorerToOrchestrator::CombineResourceResponse`] is received.
 /// Custom error type for when an explorer fails to craft the requested complex resource.
-
 //TODO: SEND RESULT TO UI?
-
 struct CombineFailed {
     /// ID of the explorer who attempted the craft.
     explorer_id: ID,

@@ -11,7 +11,7 @@ use crate::{get_id_manager, payload};
 use crate::channels_manager::ChannelsManager;
 use crate::convo_manager::ConvoManager;
 use crate::globals::{get_game_step, set_game_step};
-pub(crate) use crate::logging_utils::{LogTarget, log_internal, log_msg_from};
+use crate::logging::{LogTarget, log_internal, log_msg_from};
 use crate::ui::{OrchestratorToUiUpdate, UiToOrchestratorCommand};
 use common_explorer::ExplorerAI;
 pub(crate) use common_explorer::ExplorerBagContent;
@@ -60,8 +60,8 @@ impl OrchContext {
         explorers_location: ExplorersLocationRef,
     ) -> Self {
         Self {
-            channels_manager,
             forge,
+            channels_manager,
             galaxy,
             explorers_location,
         }
@@ -122,7 +122,7 @@ impl Orchestrator {
         let channels_manager_ref = Arc::new(ChannelsManager::new(ui_sender, ui_receiver));
         // galaxy_loader now returns 2 values (galaxy and planet_threads), all channels are distributed inside using
         // channels manager APIs
-        let (galaxy, planet_threads) = galaxy_loader(file_path, channels_manager_ref.clone());
+        let (galaxy, planet_threads) = galaxy_loader(file_path, &channels_manager_ref);
         let explorers_location = DashMap::new();
         let forge = Forge::new().expect("Couldn't create forge!");
 
@@ -168,7 +168,7 @@ impl Orchestrator {
     ) {
         // Check where to spawn Explorers
         let planet_id = spawn_planet
-            .filter(|id| self.orch_context_ref.channels_manager.to_planet_senders_contains(id))
+            .filter(|id| self.orch_context_ref.channels_manager.to_planet_senders_contains(*id))
             .unwrap_or_else(|| {
                 let fallback_id = self.orch_context_ref.channels_manager.to_planet_senders_next_id().expect("Planet senders hashmap is empty");
                 // Log only if a planet was actually requested but not found
@@ -411,6 +411,11 @@ impl Orchestrator {
         background_events::enable_asteroids();
     }
 
+    fn stop_background_event_senders() {
+        background_events::disable_sunrays();
+        background_events::disable_asteroids();
+    }
+
     /// Handles UI commands from the UI layer and creates appropriate conversations or performs direct actions.
     ///
     /// # Panics
@@ -479,24 +484,44 @@ impl Orchestrator {
                 self.shutdown_requested = true;
             }
             PauseGame => {
-                background_events::disable_asteroids();
-                background_events::disable_sunrays();
+                Orchestrator::stop_background_event_senders();
+
+                for explorer_id in self.orch_context_ref.channels_manager.get_explorer_list() {
+                    self.convo_manager
+                        .create_stop_explorer_conversation(explorer_id);
+                }
+
+                for planet_id in self.orch_context_ref.channels_manager.get_planet_list() {
+                    self.convo_manager
+                        .create_stop_planet_conversation(planet_id);
+                }
+
                 log_internal(
                     LogTarget::General,
                     Channel::Info,
                     payload!(
-                        action : "Received PauseGame command from UI. Pausing background events",
+                        action : "Received PauseGame command from UI. Pausing background events and planet/explorer AIs",
                     ),
                 );
             }
             ResumeGame => {
-                background_events::enable_asteroids();
-                background_events::enable_sunrays();
+                self.start_background_event_senders();
+
+                for explorer_id in self.orch_context_ref.channels_manager.get_explorer_list() {
+                    self.convo_manager
+                        .create_start_explorer_conversation(explorer_id);
+                }
+
+                for planet_id in self.orch_context_ref.channels_manager.get_planet_list() {
+                    self.convo_manager
+                        .create_start_planet_conversation(planet_id);
+                }
+
                 log_internal(
                     LogTarget::General,
                     Channel::Info,
                     payload!(
-                        action : "Received ResumeGame command from UI. Resuming background events",
+                        action : "Received ResumeGame command from UI. Resuming background events and planet/explorer AIs",
                     ),
                 );
             }
@@ -591,7 +616,8 @@ impl Orchestrator {
 
     //TODO: EXPLORERS_SENDERS AND PLANETS_SENDERS ARE NEEDED TO BE OWNED?
     fn process_messages(&mut self) {
-        let convo_manager_guard = self.convo_manager;
+        let convo_manager = self.convo_manager.clone();
+        let orch_context_ref = self.orch_context_ref.clone();
         let planet_threads = self.planet_threads.clone();
         let stop = self.message_processor_stop.clone();
 
@@ -601,18 +627,18 @@ impl Orchestrator {
                     break;
                 }
 
-                if convo_manager_guard.convo_scheduler.is_empty() {
+                if convo_manager.convo_scheduler.is_empty() {
                     // Wait for new messages to arrive
                     thread::sleep(Duration::from_millis(10));
                     continue;
                 }
 
-                let current_convo = convo_manager_guard.convo_scheduler.get_next_conversation();
+                let current_convo = convo_manager.convo_scheduler.get_next_conversation();
                 if let Some(convo) = current_convo {
                     let kill_expl_vec = convo.get_kill_explorers_vec();
                     if let Some((vec, handle_outgoing)) = kill_expl_vec {
                         for el in vec {
-                            convo_manager_guard.create_kill_explorer_conversation(
+                            convo_manager.create_kill_explorer_conversation(
                                 el.0,
                                 el.1,
                                 handle_outgoing,
@@ -622,15 +648,17 @@ impl Orchestrator {
                         //TODO: ASK to the others, planet is already killed by the convos
                         // Remove the planet from the galaxy and notify the planet thread to stop.
                         if let (Some(planet_id), _) = convo.get_entities_ids() {
-                            let planets_senders_clone = planets_senders.clone();
-                            let galaxy_clone = galaxy.clone();
+                            let planets_senders_clone = orch_context_ref
+                                .channels_manager
+                                .get_to_planet_senders_struct()
+                                .clone();
+                            let galaxy_clone = orch_context_ref.galaxy.clone();
                             let planet_threads_clone = planet_threads.clone();
                             // remove_node_with_stop will remove the node from the PlanetMap and then
                             // call the provided closure to kill the planet (send KillPlanet and remove sender).
                             planet::remove_node_with_stop(&galaxy_clone, planet_id, |dead_id| {
                                 // remove and notify sender
-                                let mut lock = planets_senders_clone.lock().unwrap();
-                                if let Some(sender) = lock.remove(&dead_id) {
+                                if let Some((_, sender)) = planets_senders_clone.remove(&dead_id) {
                                     let _ = sender.send(
                                         common_game::protocols::orchestrator_planet::OrchestratorToPlanet::KillPlanet,
                                     );
@@ -646,7 +674,7 @@ impl Orchestrator {
                         }
                     }
                     let id = convo.get_id();
-                    let msg = convo_manager_guard.convo_scheduler.get_waiting_message(id);
+                    let msg = convo_manager.convo_scheduler.get_waiting_message(id);
                     let should_transition = msg.is_some() || convo.get_expected_kind().is_none();
                     // Transition only if the waiting message is Some or if the expected kind is None
                     // Otherwise, add the conversation back in the convo_scheduler
@@ -661,10 +689,10 @@ impl Orchestrator {
                             ),
                         );
                         if let Some(convo) = convo.transition(msg) {
-                            convo_manager_guard.convo_scheduler.add_conversation(convo);
+                            convo_manager.convo_scheduler.add_conversation(convo);
                         }
                     } else {
-                        convo_manager_guard.convo_scheduler.add_conversation(convo);
+                        convo_manager.convo_scheduler.add_conversation(convo);
                     }
                 }
             }

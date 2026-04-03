@@ -10,14 +10,14 @@ use crate::orchestrator::conversations::{ChannelsContext, Conversation, Possible
 use common_game::utils::ID;
 use crate::create_request_state;
 use crate::globals::TIMEOUT;
-use crate::orchestrator::{ChannelsManagerRef, ExplorersLocationRef};
+use crate::orchestrator::ChannelsManagerRef;
 use crate::orchestrator::conversations::orch_explorer::movement::move_to_planet::incoming_explorer::SendIncomingRequest;
 
-///**Move To Planet Conversation - Send Manual Move Request**
-///
-/// This state handles movements triggered manually (e.g., by administrative commands or
-/// specific game logic) rather than an explorer's own request. It serves as an
-/// initialization point for forced transitions.
+//**Move To Planet Conversation - Send Manual Move Request**
+//
+// This state handles movements triggered manually (e.g., by administrative commands or
+// specific game logic) rather than an explorer's own request. It serves as an
+// initialization point for forced transitions.
 
 // --- SEND MANUAL MOVE REQUEST DEFINITION ---
 create_request_state!(

@@ -1,5 +1,5 @@
 use crate::globals::TIMEOUT;
-use crate::logging_utils::{LogTarget, log_internal};
+use crate::logging::{LogTarget, log_internal};
 use crate::orchestrator::Duration;
 use crate::orchestrator::conversations::EntitiesIDTuple;
 use crate::orchestrator::conversations::PossibleExpectedKinds::PlanetToOrchKind;
@@ -15,18 +15,18 @@ use common_game::protocols::orchestrator_planet::{
 };
 use common_game::utils::ID;
 
-///**Stop Planet Conversation**
-///
-/// This module manages the conversation between the Orchestrator and a Planet regarding the stopping of its AI.
-/// It uses a Finite State Machine (FSM) to ensure that requests and responses are handled in the correct
-/// order at compile time.
-///
-/// The conversation flow starts by sending a stop request and terminates once the planet
-/// confirms the AI has successfully stopped.
-/// Marker struct for FSM state
-///
-/// In the [`WaitingPlanetStopResult`] state, the conversation expects a
-/// [`PlanetToOrchestrator::StopPlanetAIResult`] message to confirm the planet has successfully halted its AI processes.
+// **Stop Planet Conversation**
+//
+// This module manages the conversation between the Orchestrator and a Planet regarding the stopping of its AI.
+// It uses a Finite State Machine (FSM) to ensure that requests and responses are handled in the correct
+// order at compile time.
+//
+// The conversation flow starts by sending a stop request and terminates once the planet
+// confirms the AI has successfully stopped.
+// Marker struct for FSM state
+//
+// In the [`WaitingPlanetStopResult`] state, the conversation expects a
+// [`PlanetToOrchestrator::StopPlanetAIResult`] message to confirm the planet has successfully halted its AI processes.
 // --- STOP PLANET CONVERSATION ---
 
 define_conversation!(
@@ -60,6 +60,9 @@ create_request_state!(
 /// [`ErrorState`] with [`CommonErrorTypes::PlanetSenderNotFound`] if the sender to the planet is not in the list
 ///
 /// The next state: [`StopPlanetConversation<WaitingPlanetStopResult>`] if the stop command was sent successfully.
+// TODO: check if we can remove allows
+#[allow(clippy::unnecessary_wraps)]
+#[allow(clippy::boxed_local)]
 fn send_planet_stop_transition(
     this: Box<StopPlanetConversation<SendingPlanetStop>>,
 ) -> Option<Box<dyn Conversation + Send + Sync>> {
@@ -106,6 +109,9 @@ create_response_state!(
 /// [None] if the stop result is successfully received and processed, closing the conversation.
 ///
 /// [`ErrorState`] with [`CommonErrorTypes::WrongMessage`] if the trigger message is different from the expected one [`PlanetToOrchestrator::StopPlanetAIResult`]
+// TODO: check if we can remove allows
+#[allow(clippy::boxed_local)]
+#[allow(clippy::needless_pass_by_value)]
 fn wait_planet_stop_res_transition(
     this: Box<StopPlanetConversation<WaitingPlanetStopResult>>,
     msg: Option<PossibleMessage>,

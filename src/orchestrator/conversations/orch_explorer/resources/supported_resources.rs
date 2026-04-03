@@ -1,7 +1,6 @@
 use crate::convo_manager::OrchContextRef;
 use crate::globals::{TIMEOUT, get_explorer_timeout};
-use crate::id::PlanetKind::Orbitron;
-use crate::logging_utils::{LogTarget, log_internal};
+use crate::logging::{LogTarget, log_internal};
 use crate::orchestrator::ChannelsManagerRef;
 use crate::orchestrator::conversations::PossibleExpectedKinds::ExplorerToOrchKind;
 use crate::orchestrator::conversations::{
@@ -19,15 +18,15 @@ use common_game::utils::ID;
 use std::ops::Mul;
 use std::time::Duration;
 
-///**Supported Resources Conversation**
-///
-/// This module manages the conversation between the Orchestrator and an Explorer regarding
-/// the resources supported by the explorer's current location.
-/// It uses a Finite State Machine (FSM) to ensure that the resource query and the resulting
-/// list are handled in the correct order at compile time.
-///
-/// The conversation flow starts by sending a request to the explorer and terminates once the
-/// [`ExplorerToOrchestrator::SupportedResourceResult`] is received and processed.
+//**Supported Resources Conversation**
+//
+// This module manages the conversation between the Orchestrator and an Explorer regarding
+// the resources supported by the explorer's current location.
+// It uses a Finite State Machine (FSM) to ensure that the resource query and the resulting
+// list are handled in the correct order at compile time.
+//
+// The conversation flow starts by sending a request to the explorer and terminates once the
+// [`ExplorerToOrchestrator::SupportedResourceResult`] is received and processed.
 
 // --- SUPPORTED RESOURCES CONVERSATION ---
 define_conversation!(

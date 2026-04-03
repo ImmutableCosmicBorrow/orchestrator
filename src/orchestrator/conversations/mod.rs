@@ -1,6 +1,4 @@
-use crate::channels_manager::ChannelsManager;
-pub(crate) use crate::channels_manager::OrchToExplorerSenders;
-use crate::logging_utils::{LogTarget, log_internal, log_msg_to};
+use crate::logging::{LogTarget, log_internal, log_msg_to};
 use crate::orchestrator::{ChannelsManagerRef, ExplorerBagContent};
 use crate::payload;
 use crate::ui::OrchestratorToUiUpdate;
@@ -248,7 +246,7 @@ trait ErrorType {
 }
 
 /// **Common Orchestration Errors**
-enum CommonErrorTypes {
+pub(crate) enum CommonErrorTypes {
     WrongMessage,
     PlanetSenderNotFound(ID),
     ExplorerSenderNotFound(ID),

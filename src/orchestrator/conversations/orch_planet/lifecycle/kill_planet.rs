@@ -1,6 +1,6 @@
 use crate::convo_manager::OrchContextRef;
 use crate::globals::TIMEOUT;
-use crate::logging_utils::{LogTarget, log_internal};
+use crate::logging::{LogTarget, log_internal};
 use crate::orchestrator::ChannelsManagerRef;
 use crate::orchestrator::Duration;
 use crate::orchestrator::conversations::EntitiesIDTuple;
@@ -15,16 +15,16 @@ use common_game::protocols::orchestrator_planet::PlanetToOrchestratorKind::KillP
 use common_game::protocols::orchestrator_planet::{OrchestratorToPlanet, PlanetToOrchestrator};
 use common_game::utils::ID;
 
-///**Kill Planet Conversation**
-///
-/// This module manages the complex process of destroying a planet.
-/// It uses an FSM to send the kill command, wait for confirmation, and then
-/// sends via its method [`Conversation::get_kill_explorers_vec`] the IDs of the explorers on the planet
-/// so that the Orchestrator can kill them
-///
-///
-/// The conversation starts in the [`SendPlanetKill`] state, which sends an
-/// [`OrchestratorToPlanet::KillPlanet`] message when the [`Conversation::transition`] method is called.
+//**Kill Planet Conversation**
+//
+// This module manages the complex process of destroying a planet.
+// It uses an FSM to send the kill command, wait for confirmation, and then
+// sends via its method [`Conversation::get_kill_explorers_vec`] the IDs of the explorers on the planet
+// so that the Orchestrator can kill them
+//
+//
+// The conversation starts in the [`SendPlanetKill`] state, which sends an
+// [`OrchestratorToPlanet::KillPlanet`] message when the [`Conversation::transition`] method is called.
 // --- INTERNAL STATE CONVERSATION ---
 
 define_conversation!(
@@ -56,6 +56,9 @@ create_request_state!(
 /// [`ErrorState`] if the message to the planet fails or the sender is not found.
 ///
 /// [`KillPlanetConversation<WaitingPlanetKillResult>`] if the kill command was sent successfully.
+// TODO: check if we can remove allows
+#[allow(clippy::unnecessary_wraps)]
+#[allow(clippy::boxed_local)]
 fn send_kill_planet_transition(
     this: Box<KillPlanetConversation<SendPlanetKill>>,
 ) -> Option<Box<dyn Conversation + Send + Sync>> {
@@ -115,6 +118,9 @@ impl WaitingPlanetKillResult {
 /// through the dedicated method of the trait and let the Orchestrator take care of that
 ///
 /// [`ErrorState`] with [`CommonErrorTypes::WrongMessage`] if the trigger message is different then the expected [`PlanetToOrchestrator::KillPlanetResult`]
+// TODO: check if we can remove allows
+#[allow(clippy::boxed_local)]
+#[allow(clippy::needless_pass_by_value)]
 fn wait_planet_kill_res_transition(
     this: Box<KillPlanetConversation<WaitingPlanetKillResult>>,
     msg: Option<PossibleMessage>,

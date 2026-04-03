@@ -1,6 +1,6 @@
 use crate::convo_manager::OrchContextRef;
 use crate::globals::TIMEOUT;
-use crate::logging_utils::{LogTarget, log_internal};
+use crate::logging::{LogTarget, log_internal};
 use crate::orchestrator::ChannelsManagerRef;
 use crate::orchestrator::Duration;
 use crate::orchestrator::conversations::EntitiesIDTuple;
@@ -16,18 +16,18 @@ use common_game::protocols::orchestrator_planet::{
 };
 use common_game::utils::ID;
 
-///**Start Planet Conversation**
-///
-/// This module manages the conversation between the Orchestrator and a Planet regarding the activation of its AI.
-/// It uses a Finite State Machine (FSM) to ensure that the start command and the confirmation result
-/// are handled in the correct order at compile time.
-///
-/// The conversation flow starts by sending a start request and terminates once the planet
-/// confirms the AI has started.
-/// Marker struct for FSM state
-///
-/// In the [`WaitingPlanetStartResult`] state, the conversation expects a
-/// [`PlanetToOrchestrator::StartPlanetAIResult`] message to confirm the planet has successfully initialized its AI.
+//**Start Planet Conversation**
+//
+// This module manages the conversation between the Orchestrator and a Planet regarding the activation of its AI.
+// It uses a Finite State Machine (FSM) to ensure that the start command and the confirmation result
+// are handled in the correct order at compile time.
+//
+// The conversation flow starts by sending a start request and terminates once the planet
+// confirms the AI has started.
+// Marker struct for FSM state
+//
+// In the [`WaitingPlanetStartResult`] state, the conversation expects a
+// [`PlanetToOrchestrator::StartPlanetAIResult`] message to confirm the planet has successfully initialized its AI.
 // --- START PLANET CONVERSATION ---
 
 define_conversation!(
@@ -52,6 +52,9 @@ create_request_state!(
     },
 );
 
+// TODO: check if we can remove allows
+#[allow(clippy::unnecessary_wraps)]
+#[allow(clippy::boxed_local)]
 fn send_planet_start_transition(
     this: Box<StartPlanetConversation<SendingPlanetStart>>,
 ) -> Option<Box<dyn Conversation + Send + Sync>> {
@@ -98,6 +101,9 @@ create_response_state!(
 /// [None] if the start result is successfully received, ending the conversation.
 ///
 /// [`ErrorState`] with [`CommonErrorTypes::WrongMessage`] if the trigger message is different from [`PlanetToOrchestrator::StartPlanetAIResult`]
+// TODO: check if we can remove allows
+#[allow(clippy::boxed_local)]
+#[allow(clippy::needless_pass_by_value)]
 fn wait_planet_start_res_transition(
     this: Box<StartPlanetConversation<WaitingPlanetStartResult>>,
     msg: Option<PossibleMessage>,

@@ -1,9 +1,8 @@
 //! Shared scheduler and dispatch contexts for background events.
 
 use crate::convo_manager::ConvoManager;
-use crate::orchestrator::{ChannelsManagerRef, ExplorerBagContent, ExplorersLocationRef};
+use crate::orchestrator::ExplorersLocationRef;
 use crate::planet::PlanetMap;
-use common_game::components::forge::Forge;
 use std::sync::{Arc, Mutex};
 
 //TODO: MAYBE SIMPLIFY AND JUST TAKE CONVO_MANAGER?

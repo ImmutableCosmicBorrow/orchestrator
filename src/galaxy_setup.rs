@@ -1,5 +1,6 @@
+use crate::channels_manager::ChannelsManager;
 use crate::id::IdManager;
-use crate::logging_utils::{LogTarget, log_internal};
+use crate::logging::{LogTarget, log_internal};
 use crate::payload;
 use crate::planet::{PlanetMap, add_planet_with_neighbors};
 
@@ -7,7 +8,6 @@ use crate::id::PlanetKind;
 use common_game::logging::Channel;
 use common_game::utils::ID;
 
-use crate::orchestrator::ChannelsManagerRef;
 use std::collections::HashMap;
 use std::path::Path;
 use std::thread;
@@ -20,7 +20,7 @@ pub(crate) type PlanetThreadMap = HashMap<ID, JoinHandle<()>>;
 // Option: spawn planet threads at creation time.
 // Returns a JoinHandle<()> for the spawned planet thread.
 pub(crate) fn spawn_planet_with_channels(
-    channels_manager: ChannelsManagerRef,
+    channels_manager: &ChannelsManager,
     planet_id: ID,
 ) -> JoinHandle<()> {
     //create Orchestrator to Planet channels
@@ -128,7 +128,7 @@ pub(crate) fn spawn_planet_with_channels(
 
 pub fn galaxy_loader(
     file_path: &Path,
-    channels_manager: ChannelsManagerRef,
+    channels_manager: &ChannelsManager,
 ) -> (PlanetMap, PlanetThreadMap) {
     use std::collections::HashMap;
     use std::fs::File;
@@ -174,12 +174,12 @@ pub fn galaxy_loader(
         // Runtime: spawn planet threads once per unique id, including neighbors.
         planet_threads
             .entry(id)
-            .or_insert_with(|| spawn_planet_with_channels(channels_manager.clone(), id));
+            .or_insert_with(|| spawn_planet_with_channels(channels_manager, id));
 
         for &neighbor_id in &neighbors {
-            planet_threads.entry(neighbor_id).or_insert_with(|| {
-                spawn_planet_with_channels(channels_manager.clone(), neighbor_id)
-            });
+            planet_threads
+                .entry(neighbor_id)
+                .or_insert_with(|| spawn_planet_with_channels(channels_manager, neighbor_id));
         }
     }
 

@@ -1,14 +1,13 @@
 use crate::convo_manager::OrchContextRef;
 use crate::globals::get_explorer_timeout;
-use crate::logging_utils::{log_internal, LogTarget};
+use crate::logging::{log_internal, LogTarget};
 use crate::orchestrator::conversations::orch_explorer::movement::move_to_planet::{
     MoveToPlanetConversation,
 };
 use crate::orchestrator::conversations::EntitiesIDTuple;
 use crate::orchestrator::conversations::PossibleExpectedKinds::ExplorerToOrchKind;
 use crate::orchestrator::conversations::{ChannelsContext, CommonErrorTypes, Conversation, ErrorState, PossibleExpectedKinds, PossibleMessage};
-use crate::orchestrator::{ChannelsManagerRef, ExplorersLocationRef};
-use crate::planet::PlanetMap;
+use crate::orchestrator::ChannelsManagerRef;
 use crate::{create_response_state, payload};
 use common_game::logging::Channel;
 use common_game::protocols::orchestrator_explorer::{
@@ -19,18 +18,18 @@ use std::time::Duration;
 use crate::orchestrator::conversations::orch_explorer::movement::move_to_planet::incoming_explorer::SendIncomingRequest;
 use crate::orchestrator::conversations::orch_explorer::movement::move_to_planet::move_explorer::SendMoveRequest;
 
-///**Move To Planet Conversation - Waiting Travel Request**
-///
-/// This is the starting state of the movement lifecycle when it is requested by the explorer. It listens for a
-/// [`ExplorerToOrchestrator::TravelToPlanetRequest`] from an explorer.
-///
-/// **Logic Flow:**
-/// 1. Verifies if the destination planet is a neighbor of the current planet via the Galaxy Map.
-/// 2. **If valid (Neighbors):** Initiates the arrival handshake by transitioning to [`SendIncomingRequest`],
-///    which will notify the destination planet of the incoming explorer.
-/// 3. **If invalid (Non-neighbors):** Skips the destination handshake and transitions directly to
-///    [`SendMoveRequest`] with a failure flag to inform the explorer that the move is impossible.
-/// 4. **Error Handling:** If an unexpected message type is received, transitions to an [`ErrorState`].
+//**Move To Planet Conversation - Waiting Travel Request**
+//
+// This is the starting state of the movement lifecycle when it is requested by the explorer. It listens for a
+// [`ExplorerToOrchestrator::TravelToPlanetRequest`] from an explorer.
+//
+// **Logic Flow:**
+// 1. Verifies if the destination planet is a neighbor of the current planet via the Galaxy Map.
+// 2. **If valid (Neighbors):** Initiates the arrival handshake by transitioning to [`SendIncomingRequest`],
+//    which will notify the destination planet of the incoming explorer.
+// 3. **If invalid (Non-neighbors):** Skips the destination handshake and transitions directly to
+//    [`SendMoveRequest`] with a failure flag to inform the explorer that the move is impossible.
+// 4. **Error Handling:** If an unexpected message type is received, transitions to an [`ErrorState`].
 
 // --- WAIT TRAVEL REQUEST DEFINITION ---
 create_response_state!(

@@ -92,8 +92,8 @@ impl PlanetsChannels {
         self.from_planets_receiver.clone()
     }
 
-    fn to_planet_senders_contains(&self, planet_id: &ID) -> bool {
-        self.to_planet_senders.contains_key(planet_id)
+    fn to_planet_senders_contains(&self, planet_id: ID) -> bool {
+        self.to_planet_senders.contains_key(&planet_id)
     }
 
     fn to_planet_senders_next_id(&self) -> Option<ID> {
@@ -348,7 +348,7 @@ impl ChannelsManager {
         self.orchestrator.planets_channels.get_from_planets_rcv()
     }
 
-    pub(crate) fn to_planet_senders_contains(&self, planet_id: &ID) -> bool {
+    pub(crate) fn to_planet_senders_contains(&self, planet_id: ID) -> bool {
         self.orchestrator
             .planets_channels
             .to_planet_senders_contains(planet_id)

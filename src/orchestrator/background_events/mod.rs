@@ -15,12 +15,8 @@ pub(super) enum EventKind {
     Sunray,
 }
 
-use crate::channels_manager::ChannelsManager;
 use crate::convo_manager::ConvoManager;
-use crate::orchestrator::{ChannelsManagerRef, ExplorerBagContent, ExplorersLocationRef};
-use crate::planet::PlanetMap;
-use common_game::components::forge::Forge;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
 pub(super) struct BackgroundEventsGuard(control::BackgroundEventsGuard);
 

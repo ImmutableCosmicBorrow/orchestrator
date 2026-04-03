@@ -3,7 +3,7 @@ mod convo_manager;
 mod galaxy_setup;
 mod globals;
 pub mod id;
-pub mod logging_utils;
+pub mod logging;
 mod orchestrator;
 pub mod planet;
 mod planet_factory;
@@ -37,7 +37,7 @@ pub fn run(
     crossbeam_channel::Receiver<OrchestratorToUiUpdate>,
 ) {
     // Initialize and start logger
-    logging_utils::start_logger();
+    logging::start_logger();
 
     let (ui_to_orch_sender, ui_to_orch_receiver) =
         crossbeam_channel::unbounded::<UiToOrchestratorCommand>();
@@ -76,7 +76,7 @@ pub fn create_with_path<P: AsRef<Path>>(
     crossbeam_channel::Sender<UiToOrchestratorCommand>,
     crossbeam_channel::Receiver<OrchestratorToUiUpdate>,
 ) {
-    logging_utils::start_logger();
+    logging::start_logger();
 
     let (ui_to_orch_sender, ui_to_orch_receiver) =
         crossbeam_channel::unbounded::<UiToOrchestratorCommand>();

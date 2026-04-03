@@ -31,7 +31,7 @@ pub(super) fn init_background_event_scheduler(convo_manager: Arc<ConvoManager>) 
 
     control::reset_shutdown_flag();
 
-    let handle = thread::spawn({ move || scheduler_loop(convo_manager) });
+    let handle = thread::spawn(move || scheduler_loop(convo_manager));
 
     *handle_guard = Some(handle);
 }

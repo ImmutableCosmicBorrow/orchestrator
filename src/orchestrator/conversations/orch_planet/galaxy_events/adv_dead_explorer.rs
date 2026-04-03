@@ -1,6 +1,6 @@
 use crate::convo_manager::OrchContextRef;
 use crate::globals::TIMEOUT;
-use crate::logging_utils::{LogTarget, log_internal};
+use crate::logging::{LogTarget, log_internal};
 use crate::orchestrator::ChannelsManagerRef;
 use crate::orchestrator::conversations::EntitiesIDTuple;
 use crate::orchestrator::conversations::PossibleExpectedKinds::PlanetToOrchKind;
@@ -70,6 +70,9 @@ create_request_state!(
 /// [`ErrorState`] if the request failed to send to the planet or the sender to the planet is not found.
 ///
 /// [`AdvDeadExplorer<WaitingDeadAdvResponse>`] if the request was sent successfully.
+// TODO: check if we can remove allows
+#[allow(clippy::unnecessary_wraps)]
+#[allow(clippy::boxed_local)]
 fn send_dead_exp_adv_transition(
     this: Box<AdvDeadExplorer<SendingDeadExpAdv>>,
 ) -> Option<Box<dyn Conversation + Send + Sync>> {
@@ -115,6 +118,9 @@ create_response_state!(
 /// [None] if the planet confirms the explorer departure, closing the conversation.
 ///
 /// [`ErrorState`] if the planet returns an error response.
+// TODO: check if we can remove allows
+#[allow(clippy::boxed_local)]
+#[allow(clippy::needless_pass_by_value)]
 fn wait_dead_adv_response_transition(
     this: Box<AdvDeadExplorer<WaitingDeadAdvResponse>>,
     msg: Option<PossibleMessage>,

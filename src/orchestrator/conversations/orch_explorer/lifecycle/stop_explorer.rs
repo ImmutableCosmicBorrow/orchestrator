@@ -1,16 +1,14 @@
 use crate::convo_manager::OrchContextRef;
 use crate::globals::{TIMEOUT, get_explorer_timeout};
-use crate::logging_utils::{LogTarget, log_internal};
+use crate::logging::{LogTarget, log_internal};
+use crate::orchestrator::ChannelsManagerRef;
+use crate::orchestrator::conversations::ChannelsContext;
 use crate::orchestrator::conversations::EntitiesIDTuple;
+use crate::orchestrator::conversations::PossibleExpectedKinds;
 use crate::orchestrator::conversations::PossibleExpectedKinds::ExplorerToOrchKind;
-use crate::orchestrator::conversations::orch_explorer::lifecycle::start_explorer::{
-    SendingExplorerStart, WaitingExplorerStartResult,
-};
 use crate::orchestrator::conversations::{
-    ChannelsContext, CommonErrorTypes, Conversation, ErrorState, ExplorerCommunicator,
-    PossibleExpectedKinds, PossibleMessage, ToExplorerError,
+    CommonErrorTypes, Conversation, ErrorState, ExplorerCommunicator, PossibleMessage,
 };
-use crate::orchestrator::{ChannelsManagerRef, ExplorerBagContent};
 use crate::{create_request_state, create_response_state, define_conversation, payload};
 use common_game::logging::Channel;
 use common_game::protocols::orchestrator_explorer::{
@@ -19,18 +17,18 @@ use common_game::protocols::orchestrator_explorer::{
 use common_game::utils::ID;
 use std::time::Duration;
 
-///**Stop Explorer Conversation**
-///
-/// This module manages the conversation between the Orchestrator and an Explorer regarding the deactivation of its AI.
-/// It uses a Finite State Machine (FSM) to ensure that the stop command and the subsequent result
-/// are handled in the correct order at compile time.
-///
-/// The conversation flow starts by sending a stop request to the explorer and terminates once the
-/// [`ExplorerToOrchestrator::StopExplorerAIResult`] is received.
-/// Marker struct for FSM state
-///
-/// The conversation starts in the [`SendingExplorerStop`] state, which sends an
-/// [`OrchestratorToExplorer::StopExplorerAI`] when the [`Conversation::transition`] method is called.
+//**Stop Explorer Conversation**
+//
+// This module manages the conversation between the Orchestrator and an Explorer regarding the deactivation of its AI.
+// It uses a Finite State Machine (FSM) to ensure that the stop command and the subsequent result
+// are handled in the correct order at compile time.
+//
+// The conversation flow starts by sending a stop request to the explorer and terminates once the
+// [`ExplorerToOrchestrator::StopExplorerAIResult`] is received.
+// Marker struct for FSM state
+//
+// The conversation starts in the [`SendingExplorerStop`] state, which sends an
+// [`OrchestratorToExplorer::StopExplorerAI`] when the [`Conversation::transition`] method is called.
 // --- STOP EXPLORER CONVERSATION ---
 define_conversation!(
     name: StopExplorerConversation

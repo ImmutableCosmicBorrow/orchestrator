@@ -126,7 +126,6 @@ fn duration_to_millis(duration: Duration) -> u64 {
 mod tests {
     use super::*;
     use dashmap::DashMap;
-    use std::sync::{Arc, Mutex};
 
     #[test]
     fn build_planet_weights_counts_baseline_and_explorers() {

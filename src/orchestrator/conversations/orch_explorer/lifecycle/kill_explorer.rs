@@ -1,5 +1,5 @@
 use crate::globals::{TIMEOUT, get_explorer_timeout};
-use crate::logging_utils::{LogTarget, log_internal};
+use crate::logging::{LogTarget, log_internal};
 use crate::orchestrator::conversations::EntitiesIDTuple;
 use crate::orchestrator::conversations::PossibleExpectedKinds::ExplorerToOrchKind;
 use crate::orchestrator::conversations::orch_planet::galaxy_events::adv_dead_explorer::{
@@ -9,7 +9,7 @@ use crate::orchestrator::conversations::{
     ChannelsContext, CommonErrorTypes, Conversation, ErrorState, ExplorerCommunicator,
     PossibleExpectedKinds, PossibleMessage,
 };
-use crate::orchestrator::{ChannelsManagerRef, ExplorersLocationRef, OrchContextRef};
+use crate::orchestrator::{ChannelsManagerRef, OrchContextRef};
 use crate::{create_request_state, create_response_state, define_conversation, payload};
 use common_game::logging::Channel;
 use common_game::protocols::orchestrator_explorer::{
@@ -18,20 +18,20 @@ use common_game::protocols::orchestrator_explorer::{
 use common_game::utils::ID;
 use std::time::Duration;
 
-///**Kill Explorer Conversation**
-///
-/// This module manages the termination of an Explorer.
-/// It uses a Finite State Machine (FSM) to send the kill command to the explorer and wait
-/// for confirmation.
-///
-/// Depending on the `handle_outgoing` flag, it can subsequently transition to an
-/// [`AdvDeadExplorer`] conversation to notify the planet that the explorer has left/died,
-/// or end the conversation returning None
-///
-/// Marker struct for FSM state
-///
-/// The conversation starts in the [`SendingKillExplorer`] state, which sends an
-/// [`OrchestratorToExplorer::KillExplorer`] request when the [`Conversation::transition`] method is called.
+//**Kill Explorer Conversation**
+//
+// This module manages the termination of an Explorer.
+// It uses a Finite State Machine (FSM) to send the kill command to the explorer and wait
+// for confirmation.
+//
+// Depending on the `handle_outgoing` flag, it can subsequently transition to an
+// [`AdvDeadExplorer`] conversation to notify the planet that the explorer has left/died,
+// or end the conversation returning None
+//
+// Marker struct for FSM state
+//
+// The conversation starts in the [`SendingKillExplorer`] state, which sends an
+// [`OrchestratorToExplorer::KillExplorer`] request when the [`Conversation::transition`] method is called.
 
 // --- KILL EXPLORER CONVERSATION ---
 

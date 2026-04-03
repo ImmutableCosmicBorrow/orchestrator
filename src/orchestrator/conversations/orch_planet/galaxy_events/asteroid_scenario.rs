@@ -1,6 +1,6 @@
 use crate::convo_manager::OrchContextRef;
 use crate::globals::TIMEOUT;
-use crate::logging_utils::{LogTarget, log_internal};
+use crate::logging::{LogTarget, log_internal};
 use crate::orchestrator::ChannelsManagerRef;
 use crate::orchestrator::conversations::EntitiesIDTuple;
 use crate::orchestrator::conversations::orch_planet::lifecycle::kill_planet::{
@@ -35,7 +35,7 @@ create_request_state!(
     fields: {
         planet_id: ID,
     },
-    entities_id_fn: |this: &AsteroidConversation<SendingAsteroid>| { return (Some(this.state.planet_id), None) },
+    entities_id_fn: |this: &AsteroidConversation<SendingAsteroid>| { (Some(this.state.planet_id), None) },
     transition_fn: sending_asteroid_transition,
     methods_settings: { },
 );
@@ -49,6 +49,9 @@ create_request_state!(
 /// [`ErrorState`] with [`CommonErrorTypes::PlanetSenderNotFound`] if the sender to the planet is not in the [`crate::channels_manager::OrchToPlanetSenders`] list in the [`crate::channels_manager::ChannelsManager`]
 ///
 /// [`AsteroidConversation<WaitingAsteroidAck>`] if the asteroid has been correctly sent, going to the next state
+// TODO: check if we can remove allows
+#[allow(clippy::unnecessary_wraps)]
+#[allow(clippy::boxed_local)]
 fn sending_asteroid_transition(
     this: Box<AsteroidConversation<SendingAsteroid>>,
 ) -> Option<Box<dyn Conversation + Send + Sync>> {
@@ -79,7 +82,7 @@ create_response_state!(
     timeout: Some(ASTEROID_ACK_TIMEOUT),
     expected_msg: PossibleExpectedKinds::PlanetToOrchKind(PlanetToOrchestratorKind::AsteroidAck),
     fields: { planet_id: ID},
-    entities_id_closure: |this: &AsteroidConversation<WaitingAsteroidAck>| { return (Some(this.state.planet_id), None) },
+    entities_id_closure: |this: &AsteroidConversation<WaitingAsteroidAck>| { (Some(this.state.planet_id), None) },
     transition: waiting_asteroid_ack_transition,
     methods_settings: { },
 );
@@ -93,6 +96,9 @@ create_response_state!(
 /// [None] if the planet defends itself with a rocket, ending the conversation
 ///
 /// [`KillPlanetConversation<SendPlanetKill>`] if the planet cannot defend himself and has to be killed with a [`KillPlanetConversation`]
+// TODO: check if we can remove allows
+#[allow(clippy::boxed_local)]
+#[allow(clippy::needless_pass_by_value)]
 fn waiting_asteroid_ack_transition(
     this: Box<AsteroidConversation<WaitingAsteroidAck>>,
     msg: Option<PossibleMessage>,

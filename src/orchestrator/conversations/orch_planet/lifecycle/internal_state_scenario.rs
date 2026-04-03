@@ -1,6 +1,6 @@
 use crate::convo_manager::OrchContextRef;
 use crate::globals::TIMEOUT;
-use crate::logging_utils::{LogTarget, log_internal};
+use crate::logging::{LogTarget, log_internal};
 use crate::orchestrator::ChannelsManagerRef;
 use crate::orchestrator::Duration;
 use crate::orchestrator::conversations::EntitiesIDTuple;
@@ -17,19 +17,19 @@ use common_game::protocols::orchestrator_planet::{
 };
 use common_game::utils::ID;
 
-///**Internal State Conversation**
-///
-/// This module manages the conversation between the Orchestrator and a Planet regarding its internal state.
-/// It uses a Finite State Machine (FSM) to ensure that requests and responses are handled in the correct
-/// order at compile time.
-///
-/// The conversation flow starts by sending a request and terminates once the planet's state
-/// is received (intended for UI reporting).
-///
-/// Marker struct for FSM state
-///
-/// The conversation starts in the [`SendingInternalStateRequest`] state, which sends an
-/// [`OrchestratorToPlanet::InternalStateRequest`] when the [`Conversation::transition`] method is called.
+//**Internal State Conversation**
+//
+// This module manages the conversation between the Orchestrator and a Planet regarding its internal state.
+// It uses a Finite State Machine (FSM) to ensure that requests and responses are handled in the correct
+// order at compile time.
+//
+// The conversation flow starts by sending a request and terminates once the planet's state
+// is received (intended for UI reporting).
+//
+// Marker struct for FSM state
+//
+// The conversation starts in the [`SendingInternalStateRequest`] state, which sends an
+// [`OrchestratorToPlanet::InternalStateRequest`] when the [`Conversation::transition`] method is called.
 
 // --- INTERNAL STATE CONVERSATION ---
 
@@ -54,6 +54,10 @@ create_request_state!(
 
     },
 );
+
+// TODO: check if we can remove allows
+#[allow(clippy::unnecessary_wraps)]
+#[allow(clippy::boxed_local)]
 fn send_internal_state_req_transition(
     this: Box<InternalStateConversation<SendingInternalStateRequest>>,
 ) -> Option<Box<dyn Conversation + Send + Sync>> {
@@ -101,6 +105,9 @@ create_response_state!(
 ///
 /// [`ErrorState`] with [`CommonErrorTypes::WrongMessage`] if the trigger message is different from the expected one [`PlanetToOrchestrator::InternalStateResponse`]
 /// [`ErrorState`] with [`CommonErrorTypes::MessageToUiFailed`] if the message sending to the UI fails
+// TODO: check if we can remove allows
+#[allow(clippy::boxed_local)]
+#[allow(clippy::needless_pass_by_value)]
 fn wait_internal_state_res_transition(
     this: Box<InternalStateConversation<WaitingInternalStateResponse>>,
     msg: Option<PossibleMessage>,

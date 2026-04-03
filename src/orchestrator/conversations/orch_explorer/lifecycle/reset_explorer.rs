@@ -1,6 +1,6 @@
 use crate::convo_manager::OrchContextRef;
 use crate::globals::{TIMEOUT, get_explorer_timeout};
-use crate::logging_utils::{LogTarget, log_internal};
+use crate::logging::{LogTarget, log_internal};
 use crate::orchestrator::ChannelsManagerRef;
 use crate::orchestrator::conversations::EntitiesIDTuple;
 use crate::orchestrator::conversations::PossibleExpectedKinds::ExplorerToOrchKind;
@@ -16,18 +16,18 @@ use common_game::protocols::orchestrator_explorer::{
 use common_game::utils::ID;
 use std::time::Duration;
 
-///**Reset Explorer Conversation**
-///
-/// This module manages the conversation between the Orchestrator and an Explorer regarding the reset of its AI meaning it will reset all the knowledge it already acquired.
-/// It uses a Finite State Machine (FSM) to ensure that the reset command and the subsequent result
-/// are handled in the correct order at compile time.
-///
-/// The conversation flow starts by sending a reset request to the explorer and terminates once the
-/// [`ExplorerToOrchestrator::ResetExplorerAIResult`] is received.
-/// Marker struct for FSM state
-///
-/// The conversation starts in the [`SendingExplorerReset`] state, which sends an
-/// [`OrchestratorToExplorer::ResetExplorerAI`] when the [`Conversation::transition`] method is called.
+//**Reset Explorer Conversation**
+//
+// This module manages the conversation between the Orchestrator and an Explorer regarding the reset of its AI meaning it will reset all the knowledge it already acquired.
+// It uses a Finite State Machine (FSM) to ensure that the reset command and the subsequent result
+// are handled in the correct order at compile time.
+//
+// The conversation flow starts by sending a reset request to the explorer and terminates once the
+// [`ExplorerToOrchestrator::ResetExplorerAIResult`] is received.
+// Marker struct for FSM state
+//
+// The conversation starts in the [`SendingExplorerReset`] state, which sends an
+// [`OrchestratorToExplorer::ResetExplorerAI`] when the [`Conversation::transition`] method is called.
 
 // --- RESET EXPLORER CONVERSATION ---
 define_conversation!(

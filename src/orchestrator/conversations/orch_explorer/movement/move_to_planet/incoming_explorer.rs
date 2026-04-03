@@ -16,11 +16,11 @@ use common_game::utils::ID;
 use crossbeam_channel::Sender;
 use std::time::Duration;
 
-///**Move To Planet Conversation - Send Incoming Request**
-///
-/// This state initiates the acquisition phase of the movement protocol. It is responsible
-/// for notifying the destination planet that an explorer is arriving and providing that
-/// planet with the necessary communication bridge to contact the entity.
+//**Move To Planet Conversation - Send Incoming Request**
+//
+// This state initiates the acquisition phase of the movement protocol. It is responsible
+// for notifying the destination planet that an explorer is arriving and providing that
+// planet with the necessary communication bridge to contact the entity.
 
 // --- SEND INCOMING REQUEST DEFINITION ---
 create_request_state!(

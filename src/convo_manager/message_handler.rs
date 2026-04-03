@@ -1,7 +1,7 @@
 use crate::convo_manager::ConvoManager;
-use crate::logging_utils::LogTarget;
+use crate::logging::LogTarget;
+use crate::logging::log_internal;
 use crate::orchestrator::conversations::PossibleMessage;
-use crate::orchestrator::log_internal;
 use crate::payload;
 use common_game::logging::Channel;
 

@@ -1,6 +1,7 @@
 use crate::convo_manager::OrchContextRef;
 use crate::globals::TIMEOUT;
-use crate::logging_utils::{LogTarget, log_msg_to};
+use crate::logging::{LogTarget, log_msg_to};
+use crate::orchestrator::ChannelsManagerRef;
 use crate::orchestrator::Duration;
 use crate::orchestrator::conversations::PossibleExpectedKinds::PlanetToOrchKind;
 use crate::orchestrator::conversations::orch_explorer::movement::move_to_planet::MoveToPlanetConversation;
@@ -11,7 +12,6 @@ use crate::orchestrator::conversations::{
     PossibleMessage,
 };
 use crate::orchestrator::conversations::{EntitiesIDTuple, PlanetCommunicator};
-use crate::orchestrator::{ChannelsManagerRef, ExplorersLocationRef};
 use crate::{create_request_state, create_response_state, payload};
 use common_game::logging::{ActorType, Channel, EventType};
 use common_game::protocols::orchestrator_planet::{
@@ -20,16 +20,16 @@ use common_game::protocols::orchestrator_planet::{
 use common_game::utils::ID;
 //TODO: ASK THE OTHERS, IF OUTGOING FAILS WE MIGHT SEND AN OUTGOING TO THE DST_PLANET TO FREE THE CHANNEL OF THE EXPLORER, BUT THIS MIGHT RESULT IN AN INIFINTE LOOP
 
-///**Move To Planet Conversation - Send Outgoing Request**
-///
-/// This state initiates the second half of the Orchestrator-to-planet handshake. It commands
-/// the current (source) planet to release the explorer.
-///
-/// **Logic Flow:**
-/// 1. Sends an [`OrchestratorToPlanet::OutgoingExplorerRequest`] to the explorer's current planet.
-/// 2. **Success:** Transitions to [`WaitingOutgoingResponse`] to wait for the planet's confirmation.
-/// 3. **Failure:** If the message cannot be sent (e.g., communication channel broken) or the sender to the current planet is not found, it
-///    transitions to an [`ErrorState`].
+//**Move To Planet Conversation - Send Outgoing Request**
+//
+// This state initiates the second half of the Orchestrator-to-planet handshake. It commands
+// the current (source) planet to release the explorer.
+//
+// **Logic Flow:**
+// 1. Sends an [`OrchestratorToPlanet::OutgoingExplorerRequest`] to the explorer's current planet.
+// 2. **Success:** Transitions to [`WaitingOutgoingResponse`] to wait for the planet's confirmation.
+// 3. **Failure:** If the message cannot be sent (e.g., communication channel broken) or the sender to the current planet is not found, it
+//    transitions to an [`ErrorState`].
 // SEND OUTGOING REQUEST DEFINITION
 
 create_request_state!(
@@ -106,19 +106,19 @@ fn send_incoming_req_transition(
     }
 }
 
-///**Move To Planet Conversation - Waiting Outgoing Response**
-///
-/// This state represents the intermediate phase where the destination planet has already
-/// acknowledged the explorer, and the Orchestrator is waiting for the source planet
-/// to confirm the explorer has been successfully detached.
-///
-/// **Logic Flow:**
-/// 1. Listens for a [`PlanetToOrchestrator::OutgoingExplorerResponse`] from the source planet.
-/// 2. **If `Ok`:** Both planets have agreed. Transitions to [`SendMoveRequest`] to finally
-///    update the explorer with their new destination.
-/// 3. **If `Err`:** The source planet failed to release the explorer. Transitions to
-///    an [`ErrorState`] to abort the movement.
-/// 4. **Error Handling:** Transitions to [`ErrorState`] if an unexpected message is received.
+//**Move To Planet Conversation - Waiting Outgoing Response**
+//
+// This state represents the intermediate phase where the destination planet has already
+// acknowledged the explorer, and the Orchestrator is waiting for the source planet
+// to confirm the explorer has been successfully detached.
+//
+// **Logic Flow:**
+// 1. Listens for a [`PlanetToOrchestrator::OutgoingExplorerResponse`] from the source planet.
+// 2. **If `Ok`:** Both planets have agreed. Transitions to [`SendMoveRequest`] to finally
+//    update the explorer with their new destination.
+// 3. **If `Err`:** The source planet failed to release the explorer. Transitions to
+//    an [`ErrorState`] to abort the movement.
+// 4. **Error Handling:** Transitions to [`ErrorState`] if an unexpected message is received.
 // WAITING OUTGOING RESPONSE DEFINITION
 
 create_response_state!(

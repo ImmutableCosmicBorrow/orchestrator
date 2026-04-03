@@ -1,6 +1,6 @@
 use crate::convo_manager::OrchContextRef;
 use crate::globals::{TIMEOUT, get_explorer_timeout};
-use crate::logging_utils::{LogTarget, log_internal};
+use crate::logging::{LogTarget, log_internal};
 use crate::orchestrator::ChannelsManagerRef;
 use crate::orchestrator::conversations::EntitiesIDTuple;
 use crate::orchestrator::conversations::PossibleExpectedKinds::ExplorerToOrchKind;
@@ -16,18 +16,18 @@ use common_game::protocols::orchestrator_explorer::{
 use common_game::utils::ID;
 use std::time::Duration;
 
-///**Start Explorer Conversation**
-///
-/// This module manages the conversation between the Orchestrator and an Explorer regarding the activation of its AI.
-/// It uses a Finite State Machine (FSM) to ensure that the start command and the subsequent result
-/// are handled in the correct order at compile time.
-///
-/// The conversation flow starts by sending a start request to the explorer and terminates once the
-/// [`ExplorerToOrchestrator::StartExplorerAIResult`] is received.
-/// Marker struct for FSM state
-///
-/// The conversation starts in the [`SendingExplorerStart`] state, which sends an
-/// [`OrchestratorToExplorer::StartExplorerAI`] when the [`Conversation::transition`] method is called.
+//**Start Explorer Conversation**
+//
+// This module manages the conversation between the Orchestrator and an Explorer regarding the activation of its AI.
+// It uses a Finite State Machine (FSM) to ensure that the start command and the subsequent result
+// are handled in the correct order at compile time.
+//
+// The conversation flow starts by sending a start request to the explorer and terminates once the
+// [`ExplorerToOrchestrator::StartExplorerAIResult`] is received.
+// Marker struct for FSM state
+//
+// The conversation starts in the [`SendingExplorerStart`] state, which sends an
+// [`OrchestratorToExplorer::StartExplorerAI`] when the [`Conversation::transition`] method is called.
 
 // --- START EXPLORER CONVERSATION ---
 define_conversation!(

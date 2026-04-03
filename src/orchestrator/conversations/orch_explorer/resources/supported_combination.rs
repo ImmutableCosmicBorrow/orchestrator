@@ -1,6 +1,6 @@
 use crate::convo_manager::OrchContextRef;
 use crate::globals::{TIMEOUT, get_explorer_timeout};
-use crate::logging_utils::{LogTarget, log_internal};
+use crate::logging::{LogTarget, log_internal};
 use crate::orchestrator::ChannelsManagerRef;
 use crate::orchestrator::conversations::PossibleExpectedKinds::ExplorerToOrchKind;
 use crate::orchestrator::conversations::{
@@ -18,15 +18,15 @@ use common_game::utils::ID;
 use std::ops::Mul;
 use std::time::Duration;
 
-///**Supported Combination Conversation**
-///
-/// This module manages the conversation between the Orchestrator and an Explorer regarding the combinations
-/// supported by the explorer's current planet.
-/// It uses a Finite State Machine (FSM) to ensure that the request for combinations and the subsequent
-/// result list are handled in the correct order at compile time.
-///
-/// The conversation flow starts by sending a request to the explorer to get the planet supported combinations and terminates once the
-/// [`ExplorerToOrchestrator::SupportedCombinationResult`] is received and processed.
+//**Supported Combination Conversation**
+//
+// This module manages the conversation between the Orchestrator and an Explorer regarding the combinations
+// supported by the explorer's current planet.
+// It uses a Finite State Machine (FSM) to ensure that the request for combinations and the subsequent
+// result list are handled in the correct order at compile time.
+//
+// The conversation flow starts by sending a request to the explorer to get the planet supported combinations and terminates once the
+// [`ExplorerToOrchestrator::SupportedCombinationResult`] is received and processed.
 
 // --- SUPPORTED COMBINATION CONVERSATION ---
 define_conversation!(

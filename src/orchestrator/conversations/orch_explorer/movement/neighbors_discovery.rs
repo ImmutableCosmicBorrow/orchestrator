@@ -1,6 +1,6 @@
 use crate::convo_manager::OrchContextRef;
 use crate::globals::{TIMEOUT, get_explorer_timeout};
-use crate::logging_utils::{LogTarget, log_internal};
+use crate::logging::{LogTarget, log_internal};
 use crate::orchestrator::ChannelsManagerRef;
 use crate::orchestrator::conversations::EntitiesIDTuple;
 use crate::orchestrator::conversations::PossibleExpectedKinds::ExplorerToOrchKind;
@@ -8,7 +8,6 @@ use crate::orchestrator::conversations::{
     ChannelsContext, CommonErrorTypes, Conversation, ErrorState, ErrorType, ExplorerCommunicator,
     PossibleExpectedKinds, PossibleMessage,
 };
-use crate::planet::PlanetMap;
 use crate::{create_request_state, create_response_state, define_conversation, payload};
 use common_game::logging::Channel;
 use common_game::protocols::orchestrator_explorer::{
@@ -22,7 +21,6 @@ use std::time::Duration;
 /// This module manages the process of an Explorer discovering the adjacent planets (neighbors)
 /// of its current location.
 /// It uses a Finite State Machine (FSM) to ensure that the exchange of messages happens in the appropriate order
-
 /// Custom error type for when a planet ID provided by an explorer does not exist in the galaxy.
 struct PlanetNotFound(ID);
 impl ErrorType for PlanetNotFound {
