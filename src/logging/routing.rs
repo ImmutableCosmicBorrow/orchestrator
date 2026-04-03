@@ -31,9 +31,20 @@ const EXPLORER_CRATE_PREFIXES: &[&str] = &[
 // ── Classification ───────────────────────────────────────────────────────
 
 pub(super) enum MessageClass {
+    // asteroids & sunrays
     AsteroidsSunrays,
+    Asteroids,
+    Sunrays,
+    // conversations
     Conversations,
+    ConversationsPlanets,
+    ConversationsExplorers,
+    // channel messages
     ChannelMessages,
+    ChannelMessagesPlanets,
+    ChannelMessagesExplorers,
+    ChannelMessagesUi,
+    // lifecycle & other
     PlanetLifecycle,
     ExplorerLifecycle,
     OrchestratorLifecycle,
@@ -65,19 +76,83 @@ pub(super) fn classify(target: &str, message: &str) -> MessageClass {
 
 fn classify_orch(target: &str, message: &str) -> MessageClass {
     if target.starts_with(TARGET_ASTEROIDS_SUNRAYS) {
-        return MessageClass::AsteroidsSunrays;
+        return classify_asteroids_sunrays(message);
     }
     if target.starts_with(TARGET_CONVERSATIONS) {
-        return MessageClass::Conversations;
+        return classify_conversations(message);
     }
     if target.starts_with(TARGET_CHANNEL_MESSAGES) {
-        return MessageClass::ChannelMessages;
+        return classify_channel_messages(message);
     }
-    // orch::general and any other orch:: sub-target → inspect content
+    // orch::general and any unrecognised orch:: sub-target → inspect content
     classify_general_content(message)
 }
 
-/// Route `orch::general` messages to a more specific category where possible.
+// ── asteroids / sunrays ──────────────────────────────────────────────────
+
+fn classify_asteroids_sunrays(message: &str) -> MessageClass {
+    let lower = message.to_lowercase();
+    if lower.contains("asteroid") {
+        MessageClass::Asteroids
+    } else if lower.contains("sunray") {
+        MessageClass::Sunrays
+    } else {
+        MessageClass::AsteroidsSunrays
+    }
+}
+
+// ── conversations ────────────────────────────────────────────────────────
+
+fn classify_conversations(message: &str) -> MessageClass {
+    // Event-type markers embedded in LogEvent strings (from log_msg_to calls)
+    if message.contains("MessageOrchestratorToPlanet") {
+        return MessageClass::ConversationsPlanets;
+    }
+    if message.contains("MessageOrchestratorToExplorer") {
+        return MessageClass::ConversationsExplorers;
+    }
+    // Action keyword matching for direct log_internal calls
+    if message.contains("Killed Planet")
+        || message.contains("Started Planet")
+        || message.contains("Stopped Planet")
+        || message.contains("Planet sent its internal state")
+        || message.contains("Planet correctly handled dead explorer")
+        || message.contains("Planet AI")
+    {
+        return MessageClass::ConversationsPlanets;
+    }
+    if message.contains("Explorer correctly")
+        || message.contains("Explorer cannot")
+        || message.contains("Changed Explorer location")
+        || message.contains("neighbors to Explorer")
+        || message.contains("Explorer location")
+        || message.contains("Explorer AI")
+    {
+        return MessageClass::ConversationsExplorers;
+    }
+    // Queue/infra messages (QueueEnqueue, QueueDequeue, MessageParked,
+    // "Message matched conversation", "Conversation Transition", on_timeout errors…)
+    MessageClass::Conversations
+}
+
+// ── channel messages ─────────────────────────────────────────────────────
+
+fn classify_channel_messages(message: &str) -> MessageClass {
+    // Event-type markers embedded in LogEvent strings
+    if message.contains("MessagePlanetToOrchestrator") || message.contains("from_planet:") {
+        return MessageClass::ChannelMessagesPlanets;
+    }
+    if message.contains("MessageExplorerToOrchestrator") || message.contains("from_explorer:") {
+        return MessageClass::ChannelMessagesExplorers;
+    }
+    if message.contains("UI->ORCH") {
+        return MessageClass::ChannelMessagesUi;
+    }
+    MessageClass::ChannelMessages
+}
+
+// ── orch::general content-based routing ─────────────────────────────────
+
 fn classify_general_content(message: &str) -> MessageClass {
     if message.contains("Created Planet")
         || message.contains("Planet creation failed")
@@ -101,12 +176,13 @@ fn classify_general_content(message: &str) -> MessageClass {
         return MessageClass::OrchestratorLifecycle;
     }
     if message.contains("does not start a conversation. Ignoring.") {
-        return MessageClass::ChannelMessages;
+        return classify_channel_messages(message);
     }
     MessageClass::General
 }
 
-/// Route `common_game::logging` messages by the event type embedded in the `LogEvent` string.
+// ── common_game::logging content-based routing ───────────────────────────
+
 fn classify_common_game(message: &str) -> MessageClass {
     if message.contains("InternalPlanetAction") {
         return MessageClass::PlanetLifecycle;
@@ -119,10 +195,13 @@ fn classify_common_game(message: &str) -> MessageClass {
     }
     if message.contains("MessageOrchestratorToPlanet")
         || message.contains("MessagePlanetToOrchestrator")
-        || message.contains("MessageExplorerToPlanet")
+    {
+        return MessageClass::ChannelMessagesPlanets;
+    }
+    if message.contains("MessageExplorerToPlanet")
         || message.contains("MessageExplorerToOrchestrator")
     {
-        return MessageClass::ChannelMessages;
+        return MessageClass::ChannelMessagesExplorers;
     }
     MessageClass::CommonGame
 }
@@ -132,16 +211,26 @@ fn classify_common_game(message: &str) -> MessageClass {
 /// Global logger. Classifies every record and dispatches it to the right
 /// per-category sub-logger, then unconditionally to `shared` and `terminal`.
 pub(super) struct ContentRouter {
-    // Per-category file loggers
+    // asteroids & sunrays
     pub(super) asteroids_sunrays: Box<dyn log::Log + Send + Sync>,
+    pub(super) asteroids: Box<dyn log::Log + Send + Sync>,
+    pub(super) sunrays: Box<dyn log::Log + Send + Sync>,
+    // conversations
     pub(super) conversations: Box<dyn log::Log + Send + Sync>,
-    pub(super) general: Box<dyn log::Log + Send + Sync>,
+    pub(super) conversations_planets: Box<dyn log::Log + Send + Sync>,
+    pub(super) conversations_explorers: Box<dyn log::Log + Send + Sync>,
+    // channel messages
     pub(super) channel_messages: Box<dyn log::Log + Send + Sync>,
+    pub(super) channel_messages_planets: Box<dyn log::Log + Send + Sync>,
+    pub(super) channel_messages_explorers: Box<dyn log::Log + Send + Sync>,
+    pub(super) channel_messages_ui: Box<dyn log::Log + Send + Sync>,
+    // lifecycle & other
+    pub(super) general: Box<dyn log::Log + Send + Sync>,
     pub(super) planet_lifecycle: Box<dyn log::Log + Send + Sync>,
     pub(super) explorer_lifecycle: Box<dyn log::Log + Send + Sync>,
     pub(super) orchestrator_lifecycle: Box<dyn log::Log + Send + Sync>,
     pub(super) common_game: Box<dyn log::Log + Send + Sync>,
-    // Always receives every record
+    // always receives every record
     pub(super) shared: Box<dyn log::Log + Send + Sync>,
     pub(super) terminal: Box<dyn log::Log + Send + Sync>,
     pub(super) level: log::LevelFilter,
@@ -159,8 +248,15 @@ impl log::Log for ContentRouter {
         let msg = record.args().to_string();
         let primary: &dyn log::Log = match classify(record.target(), &msg) {
             MessageClass::AsteroidsSunrays => &*self.asteroids_sunrays,
+            MessageClass::Asteroids => &*self.asteroids,
+            MessageClass::Sunrays => &*self.sunrays,
             MessageClass::Conversations => &*self.conversations,
+            MessageClass::ConversationsPlanets => &*self.conversations_planets,
+            MessageClass::ConversationsExplorers => &*self.conversations_explorers,
             MessageClass::ChannelMessages => &*self.channel_messages,
+            MessageClass::ChannelMessagesPlanets => &*self.channel_messages_planets,
+            MessageClass::ChannelMessagesExplorers => &*self.channel_messages_explorers,
+            MessageClass::ChannelMessagesUi => &*self.channel_messages_ui,
             MessageClass::PlanetLifecycle => &*self.planet_lifecycle,
             MessageClass::ExplorerLifecycle => &*self.explorer_lifecycle,
             MessageClass::OrchestratorLifecycle => &*self.orchestrator_lifecycle,
@@ -174,9 +270,16 @@ impl log::Log for ContentRouter {
 
     fn flush(&self) {
         self.asteroids_sunrays.flush();
+        self.asteroids.flush();
+        self.sunrays.flush();
         self.conversations.flush();
-        self.general.flush();
+        self.conversations_planets.flush();
+        self.conversations_explorers.flush();
         self.channel_messages.flush();
+        self.channel_messages_planets.flush();
+        self.channel_messages_explorers.flush();
+        self.channel_messages_ui.flush();
+        self.general.flush();
         self.planet_lifecycle.flush();
         self.explorer_lifecycle.flush();
         self.orchestrator_lifecycle.flush();

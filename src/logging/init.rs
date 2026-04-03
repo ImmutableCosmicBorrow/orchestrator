@@ -6,6 +6,7 @@ use super::routing::ContentRouter;
 use super::targets::{
     TARGET_EXPLORER_LIFECYCLE, TARGET_ORCHESTRATOR_LIFECYCLE, TARGET_PLANET_LIFECYCLE,
 };
+// (TARGET_* constants used only for directory naming via trim_start_matches("orch::"))
 
 // ── .env loader ──────────────────────────────────────────────────────────
 
@@ -110,17 +111,24 @@ fn build_terminal_log() -> Box<dyn log::Log + Send + Sync> {
 /// Creates the `log/` directory tree and installs the multi-file logger.
 ///
 /// Log routing (resolved by [`super::routing::ContentRouter`]):
-/// | source / content                              | file                                    |
-/// |-----------------------------------------------|-----------------------------------------|
-/// | `orch::asteroids_sunrays`                     | `log/asteroids_sunrays/<ts>.log`        |
-/// | `orch::conversations`                         | `log/conversations/<ts>.log`            |
-/// | `orch::channel_messages` + routed messages    | `log/channel_messages/<ts>.log`         |
-/// | planet crates + `InternalPlanetAction`        | `log/planet_lifecycle/<ts>.log`         |
-/// | explorer crates + `InternalExplorerAction`    | `log/explorer_lifecycle/<ts>.log`       |
-/// | orchestrator state changes + UI commands      | `log/orchestrator_lifecycle/<ts>.log`   |
-/// | other external crates                         | `log/common_game/<ts>.log`              |
-/// | remaining `orch::general` messages            | `log/general/<ts>.log`                  |
-/// | *(all targets)*                               | `log/all/<ts>.log`                      |
+/// | source / content                              | file                                            |
+/// |-----------------------------------------------|-------------------------------------------------|
+/// | asteroid events                               | `log/asteroids_sunrays/asteroids/<ts>.log`      |
+/// | sunray events                                 | `log/asteroids_sunrays/sunrays/<ts>.log`        |
+/// | unclassified asteroids/sunrays                | `log/asteroids_sunrays/<ts>.log`                |
+/// | planet conversation outcomes                  | `log/conversations/planets/<ts>.log`            |
+/// | explorer conversation outcomes                | `log/conversations/explorers/<ts>.log`          |
+/// | queue/scheduler infrastructure                | `log/conversations/<ts>.log`                    |
+/// | planet→orch channel messages                  | `log/channel_messages/planets/<ts>.log`         |
+/// | explorer→orch channel messages                | `log/channel_messages/explorers/<ts>.log`       |
+/// | UI→orch channel messages                      | `log/channel_messages/ui/<ts>.log`              |
+/// | unclassified channel messages                 | `log/channel_messages/<ts>.log`                 |
+/// | planet crates + `InternalPlanetAction`        | `log/planet_lifecycle/<ts>.log`                 |
+/// | explorer crates + `InternalExplorerAction`    | `log/explorer_lifecycle/<ts>.log`               |
+/// | orchestrator state changes + UI commands      | `log/orchestrator_lifecycle/<ts>.log`           |
+/// | other external crates                         | `log/common_game/<ts>.log`                      |
+/// | remaining `orch::general` messages            | `log/general/<ts>.log`                          |
+/// | *(all targets)*                               | `log/all/<ts>.log`                              |
 ///
 /// All messages are also printed to **stderr** for terminal visibility.
 /// The log level is controlled by `RUST_LOG` (default: `info`).
@@ -148,10 +156,21 @@ pub(super) fn start_logger() {
     let f = |subdir: &str| open_log_file(&format!("{log_root}/{subdir}"), &log_filename);
 
     let router = ContentRouter {
+        // asteroids & sunrays — nested under asteroids_sunrays/
         asteroids_sunrays: build_file_log(f("asteroids_sunrays")),
+        asteroids: build_file_log(f("asteroids_sunrays/asteroids")),
+        sunrays: build_file_log(f("asteroids_sunrays/sunrays")),
+        // conversations — nested under conversations/
         conversations: build_file_log(f("conversations")),
-        general: build_file_log(f("general")),
+        conversations_planets: build_file_log(f("conversations/planets")),
+        conversations_explorers: build_file_log(f("conversations/explorers")),
+        // channel messages — nested under channel_messages/
         channel_messages: build_file_log(f("channel_messages")),
+        channel_messages_planets: build_file_log(f("channel_messages/planets")),
+        channel_messages_explorers: build_file_log(f("channel_messages/explorers")),
+        channel_messages_ui: build_file_log(f("channel_messages/ui")),
+        // lifecycle & other
+        general: build_file_log(f("general")),
         planet_lifecycle: build_file_log(f(TARGET_PLANET_LIFECYCLE.trim_start_matches("orch::"))),
         explorer_lifecycle: build_file_log(f(
             TARGET_EXPLORER_LIFECYCLE.trim_start_matches("orch::")
