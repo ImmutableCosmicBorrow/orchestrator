@@ -1,11 +1,14 @@
 use crate::convo_manager::OrchContextRef;
 use crate::globals::TIMEOUT;
-use crate::logging_utils::{log_internal, LogTarget};
+use crate::logging_utils::{LogTarget, log_internal};
+use crate::orchestrator::ChannelsManagerRef;
+use crate::orchestrator::Duration;
 use crate::orchestrator::conversations::EntitiesIDTuple;
 use crate::orchestrator::conversations::PossibleExpectedKinds::PlanetToOrchKind;
-use crate::orchestrator::conversations::{ChannelsContext, CommonErrorTypes, Conversation, ErrorState, PlanetCommunicator, PossibleExpectedKinds, PossibleMessage, UiCommunicator};
-use crate::orchestrator::Duration;
-use crate::orchestrator::ChannelsManagerRef;
+use crate::orchestrator::conversations::{
+    ChannelsContext, CommonErrorTypes, Conversation, ErrorState, PlanetCommunicator,
+    PossibleExpectedKinds, PossibleMessage, UiCommunicator,
+};
 use crate::ui::OrchestratorToUiUpdate;
 use crate::{create_request_state, create_response_state, define_conversation, payload};
 use common_game::logging::Channel;
@@ -51,23 +54,23 @@ create_request_state!(
 
     },
 );
-fn send_internal_state_req_transition(this: Box<InternalStateConversation<SendingInternalStateRequest>>) -> Option<Box<dyn Conversation + Send + Sync>> {
-    match this
-        .state
-        .to_planet(this.state.planet_id, OrchestratorToPlanet::InternalStateRequest)
-    {
+fn send_internal_state_req_transition(
+    this: Box<InternalStateConversation<SendingInternalStateRequest>>,
+) -> Option<Box<dyn Conversation + Send + Sync>> {
+    match this.state.to_planet(
+        this.state.planet_id,
+        OrchestratorToPlanet::InternalStateRequest,
+    ) {
         Ok(()) => {
-            let next_state = WaitingInternalStateResponse::new(this.state.orch_context, this.state.planet_id,);
-            let next_conv = InternalStateConversation::<WaitingInternalStateResponse>::new(
-                this.id,
-                next_state,
-            );
+            let next_state =
+                WaitingInternalStateResponse::new(this.state.orch_context, this.state.planet_id);
+            let next_conv =
+                InternalStateConversation::<WaitingInternalStateResponse>::new(this.id, next_state);
             Some(Box::new(next_conv) as Box<dyn Conversation + Send + Sync>)
         }
         Err(err) => {
             let error_state = ErrorState::new(Box::new(err), this.id);
-            Some(Box::new(error_state)
-                as Box<dyn Conversation + Send + Sync>)
+            Some(Box::new(error_state) as Box<dyn Conversation + Send + Sync>)
         }
     }
 }
@@ -90,8 +93,6 @@ create_response_state!(
     },
 );
 
-
-
 /// Transition Function for [`WaitingInternalStateResponse`] state:
 ///
 /// Returns:
@@ -100,39 +101,42 @@ create_response_state!(
 ///
 /// [`ErrorState`] with [`CommonErrorTypes::WrongMessage`] if the trigger message is different from the expected one [`PlanetToOrchestrator::InternalStateResponse`]
 /// [`ErrorState`] with [`CommonErrorTypes::MessageToUiFailed`] if the message sending to the UI fails
-fn wait_internal_state_res_transition(this: Box<InternalStateConversation<WaitingInternalStateResponse>>, msg: Option<PossibleMessage>) -> Option<Box<dyn Conversation + Send + Sync>> {
+fn wait_internal_state_res_transition(
+    this: Box<InternalStateConversation<WaitingInternalStateResponse>>,
+    msg: Option<PossibleMessage>,
+) -> Option<Box<dyn Conversation + Send + Sync>> {
     if let Some(PossibleMessage::PlanetToOrch(PlanetToOrchestrator::InternalStateResponse {
-          planet_id,
-          planet_state,
-          })) = msg
+        planet_id,
+        planet_state,
+    })) = msg
     {
-
         log_internal(
             LogTarget::Conversations,
             Channel::Debug,
             payload!(
-                    action : "Planet sent its internal state",
-                    planet_id : planet_id,
-                    planet_state : format!("{planet_state:?}"),
-                    conversation_id : this.id
-                ),
+                action : "Planet sent its internal state",
+                planet_id : planet_id,
+                planet_state : format!("{planet_state:?}"),
+                conversation_id : this.id
+            ),
         );
         // Send planet state to UI
-        return match this.state.to_ui(OrchestratorToUiUpdate::PlanetSnapshot(planet_id, planet_state)) {
+        return match this.state.to_ui(OrchestratorToUiUpdate::PlanetSnapshot(
+            planet_id,
+            planet_state,
+        )) {
             Ok(()) => None,
             Err(err) => {
                 let error_state = ErrorState::new(Box::new(err), this.id);
-                Some(Box::new(error_state)
-                    as Box<dyn Conversation + Send + Sync>)
+                Some(Box::new(error_state) as Box<dyn Conversation + Send + Sync>)
             }
-        }
+        };
     }
 
     //Wrong Message, close conversation
     let error_state = ErrorState::new(Box::new(CommonErrorTypes::WrongMessage), this.id);
     Some(Box::new(error_state) as Box<dyn Conversation + Send + Sync>)
 }
-
 
 /*
 

@@ -1,11 +1,14 @@
 use crate::convo_manager::OrchContextRef;
 use crate::globals::TIMEOUT;
-use crate::logging_utils::{log_internal, LogTarget};
+use crate::logging_utils::{LogTarget, log_internal};
+use crate::orchestrator::ChannelsManagerRef;
+use crate::orchestrator::Duration;
 use crate::orchestrator::conversations::EntitiesIDTuple;
 use crate::orchestrator::conversations::PossibleExpectedKinds::PlanetToOrchKind;
-use crate::orchestrator::conversations::{ChannelsContext, CommonErrorTypes, Conversation, ErrorState, KillExplorersList, PlanetCommunicator, PossibleExpectedKinds, PossibleMessage};
-use crate::orchestrator::Duration;
-use crate::orchestrator::ChannelsManagerRef;
+use crate::orchestrator::conversations::{
+    ChannelsContext, CommonErrorTypes, Conversation, ErrorState, KillExplorersList,
+    PlanetCommunicator, PossibleExpectedKinds, PossibleMessage,
+};
 use crate::{create_request_state, create_response_state, define_conversation, payload};
 use common_game::logging::Channel;
 use common_game::protocols::orchestrator_planet::PlanetToOrchestratorKind::KillPlanetResult;
@@ -24,13 +27,11 @@ use common_game::utils::ID;
 /// [`OrchestratorToPlanet::KillPlanet`] message when the [`Conversation::transition`] method is called.
 // --- INTERNAL STATE CONVERSATION ---
 
-
 define_conversation!(
     name: KillPlanetConversation
 );
 
 // --- SEND KILL PLANET DEFINITION ---
-
 
 create_request_state!(
     state_name: SendPlanetKill,
@@ -48,8 +49,6 @@ create_request_state!(
     },
 );
 
-
-
 /// Transition Function for [`SendPlanetKill`] state:
 ///
 /// Returns:
@@ -57,25 +56,23 @@ create_request_state!(
 /// [`ErrorState`] if the message to the planet fails or the sender is not found.
 ///
 /// [`KillPlanetConversation<WaitingPlanetKillResult>`] if the kill command was sent successfully.
-fn send_kill_planet_transition(this: Box<KillPlanetConversation<SendPlanetKill>>) -> Option<Box<dyn Conversation + Send + Sync>> {
+fn send_kill_planet_transition(
+    this: Box<KillPlanetConversation<SendPlanetKill>>,
+) -> Option<Box<dyn Conversation + Send + Sync>> {
     match this
         .state
         .to_planet(this.state.planet_id, OrchestratorToPlanet::KillPlanet)
     {
         Ok(()) => {
-
-            let state_struct = WaitingPlanetKillResult::new(
-                this.state.orch_context,
-                this.state.planet_id,
-            );
+            let state_struct =
+                WaitingPlanetKillResult::new(this.state.orch_context, this.state.planet_id);
             let next_state =
                 KillPlanetConversation::<WaitingPlanetKillResult>::new(this.id, state_struct);
             Some(Box::new(next_state))
         }
         Err(err) => {
             let error_state = ErrorState::new(Box::new(err), this.id);
-            Some(Box::new(error_state)
-                as Box<dyn Conversation + Send + Sync>)
+            Some(Box::new(error_state) as Box<dyn Conversation + Send + Sync>)
         }
     }
 }
@@ -98,16 +95,14 @@ create_response_state!(
     },
 );
 
-
 impl WaitingPlanetKillResult {
     //Helper function to find all explorers in the planet
     fn get_explorers_in_planet(&self, target_planet: ID) -> Vec<(ID, ID)> {
-
-            self.orch_context
+        self.orch_context
             .explorers_location
             .iter()
             .filter(|r| *r.value() == target_planet) // Access value via the guard
-            .map(|r| (*r.key(), *r.value()))         // Dereference/copy the data
+            .map(|r| (*r.key(), *r.value())) // Dereference/copy the data
             .collect()
     }
 }
@@ -120,26 +115,29 @@ impl WaitingPlanetKillResult {
 /// through the dedicated method of the trait and let the Orchestrator take care of that
 ///
 /// [`ErrorState`] with [`CommonErrorTypes::WrongMessage`] if the trigger message is different then the expected [`PlanetToOrchestrator::KillPlanetResult`]
-fn wait_planet_kill_res_transition(this: Box<KillPlanetConversation<WaitingPlanetKillResult>>, msg: Option<PossibleMessage>) -> Option<Box<dyn Conversation + Send + Sync>> {
+fn wait_planet_kill_res_transition(
+    this: Box<KillPlanetConversation<WaitingPlanetKillResult>>,
+    msg: Option<PossibleMessage>,
+) -> Option<Box<dyn Conversation + Send + Sync>> {
     if let Some(PossibleMessage::PlanetToOrch(PlanetToOrchestrator::KillPlanetResult {
         planet_id,
-      })) = msg
+    })) = msg
     {
         log_internal(
             LogTarget::Conversations,
             Channel::Info,
             payload!(
-                    action : "Killed Planet",
-                    planet_id : planet_id,
-                    conversation_id : this.id
-                ),
+                action : "Killed Planet",
+                planet_id : planet_id,
+                conversation_id : this.id
+            ),
         );
 
         return None;
     }
 
     //Wrong Message, close conversation
-    let error_state = ErrorState::new(Box::new(CommonErrorTypes::WrongMessage),this.id);
+    let error_state = ErrorState::new(Box::new(CommonErrorTypes::WrongMessage), this.id);
     Some(Box::new(error_state) as Box<dyn Conversation + Send + Sync>)
 }
 

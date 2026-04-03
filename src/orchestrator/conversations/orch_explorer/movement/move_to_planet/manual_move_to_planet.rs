@@ -45,7 +45,9 @@ create_request_state!(
 /// #### 2. Handshake Initiation
 /// The conversation transitions directly to [`SendIncomingRequest`], which begins
 /// the process of notifying the destination planet of the entity's arrival.
-fn send_manual_move_req_transition(this: Box<MoveToPlanetConversation<SendManualMoveRequest>>) -> Option<Box<dyn Conversation + Send + Sync>> {
+fn send_manual_move_req_transition(
+    this: Box<MoveToPlanetConversation<SendManualMoveRequest>>,
+) -> Option<Box<dyn Conversation + Send + Sync>> {
     let state_struct = SendIncomingRequest::new(
         this.state.orch_context,
         this.state.explorer_id,
@@ -56,4 +58,3 @@ fn send_manual_move_req_transition(this: Box<MoveToPlanetConversation<SendManual
     let next_conv = MoveToPlanetConversation::<SendIncomingRequest>::new(this.id, state_struct);
     Some(Box::new(next_conv))
 }
-

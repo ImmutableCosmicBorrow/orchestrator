@@ -19,35 +19,26 @@ use common_game::components::resource::{BasicResourceType, ComplexResourceType};
 use common_game::logging::Channel;
 use common_game::utils::ID;
 
-
 impl ConvoManager {
-
-    pub(crate) fn create_neighbors_request_conversation(
-        &self,
-        explorer_id: ID,
-    ) -> ID {
-        let state =
-            WaitingNeighborsRequest::new(
-                self.orch_context.clone(),
-                explorer_id,
-            );
+    pub(crate) fn create_neighbors_request_conversation(&self, explorer_id: ID) -> ID {
+        let state = WaitingNeighborsRequest::new(self.orch_context.clone(), explorer_id);
 
         let id = get_id_manager().get_next_conversation_id();
         let new_conv = NeighborsDiscoveryConversation::<WaitingNeighborsRequest>::new(id, state);
 
-
-        self.convo_scheduler.add_conversation(Box::new(new_conv)
-            as Box<dyn conversations::Conversation + Send + Sync>);
+        self.convo_scheduler.add_conversation(
+            Box::new(new_conv) as Box<dyn conversations::Conversation + Send + Sync>
+        );
 
         log_internal(
             LogTarget::Conversations,
             Channel::Trace,
             payload!(
-            event: "ScheduleConversation",
-            conversation_id: id,
-            kind: "NeighborsDiscovery",
-            explorer_id: explorer_id
-        ),
+                event: "ScheduleConversation",
+                conversation_id: id,
+                kind: "NeighborsDiscovery",
+                explorer_id: explorer_id
+            ),
         );
 
         id
@@ -60,8 +51,6 @@ impl ConvoManager {
         current_planet_id: Option<ID>,
         dst_planet_id: ID,
     ) -> ID {
-
-
         let state = SendManualMoveRequest::new(
             self.orch_context.clone(),
             explorer_id,
@@ -78,13 +67,13 @@ impl ConvoManager {
             LogTarget::Conversations,
             Channel::Trace,
             payload!(
-            event: "ScheduleConversation",
-            conversation_id: id,
-            kind: "ManualMoveRequest",
-            explorer_id: explorer_id,
-            from_planet: format!("{current_planet_id:?}"),
-            to_planet: dst_planet_id
-        ),
+                event: "ScheduleConversation",
+                conversation_id: id,
+                kind: "ManualMoveRequest",
+                explorer_id: explorer_id,
+                from_planet: format!("{current_planet_id:?}"),
+                to_planet: dst_planet_id
+            ),
         );
 
         id
@@ -97,12 +86,8 @@ impl ConvoManager {
         current_planet_id: ID,
         dst_planet_id: ID,
     ) -> ID {
-
-        let state = WaitingTravelRequest::new(
-            self.orch_context.clone(),
-            explorer_id,
-            current_planet_id,
-        );
+        let state =
+            WaitingTravelRequest::new(self.orch_context.clone(), explorer_id, current_planet_id);
 
         let id = get_id_manager().get_next_conversation_id();
         let new_conv = MoveToPlanetConversation::<WaitingTravelRequest>::new(id, state);
@@ -113,43 +98,36 @@ impl ConvoManager {
             LogTarget::Conversations,
             Channel::Trace,
             payload!(
-            event: "ScheduleConversation",
-            conversation_id: id,
-            kind: "WaitingMoveToPlanet",
-            explorer_id: explorer_id,
-            from_planet: format!("{current_planet_id:?}"),
-            to_planet: dst_planet_id
-        ),
+                event: "ScheduleConversation",
+                conversation_id: id,
+                kind: "WaitingMoveToPlanet",
+                explorer_id: explorer_id,
+                from_planet: format!("{current_planet_id:?}"),
+                to_planet: dst_planet_id
+            ),
         );
 
         id
     }
 
-
-
-    pub(crate) fn create_bag_content_conversation(
-        &self,
-        explorer_id: ID,
-    ) -> ID {
-        let state = SendingBagContentRequest::new(
-            self.orch_context.clone(),
-            explorer_id,
-        );
+    pub(crate) fn create_bag_content_conversation(&self, explorer_id: ID) -> ID {
+        let state = SendingBagContentRequest::new(self.orch_context.clone(), explorer_id);
         let id = get_id_manager().get_next_conversation_id();
         let new_conv = BagContentConversation::<SendingBagContentRequest>::new(id, state);
 
-        self.convo_scheduler.add_conversation(Box::new(new_conv)
-            as Box<dyn conversations::Conversation + Send + Sync>);
+        self.convo_scheduler.add_conversation(
+            Box::new(new_conv) as Box<dyn conversations::Conversation + Send + Sync>
+        );
 
         log_internal(
             LogTarget::Conversations,
             Channel::Trace,
             payload!(
-            event: "ScheduleConversation",
-            conversation_id: id,
-            kind: "BagContent",
-            explorer_id: explorer_id
-        ),
+                event: "ScheduleConversation",
+                conversation_id: id,
+                kind: "BagContent",
+                explorer_id: explorer_id
+            ),
         );
 
         id
@@ -160,30 +138,25 @@ impl ConvoManager {
         explorer_id: ID,
         resource_type: BasicResourceType,
     ) -> ID {
-
-        let state = SendingCraftResourceRequest::new(
-            self.orch_context.clone(),
-            explorer_id,
-            resource_type,
-        );
+        let state =
+            SendingCraftResourceRequest::new(self.orch_context.clone(), explorer_id, resource_type);
         let id = get_id_manager().get_next_conversation_id();
-        let new_conv = CraftResourceConversation::<
-            SendingCraftResourceRequest,
-        >::new(id, state);
+        let new_conv = CraftResourceConversation::<SendingCraftResourceRequest>::new(id, state);
 
-        self.convo_scheduler.add_conversation(Box::new(new_conv)
-            as Box<dyn conversations::Conversation + Send + Sync>);
+        self.convo_scheduler.add_conversation(
+            Box::new(new_conv) as Box<dyn conversations::Conversation + Send + Sync>
+        );
 
         log_internal(
             LogTarget::Conversations,
             Channel::Trace,
             payload!(
-            event: "ScheduleConversation",
-            conversation_id: id,
-            kind: "CraftResource",
-            explorer_id: explorer_id,
-            resource_type: format!("{:?}", resource_type)
-        ),
+                event: "ScheduleConversation",
+                conversation_id: id,
+                kind: "CraftResource",
+                explorer_id: explorer_id,
+                resource_type: format!("{:?}", resource_type)
+            ),
         );
 
         id
@@ -200,84 +173,68 @@ impl ConvoManager {
             resource_type,
         );
         let id = get_id_manager().get_next_conversation_id();
-        let new_conv = CombineResourceConversation::<
-            SendingCombineResourceRequest,
-        >::new(id, state);
+        let new_conv = CombineResourceConversation::<SendingCombineResourceRequest>::new(id, state);
 
-        self.convo_scheduler.add_conversation(Box::new(new_conv)
-            as Box<dyn conversations::Conversation + Send + Sync>);
+        self.convo_scheduler.add_conversation(
+            Box::new(new_conv) as Box<dyn conversations::Conversation + Send + Sync>
+        );
 
         log_internal(
             LogTarget::Conversations,
             Channel::Trace,
             payload!(
-            event: "ScheduleConversation",
-            conversation_id: id,
-            kind: "CombineResource",
-            explorer_id: explorer_id,
-            resource_type: format!("{:?}", resource_type)
-        ),
+                event: "ScheduleConversation",
+                conversation_id: id,
+                kind: "CombineResource",
+                explorer_id: explorer_id,
+                resource_type: format!("{:?}", resource_type)
+            ),
         );
 
         id
     }
 
-    pub(crate) fn create_start_explorer_conversation(
-        &self,
-        explorer_id: ID,
-    ) -> ID {
-        let state = SendingExplorerStart::new(
-            self.orch_context.clone(),
-            explorer_id,
-        );
+    pub(crate) fn create_start_explorer_conversation(&self, explorer_id: ID) -> ID {
+        let state = SendingExplorerStart::new(self.orch_context.clone(), explorer_id);
         let id = get_id_manager().get_next_conversation_id();
-        let new_conv =
-            StartExplorerConversation::<
-                SendingExplorerStart,
-            >::new(id, state);
+        let new_conv = StartExplorerConversation::<SendingExplorerStart>::new(id, state);
 
-        self.convo_scheduler.add_conversation(Box::new(new_conv)
-            as Box<dyn conversations::Conversation + Send + Sync>);
+        self.convo_scheduler.add_conversation(
+            Box::new(new_conv) as Box<dyn conversations::Conversation + Send + Sync>
+        );
 
         log_internal(
             LogTarget::Conversations,
             Channel::Trace,
             payload!(
-            event: "ScheduleConversation",
-            conversation_id: id,
-            kind: "StartExplorer",
-            explorer_id: explorer_id
-        ),
+                event: "ScheduleConversation",
+                conversation_id: id,
+                kind: "StartExplorer",
+                explorer_id: explorer_id
+            ),
         );
 
         id
     }
 
-    pub(crate) fn create_stop_explorer_conversation(
-        &self,
-        explorer_id: ID,
-    ) -> ID {
-        let state = SendingExplorerStop::new(
-            self.orch_context.clone(),
-            explorer_id,
-        );
+    pub(crate) fn create_stop_explorer_conversation(&self, explorer_id: ID) -> ID {
+        let state = SendingExplorerStop::new(self.orch_context.clone(), explorer_id);
         let id = get_id_manager().get_next_conversation_id();
-        let new_conv = StopExplorerConversation::<
-            SendingExplorerStop,
-        >::new(id, state);
+        let new_conv = StopExplorerConversation::<SendingExplorerStop>::new(id, state);
 
-        self.convo_scheduler.add_conversation(Box::new(new_conv)
-            as Box<dyn conversations::Conversation + Send + Sync>);
+        self.convo_scheduler.add_conversation(
+            Box::new(new_conv) as Box<dyn conversations::Conversation + Send + Sync>
+        );
 
         log_internal(
             LogTarget::Conversations,
             Channel::Trace,
             payload!(
-            event: "ScheduleConversation",
-            conversation_id: id,
-            kind: "StopExplorer",
-            explorer_id: explorer_id
-        ),
+                event: "ScheduleConversation",
+                conversation_id: id,
+                kind: "StopExplorer",
+                explorer_id: explorer_id
+            ),
         );
 
         id
@@ -298,117 +255,94 @@ impl ConvoManager {
         let id = get_id_manager().get_next_conversation_id();
         let new_conv = KillExplorerConversation::<SendingExplorerKill>::new(id, state);
 
-        self.convo_scheduler.add_conversation(Box::new(new_conv)
-            as Box<dyn conversations::Conversation + Send + Sync>);
+        self.convo_scheduler.add_conversation(
+            Box::new(new_conv) as Box<dyn conversations::Conversation + Send + Sync>
+        );
 
         log_internal(
             LogTarget::Conversations,
             Channel::Trace,
             payload!(
-            event: "ScheduleConversation",
-            conversation_id: id,
-            kind: "KillExplorer",
-            explorer_id: explorer_id,
-            planet_id: planet_id,
-            handle_outgoing: handle_outgoing
-        ),
+                event: "ScheduleConversation",
+                conversation_id: id,
+                kind: "KillExplorer",
+                explorer_id: explorer_id,
+                planet_id: planet_id,
+                handle_outgoing: handle_outgoing
+            ),
         );
 
         id
     }
 
-    pub(crate) fn create_reset_explorer_conversation(
-        &self,
-        explorer_id: ID,
-    ) -> ID {
-        let state = SendingExplorerReset::new(
-            self.orch_context.clone(),
-            explorer_id,
+    pub(crate) fn create_reset_explorer_conversation(&self, explorer_id: ID) -> ID {
+        let state = SendingExplorerReset::new(self.orch_context.clone(), explorer_id);
+        let id = get_id_manager().get_next_conversation_id();
+        let new_conv = ResetExplorerConversation::<SendingExplorerReset>::new(id, state);
+
+        self.convo_scheduler.add_conversation(
+            Box::new(new_conv) as Box<dyn conversations::Conversation + Send + Sync>
         );
+
+        log_internal(
+            LogTarget::Conversations,
+            Channel::Trace,
+            payload!(
+                event: "ScheduleConversation",
+                conversation_id: id,
+                kind: "ResetExplorer",
+                explorer_id: explorer_id
+            ),
+        );
+
+        id
+    }
+
+    pub(crate) fn create_supported_resources_conversation(&self, explorer_id: ID) -> ID {
+        let state = SendingSupportedResourcesRequest::new(self.orch_context.clone(), explorer_id);
         let id = get_id_manager().get_next_conversation_id();
         let new_conv =
-            ResetExplorerConversation::<
-                SendingExplorerReset,
-            >::new(id, state);
+            SupportedResourcesConversation::<SendingSupportedResourcesRequest>::new(id, state);
 
-        self.convo_scheduler.add_conversation(Box::new(new_conv)
-            as Box<dyn conversations::Conversation + Send + Sync>);
+        self.convo_scheduler.add_conversation(
+            Box::new(new_conv) as Box<dyn conversations::Conversation + Send + Sync>
+        );
 
         log_internal(
             LogTarget::Conversations,
             Channel::Trace,
             payload!(
-            event: "ScheduleConversation",
-            conversation_id: id,
-            kind: "ResetExplorer",
-            explorer_id: explorer_id
-        ),
+                event: "ScheduleConversation",
+                conversation_id: id,
+                kind: "SupportedResources",
+                explorer_id: explorer_id
+            ),
         );
 
         id
     }
 
-    pub(crate) fn create_supported_resources_conversation(
-        &self,
-        explorer_id: ID,
-    ) -> ID {
-        let state =
-            SendingSupportedResourcesRequest::new(
-                self.orch_context.clone(),
-                explorer_id,
-            );
-        let id = get_id_manager().get_next_conversation_id();
-        let new_conv = SupportedResourcesConversation::<
-            SendingSupportedResourcesRequest,
-        >::new(id, state);
-
-        self.convo_scheduler.add_conversation(Box::new(new_conv)
-            as Box<dyn conversations::Conversation + Send + Sync>);
-
-        log_internal(
-            LogTarget::Conversations,
-            Channel::Trace,
-            payload!(
-            event: "ScheduleConversation",
-            conversation_id: id,
-            kind: "SupportedResources",
-            explorer_id: explorer_id
-        ),
-        );
-
-        id
-    }
-
-    pub(crate) fn create_supported_combinations_conversation(
-        &self,
-        explorer_id: ID,
-    ) -> ID {
-        let state =
-            SendingSupportedCombinationRequest::new(
-                self.orch_context.clone(),
-                explorer_id,
-            );
+    pub(crate) fn create_supported_combinations_conversation(&self, explorer_id: ID) -> ID {
+        let state = SendingSupportedCombinationRequest::new(self.orch_context.clone(), explorer_id);
         let id = get_id_manager().get_next_conversation_id();
         let new_conv =
-            SupportedCombinationConversation::<
-                SendingSupportedCombinationRequest,
-            >::new(id, state);
+            SupportedCombinationConversation::<SendingSupportedCombinationRequest>::new(id, state);
 
-        self.convo_scheduler.add_conversation(Box::new(new_conv)
-            as Box<dyn conversations::Conversation + Send + Sync>);
+        self.convo_scheduler.add_conversation(
+            Box::new(new_conv) as Box<dyn conversations::Conversation + Send + Sync>
+        );
 
         log_internal(
             LogTarget::Conversations,
             Channel::Trace,
             payload!(
-            event: "ScheduleConversation",
-            conversation_id: id,
-            kind: "SupportedCombination",
-            explorer_id: explorer_id
-        ),
+                event: "ScheduleConversation",
+                conversation_id: id,
+                kind: "SupportedCombination",
+                explorer_id: explorer_id
+            ),
         );
 
         id
     }
-
 }

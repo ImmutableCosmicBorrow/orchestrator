@@ -1,18 +1,21 @@
 use crate::convo_manager::OrchContextRef;
-use crate::globals::{get_explorer_timeout, TIMEOUT};
-use crate::logging_utils::{log_internal, LogTarget};
-use crate::orchestrator::conversations::orch_explorer::movement::move_to_planet::errors::MoveToPlanetErrors;
-use crate::orchestrator::conversations::orch_explorer::movement::move_to_planet::MoveToPlanetConversation;
+use crate::globals::{TIMEOUT, get_explorer_timeout};
+use crate::logging_utils::{LogTarget, log_internal};
+use crate::orchestrator::ChannelsManagerRef;
 use crate::orchestrator::conversations::EntitiesIDTuple;
 use crate::orchestrator::conversations::ExplorerCommunicator;
 use crate::orchestrator::conversations::PossibleExpectedKinds::ExplorerToOrchKind;
-use crate::orchestrator::conversations::{ChannelsContext, CommonErrorTypes, Conversation, ErrorState, PossibleExpectedKinds, PossibleMessage};
-use crate::orchestrator::ChannelsManagerRef;
+use crate::orchestrator::conversations::orch_explorer::movement::move_to_planet::MoveToPlanetConversation;
+use crate::orchestrator::conversations::orch_explorer::movement::move_to_planet::errors::MoveToPlanetErrors;
+use crate::orchestrator::conversations::{
+    ChannelsContext, CommonErrorTypes, Conversation, ErrorState, PossibleExpectedKinds,
+    PossibleMessage,
+};
 use crate::{create_request_state, create_response_state, payload};
 use common_game::logging::Channel;
+use common_game::protocols::orchestrator_explorer::ExplorerToOrchestrator;
 use common_game::protocols::orchestrator_explorer::ExplorerToOrchestratorKind::MovedToPlanetResult;
 use common_game::protocols::orchestrator_explorer::OrchestratorToExplorer::MoveToPlanet;
-use common_game::protocols::orchestrator_explorer::ExplorerToOrchestrator;
 use common_game::protocols::planet_explorer::ExplorerToPlanet;
 use common_game::utils::ID;
 use crossbeam_channel::Sender;
@@ -65,8 +68,9 @@ create_request_state!(
 /// * **Success**: Advances to [`WaitMoveToPlanetResponse`].
 /// * **Failure**: If the Explorer's channel is not working, transitions to an
 ///   [`ErrorState`] via [`CommonErrorTypes::MessageToExplorerFailed`].
-fn send_incoming_req_transition(this: Box<MoveToPlanetConversation<SendMoveRequest>>) -> Option<Box<dyn Conversation + Send + Sync>> {
-    
+fn send_incoming_req_transition(
+    this: Box<MoveToPlanetConversation<SendMoveRequest>>,
+) -> Option<Box<dyn Conversation + Send + Sync>> {
     let sender_to_new_planet = if this.state.is_explorer_moving {
         // Explorer is moving, we need to find the sender to the planet
         if let Some(sender) = this.state.get_new_planet_sender() {
@@ -77,8 +81,7 @@ fn send_incoming_req_transition(this: Box<MoveToPlanetConversation<SendMoveReque
                 this.state.dst_planet_id,
             ));
             let error_state = ErrorState::new(error, this.id);
-            return Some(Box::new(error_state)
-                as Box<dyn Conversation + Send + Sync>);
+            return Some(Box::new(error_state) as Box<dyn Conversation + Send + Sync>);
         }
     } else {
         //Explorer is not moving, send message with None as new channel
@@ -99,16 +102,13 @@ fn send_incoming_req_transition(this: Box<MoveToPlanetConversation<SendMoveReque
                 this.state.dst_planet_id,
                 this.state.is_explorer_moving,
             );
-            let next_state = MoveToPlanetConversation::<WaitMoveToPlanetResponse>::new(
-                this.id,
-                state_struct,
-            );
+            let next_state =
+                MoveToPlanetConversation::<WaitMoveToPlanetResponse>::new(this.id, state_struct);
             Some(Box::new(next_state))
         }
         Err(err) => {
             let error_state = ErrorState::new(Box::new(err), this.id);
-            Some(Box::new(error_state)
-                as Box<dyn Conversation + Send + Sync>)
+            Some(Box::new(error_state) as Box<dyn Conversation + Send + Sync>)
         }
     }
 }
@@ -116,11 +116,10 @@ fn send_incoming_req_transition(this: Box<MoveToPlanetConversation<SendMoveReque
 impl SendMoveRequest {
     /// Retrieves the sender to the destination planet from the shared registry.
     fn get_new_planet_sender(&self) -> Option<Sender<ExplorerToPlanet>> {
-        self.get_channels_manager().get_exp_to_planet_sender(self.dst_planet_id)
+        self.get_channels_manager()
+            .get_exp_to_planet_sender(self.dst_planet_id)
     }
-
 }
-
 
 ///**Move To Planet Conversation - Wait Move To Planet Response**
 ///
@@ -163,13 +162,14 @@ create_response_state!(
 /// #### 3. Protocol Enforcement
 /// Receiving any message other than the movement result results in a transition to
 /// [`ErrorState`] with [`CommonErrorTypes::WrongMessage`].
-fn wait_move_response_transition(this: Box<MoveToPlanetConversation<WaitMoveToPlanetResponse>>, msg: Option<PossibleMessage>) -> Option<Box<dyn Conversation + Send + Sync>> {
-    if let Some(PossibleMessage::ExplorerToOrch(
-                    ExplorerToOrchestrator::MovedToPlanetResult {
-                        explorer_id,
-                        planet_id,
-                    },
-                )) = msg
+fn wait_move_response_transition(
+    this: Box<MoveToPlanetConversation<WaitMoveToPlanetResponse>>,
+    msg: Option<PossibleMessage>,
+) -> Option<Box<dyn Conversation + Send + Sync>> {
+    if let Some(PossibleMessage::ExplorerToOrch(ExplorerToOrchestrator::MovedToPlanetResult {
+        explorer_id,
+        planet_id,
+    })) = msg
     {
         // Explorer is moving, need to change its location in Orchestrator reference
         if this.state.is_explorer_moving {
@@ -177,11 +177,11 @@ fn wait_move_response_transition(this: Box<MoveToPlanetConversation<WaitMoveToPl
                 LogTarget::Conversations,
                 Channel::Info,
                 payload!(
-                        action : "Explorer correctly moved to Planet",
-                        explorer_id : explorer_id,
-                        destination_planet_id : planet_id,
-                        conversation_id : this.id,
-                    ),
+                    action : "Explorer correctly moved to Planet",
+                    explorer_id : explorer_id,
+                    destination_planet_id : planet_id,
+                    conversation_id : this.id,
+                ),
             );
 
             //Update explorer location
@@ -196,18 +196,17 @@ fn wait_move_response_transition(this: Box<MoveToPlanetConversation<WaitMoveToPl
                         conversation_id : this.id
                 ),
             );
-            
         } else {
             // Explorer responded correctly but move was disallowed previously
             log_internal(
                 LogTarget::Conversations,
                 Channel::Warning,
                 payload!(
-                        action : "Explorer cannot move (destination not a neighbor), closing conversation",
-                        explorer_id : explorer_id,
-                        destination_planet_id : planet_id,
-                        conversation_id : this.id
-                    ),
+                    action : "Explorer cannot move (destination not a neighbor), closing conversation",
+                    explorer_id : explorer_id,
+                    destination_planet_id : planet_id,
+                    conversation_id : this.id
+                ),
             );
         }
         return None; // Graceful close

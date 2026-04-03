@@ -50,7 +50,6 @@ fn build_planet_weights(
         .map(|&planet_id| (planet_id, DEFAULT_PLANET_WEIGHT))
         .collect();
 
-
     for entry in explorers_location.iter() {
         let planet_id = entry.value();
         if let Some(weight) = weights.get_mut(&planet_id) {
@@ -126,8 +125,8 @@ fn duration_to_millis(duration: Duration) -> u64 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::sync::{Arc, Mutex};
     use dashmap::DashMap;
+    use std::sync::{Arc, Mutex};
 
     #[test]
     fn build_planet_weights_counts_baseline_and_explorers() {

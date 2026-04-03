@@ -1,12 +1,12 @@
+use crate::convo_manager::queue::{ConversationMap, PQueue};
+use crate::logging_utils::{LogTarget, log_internal};
+use crate::orchestrator::conversations::{Conversation, PossibleExpectedKinds, PossibleMessage};
+use crate::payload;
+use common_game::logging::Channel;
+use common_game::utils::ID;
 use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
-use common_game::logging::Channel;
-use common_game::utils::ID;
-use crate::convo_manager::queue::{ConversationMap, PQueue};
-use crate::logging_utils::{log_internal, LogTarget};
-use crate::orchestrator::conversations::{Conversation, PossibleExpectedKinds, PossibleMessage};
-use crate::payload;
 
 //TODO: MIGHT CHANGE THIS IN ALL DASHMAPS
 
@@ -188,7 +188,7 @@ impl ConvoScheduler {
     /// If the conversation is no longer active, it reinserts it in the queue and returns None.
     /// Otherwise, it removes the conversation from the active conversations map
     /// and also updates the expected message kind mapping if applicable.
-    pub fn get_next_conversation(&self) -> Option<Box<dyn Conversation+ Send + Sync>> {
+    pub fn get_next_conversation(&self) -> Option<Box<dyn Conversation + Send + Sync>> {
         let (id, priority) = self.queue.pop()?;
         if !self.is_active_conversation(id) {
             self.queue.push(id, priority);
@@ -287,12 +287,12 @@ impl ConvoScheduler {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::globals::TIMEOUT;
     use crate::orchestrator::conversations::{
         Conversation, PossibleExpectedKinds, PossibleMessage,
     };
     use common_game::protocols::orchestrator_planet::PlanetToOrchestratorKind;
     use std::sync::{Arc, Mutex};
-    use crate::globals::TIMEOUT;
     // ============================================================================
     // Mock Conversation Implementation
     // ============================================================================
@@ -352,7 +352,7 @@ mod tests {
         fn transition(
             self: Box<Self>,
             _msg: Option<PossibleMessage>,
-        ) -> Option<Box<dyn Conversation+ Send + Sync>> {
+        ) -> Option<Box<dyn Conversation + Send + Sync>> {
             let mut state = self.state.lock().unwrap();
             state.transitions = 1;
             state.alive = false;
@@ -695,7 +695,7 @@ mod tests {
             let mut count = 0;
             while count < 50 {
                 if let Some(convo) = scheduler_consumer.get_next_conversation() {
-                    let convo: Box<dyn Conversation+ Send + Sync> = convo;
+                    let convo: Box<dyn Conversation + Send + Sync> = convo;
                     results_clone.lock().unwrap().push(convo.get_id());
                     count += 1;
                 }

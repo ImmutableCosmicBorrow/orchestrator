@@ -1,10 +1,13 @@
 use crate::convo_manager::OrchContextRef;
 use crate::globals::TIMEOUT;
-use crate::logging_utils::{log_internal, LogTarget};
+use crate::logging_utils::{LogTarget, log_internal};
+use crate::orchestrator::ChannelsManagerRef;
 use crate::orchestrator::conversations::EntitiesIDTuple;
 use crate::orchestrator::conversations::PossibleExpectedKinds::PlanetToOrchKind;
-use crate::orchestrator::conversations::{ChannelsContext, CommonErrorTypes, Conversation, ErrorState, ErrorType, PlanetCommunicator, PossibleExpectedKinds, PossibleMessage};
-use crate::orchestrator::ChannelsManagerRef;
+use crate::orchestrator::conversations::{
+    ChannelsContext, CommonErrorTypes, Conversation, ErrorState, ErrorType, PlanetCommunicator,
+    PossibleExpectedKinds, PossibleMessage,
+};
 use crate::{create_request_state, create_response_state, define_conversation, payload};
 use common_game::logging::Channel;
 use common_game::protocols::orchestrator_planet::{
@@ -67,24 +70,24 @@ create_request_state!(
 /// [`ErrorState`] if the request failed to send to the planet or the sender to the planet is not found.
 ///
 /// [`AdvDeadExplorer<WaitingDeadAdvResponse>`] if the request was sent successfully.
-fn send_dead_exp_adv_transition(this: Box<AdvDeadExplorer<SendingDeadExpAdv>>) -> Option<Box<dyn Conversation + Send + Sync>> {
-    match this
-        .state
-        .to_planet(this.state.planet_id,OrchestratorToPlanet::OutgoingExplorerRequest {
+fn send_dead_exp_adv_transition(
+    this: Box<AdvDeadExplorer<SendingDeadExpAdv>>,
+) -> Option<Box<dyn Conversation + Send + Sync>> {
+    match this.state.to_planet(
+        this.state.planet_id,
+        OrchestratorToPlanet::OutgoingExplorerRequest {
             explorer_id: this.state.planet_id,
-        }) {
+        },
+    ) {
         Ok(()) => {
             let planet_id = this.state.planet_id;
             let state_struct = WaitingDeadAdvResponse::new(this.state.orch_context, planet_id);
-            let next_state =
-                AdvDeadExplorer::<WaitingDeadAdvResponse>::new(this.id, state_struct);
+            let next_state = AdvDeadExplorer::<WaitingDeadAdvResponse>::new(this.id, state_struct);
             Some(Box::new(next_state))
         }
         Err(err) => {
-
             let error_state = ErrorState::new(Box::new(err), this.id);
-            Some(Box::new(error_state)
-                as Box<dyn Conversation + Send + Sync>)
+            Some(Box::new(error_state) as Box<dyn Conversation + Send + Sync>)
         }
     }
 }
@@ -112,25 +115,26 @@ create_response_state!(
 /// [None] if the planet confirms the explorer departure, closing the conversation.
 ///
 /// [`ErrorState`] if the planet returns an error response.
-fn wait_dead_adv_response_transition(this: Box<AdvDeadExplorer<WaitingDeadAdvResponse>>, msg: Option<PossibleMessage>) -> Option<Box<dyn Conversation + Send + Sync>> {
-    if let Some(PossibleMessage::PlanetToOrch(
-                    PlanetToOrchestrator::OutgoingExplorerResponse {
-                        planet_id,
-                        explorer_id,
-                        res,
-                    },
-                )) = msg
+fn wait_dead_adv_response_transition(
+    this: Box<AdvDeadExplorer<WaitingDeadAdvResponse>>,
+    msg: Option<PossibleMessage>,
+) -> Option<Box<dyn Conversation + Send + Sync>> {
+    if let Some(PossibleMessage::PlanetToOrch(PlanetToOrchestrator::OutgoingExplorerResponse {
+        planet_id,
+        explorer_id,
+        res,
+    })) = msg
     {
         return if res.is_ok() {
             log_internal(
                 LogTarget::Conversations,
                 Channel::Trace,
                 payload!(
-                        action : "Planet correctly handled dead explorer, closing conversation",
-                        planet_id : planet_id,
-                        outgoing_explorer_id : explorer_id,
-                        conversation_id : this.id,
-                    ),
+                    action : "Planet correctly handled dead explorer, closing conversation",
+                    planet_id : planet_id,
+                    outgoing_explorer_id : explorer_id,
+                    conversation_id : this.id,
+                ),
             );
             None
         } else {
@@ -140,8 +144,7 @@ fn wait_dead_adv_response_transition(this: Box<AdvDeadExplorer<WaitingDeadAdvRes
                 explorer_id,
             };
             let error_state = ErrorState::new(Box::new(error), this.id);
-            Some(Box::new(error_state)
-                as Box<dyn Conversation + Send + Sync>)
+            Some(Box::new(error_state) as Box<dyn Conversation + Send + Sync>)
         };
     }
 

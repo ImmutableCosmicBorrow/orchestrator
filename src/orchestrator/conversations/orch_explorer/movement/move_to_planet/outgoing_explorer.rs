@@ -1,13 +1,16 @@
 use crate::convo_manager::OrchContextRef;
 use crate::globals::TIMEOUT;
-use crate::logging_utils::{log_msg_to, LogTarget};
+use crate::logging_utils::{LogTarget, log_msg_to};
+use crate::orchestrator::Duration;
+use crate::orchestrator::conversations::PossibleExpectedKinds::PlanetToOrchKind;
+use crate::orchestrator::conversations::orch_explorer::movement::move_to_planet::MoveToPlanetConversation;
 use crate::orchestrator::conversations::orch_explorer::movement::move_to_planet::errors::MoveToPlanetErrors;
 use crate::orchestrator::conversations::orch_explorer::movement::move_to_planet::move_explorer::SendMoveRequest;
-use crate::orchestrator::conversations::orch_explorer::movement::move_to_planet::MoveToPlanetConversation;
-use crate::orchestrator::conversations::PossibleExpectedKinds::PlanetToOrchKind;
-use crate::orchestrator::conversations::{ChannelsContext, CommonErrorTypes, Conversation, ErrorState, PossibleExpectedKinds, PossibleMessage};
+use crate::orchestrator::conversations::{
+    ChannelsContext, CommonErrorTypes, Conversation, ErrorState, PossibleExpectedKinds,
+    PossibleMessage,
+};
 use crate::orchestrator::conversations::{EntitiesIDTuple, PlanetCommunicator};
-use crate::orchestrator::Duration;
 use crate::orchestrator::{ChannelsManagerRef, ExplorersLocationRef};
 use crate::{create_request_state, create_response_state, payload};
 use common_game::logging::{ActorType, Channel, EventType};
@@ -63,8 +66,11 @@ create_request_state!(
 ///   Galaxy Map or Orchestrator state.
 /// * **[`MoveToPlanetErrors::OutgoingMessageFailed`]**: Occurs if the sender exists but the
 ///   underlying transport (channel) has failed or closed unexpectedly.
-fn send_incoming_req_transition(this: Box<MoveToPlanetConversation<SendOutgoingRequest>>) -> Option<Box<dyn Conversation + Send + Sync>> {
-    match this.state.to_planet(this.state.curr_planet_id,
+fn send_incoming_req_transition(
+    this: Box<MoveToPlanetConversation<SendOutgoingRequest>>,
+) -> Option<Box<dyn Conversation + Send + Sync>> {
+    match this.state.to_planet(
+        this.state.curr_planet_id,
         OrchestratorToPlanet::OutgoingExplorerRequest {
             explorer_id: this.state.explorer_id,
         },
@@ -76,9 +82,9 @@ fn send_incoming_req_transition(this: Box<MoveToPlanetConversation<SendOutgoingR
                 EventType::MessageOrchestratorToPlanet,
                 (ActorType::Planet, this.state.curr_planet_id),
                 payload!(
-                        action: "Sent Outgoing Request correctly, transitioning to WaitingOutgoingResponse".to_string(),
-                        conversation_id: this.id
-                    ),
+                    action: "Sent Outgoing Request correctly, transitioning to WaitingOutgoingResponse".to_string(),
+                    conversation_id: this.id
+                ),
             );
 
             let state_struct = WaitingOutgoingResponse::new(
@@ -95,8 +101,7 @@ fn send_incoming_req_transition(this: Box<MoveToPlanetConversation<SendOutgoingR
 
         Err(err) => {
             let error_state = ErrorState::new(Box::new(err), this.id);
-            Some(Box::new(error_state)
-                as Box<dyn Conversation + Send + Sync>)
+            Some(Box::new(error_state) as Box<dyn Conversation + Send + Sync>)
         }
     }
 }
@@ -150,14 +155,15 @@ create_response_state!(
 /// #### Error Handling
 /// * **Protocol Violation**: If a message other than the Outgoing response is
 ///   received, transitions to [`CommonErrorTypes::WrongMessage`].
-fn wait_outgoing_res_transition(this: Box<MoveToPlanetConversation<WaitingOutgoingResponse>>, msg: Option<PossibleMessage>) -> Option<Box<dyn Conversation + Send + Sync>> {
-    if let Some(PossibleMessage::PlanetToOrch(
-                             PlanetToOrchestrator::OutgoingExplorerResponse {
-                                 planet_id,
-                                 explorer_id,
-                                 res,
-    },
-    )) = msg
+fn wait_outgoing_res_transition(
+    this: Box<MoveToPlanetConversation<WaitingOutgoingResponse>>,
+    msg: Option<PossibleMessage>,
+) -> Option<Box<dyn Conversation + Send + Sync>> {
+    if let Some(PossibleMessage::PlanetToOrch(PlanetToOrchestrator::OutgoingExplorerResponse {
+        planet_id,
+        explorer_id,
+        res,
+    })) = msg
     {
         return if res.is_ok() {
             let state = SendMoveRequest::new(
@@ -176,8 +182,7 @@ fn wait_outgoing_res_transition(this: Box<MoveToPlanetConversation<WaitingOutgoi
                 }),
                 this.id,
             );
-            Some(Box::new(error_state)
-                as Box<dyn Conversation + Send + Sync>)
+            Some(Box::new(error_state) as Box<dyn Conversation + Send + Sync>)
         };
     }
 

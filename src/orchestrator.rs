@@ -11,16 +11,18 @@ use crate::{get_id_manager, payload};
 use crate::channels_manager::ChannelsManager;
 use crate::convo_manager::ConvoManager;
 use crate::globals::{get_game_step, set_game_step};
-pub(crate) use crate::logging_utils::{log_internal, log_msg_from, LogTarget};
+pub(crate) use crate::logging_utils::{LogTarget, log_internal, log_msg_from};
 use crate::ui::{OrchestratorToUiUpdate, UiToOrchestratorCommand};
 use common_explorer::ExplorerAI;
 pub(crate) use common_explorer::ExplorerBagContent;
 use common_game::components::forge::Forge;
 use common_game::logging::{ActorType, Channel, EventType};
-use common_game::protocols::orchestrator_explorer::{ExplorerToOrchestrator, OrchestratorToExplorer};
+use common_game::protocols::orchestrator_explorer::{
+    ExplorerToOrchestrator, OrchestratorToExplorer,
+};
 use common_game::protocols::orchestrator_planet::{OrchestratorToPlanet, PlanetToOrchestrator};
 use common_game::utils::ID;
-use crossbeam_channel::{select, Receiver, Sender};
+use crossbeam_channel::{Receiver, Sender, select};
 use dashmap::DashMap;
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -33,7 +35,6 @@ use std::time::Duration;
 pub(crate) type ExplorersLocationRef = DashMap<ID, ID>;
 pub(crate) type ChannelsManagerRef = Arc<ChannelsManager>;
 pub(crate) type OrchContextRef = Arc<OrchContext>; //Pass the Arc and inside modifiable fields will have the Arc<RWLock>
-
 
 #[derive(Clone, Copy, Debug)]
 pub enum ExplorerType {
@@ -62,7 +63,7 @@ impl OrchContext {
             channels_manager,
             forge,
             galaxy,
-            explorers_location
+            explorers_location,
         }
     }
 
@@ -131,14 +132,11 @@ impl Orchestrator {
             galaxy.clone(),
             explorers_location,
         ));
-        let convo_manager = ConvoManager::new(
-            orch_context.clone(),
-        );
+        let convo_manager = ConvoManager::new(orch_context.clone());
 
         let mut orchestrator = Self {
-
             convo_manager: Arc::new(convo_manager),
-            orch_context_ref: orch_context ,
+            orch_context_ref: orch_context,
             planet_threads: Arc::new(Mutex::new(planet_threads)), // threads were spawned in galaxy_loader/create_planet_with_channels
             explorer_threads: HashMap::new(),
             message_processor_thread: None,
@@ -207,22 +205,16 @@ impl Orchestrator {
         let planet_ids = self.orch_context_ref.channels_manager.get_planet_list();
 
         for id in planet_ids {
-            self.convo_manager.
-                create_start_planet_conversation(
-                id,
-            );
+            self.convo_manager.create_start_planet_conversation(id);
         }
 
         // Send ExplorerStart to all Explorers
         let explorer_ids = self.orch_context_ref.channels_manager.get_explorer_list();
 
         for id in explorer_ids {
-            self.convo_manager.create_start_explorer_conversation(
-                id,
-            );
+            self.convo_manager.create_start_explorer_conversation(id);
         }
 
-        
         // Start message processing thread
         self.process_messages();
 
@@ -231,7 +223,10 @@ impl Orchestrator {
 
         //Get receiving channels
         let from_planets_rcv = self.orch_context_ref.channels_manager.get_from_planet_rcv();
-        let from_explorers_rcv = self.orch_context_ref.channels_manager.get_from_explorers_rcv();
+        let from_explorers_rcv = self
+            .orch_context_ref
+            .channels_manager
+            .get_from_explorers_rcv();
         let from_ui_rcv = self.orch_context_ref.channels_manager.get_ui_receiver();
         // Main loop
         loop {
@@ -286,7 +281,8 @@ impl Orchestrator {
                         msg : format!("{msg:?}"),
                     ),
                 );
-                self.convo_manager.handle_message(PossibleMessage::PlanetToOrch(msg));
+                self.convo_manager
+                    .handle_message(PossibleMessage::PlanetToOrch(msg));
             }
             Err(e) => {
                 log_internal(
@@ -316,7 +312,8 @@ impl Orchestrator {
                         msg : format!("{msg:?}"),
                     ),
                 );
-                self.convo_manager.handle_message(PossibleMessage::ExplorerToOrch(msg));
+                self.convo_manager
+                    .handle_message(PossibleMessage::ExplorerToOrch(msg));
             }
             Err(e) => {
                 log_internal(
@@ -364,7 +361,6 @@ impl Orchestrator {
     pub fn get_galaxy(&self) -> &PlanetMap {
         &self.orch_context_ref.galaxy
     }
-    
 
     /// Toggles between manual and automatic mode for the orchestrator.
     ///
@@ -383,10 +379,10 @@ impl Orchestrator {
                 ),
             );
 
-
             //Stop all explorers
             for explorer_id in explorers {
-                self.convo_manager.create_stop_explorer_conversation(explorer_id);
+                self.convo_manager
+                    .create_stop_explorer_conversation(explorer_id);
             }
             //stop events
             background_events::disable_asteroids();
@@ -399,8 +395,9 @@ impl Orchestrator {
                 ),
             );
             //Start all Explorers
-            for explorer_id in  explorers{
-                self.convo_manager.create_start_explorer_conversation(explorer_id);
+            for explorer_id in explorers {
+                self.convo_manager
+                    .create_start_explorer_conversation(explorer_id);
             }
             //Start Events
             background_events::enable_asteroids();
@@ -408,15 +405,12 @@ impl Orchestrator {
     }
 
     fn start_background_event_senders(&self) {
-        background_events::init_background_event_scheduler(
-            self.convo_manager.clone()
-        );
+        background_events::init_background_event_scheduler(self.convo_manager.clone());
 
         background_events::enable_sunrays();
         background_events::enable_asteroids();
     }
 
-    
     /// Handles UI commands from the UI layer and creates appropriate conversations or performs direct actions.
     ///
     /// # Panics
@@ -436,23 +430,35 @@ impl Orchestrator {
                     .orch_context_ref
                     .channels_manager
                     .get_ui_sender_ref()
-                    .send(OrchestratorToUiUpdate::Galaxy(self.orch_context_ref.galaxy.clone()));
+                    .send(OrchestratorToUiUpdate::Galaxy(
+                        self.orch_context_ref.galaxy.clone(),
+                    ));
             }
             GetExplorersPosition => {
-                let _ = self.orch_context_ref.channels_manager.get_ui_sender_ref().send(
-                    OrchestratorToUiUpdate::ExplorersPosition(self.orch_context_ref.explorers_location.clone()),
-                );
+                let _ = self
+                    .orch_context_ref
+                    .channels_manager
+                    .get_ui_sender_ref()
+                    .send(OrchestratorToUiUpdate::ExplorersPosition(
+                        self.orch_context_ref.explorers_location.clone(),
+                    ));
             }
             GetPlanetSnapshot(planet_id) => {
-                self.convo_manager.create_internal_state_conversation(planet_id); //the conversation will send the update to UI
+                self.convo_manager
+                    .create_internal_state_conversation(planet_id); //the conversation will send the update to UI
             }
 
             GetExplorerSnapshot(explorer_id) => {
-                self.convo_manager.create_bag_content_conversation(explorer_id); //the conversation will send the update to UI
+                self.convo_manager
+                    .create_bag_content_conversation(explorer_id); //the conversation will send the update to UI
             }
 
             AddPlanet(planet_id, connected_planets) => {
-                planet::add_planet_with_neighbors(&self.orch_context_ref.galaxy, planet_id, connected_planets);
+                planet::add_planet_with_neighbors(
+                    &self.orch_context_ref.galaxy,
+                    planet_id,
+                    connected_planets,
+                );
             }
 
             AddExplorer(explorer_type, into_planet) => {
@@ -497,25 +503,33 @@ impl Orchestrator {
 
             // Explorer Movement Commands
             ManualMoveExplorer(explorer_id, current_planet, dst_planet) => {
-                self.convo_manager.create_send_manual_move_conversation(explorer_id, current_planet, dst_planet);
+                self.convo_manager.create_send_manual_move_conversation(
+                    explorer_id,
+                    current_planet,
+                    dst_planet,
+                );
             }
 
             // Explorer Resource Commands
             ExplorerGenerateResource(explorer_id, resource_type) => {
-                self.convo_manager.create_generate_resource_conversation(explorer_id, resource_type);
+                self.convo_manager
+                    .create_generate_resource_conversation(explorer_id, resource_type);
             }
             ExplorerCombineResource(explorer_id, resource_type) => {
-                self.convo_manager.create_combine_resource_conversation(explorer_id, resource_type);
+                self.convo_manager
+                    .create_combine_resource_conversation(explorer_id, resource_type);
             }
 
             SupportedCombinations(explorer_id) => {
                 //it automatically sends the update to UI
-                self.convo_manager.create_supported_combinations_conversation(explorer_id);
+                self.convo_manager
+                    .create_supported_combinations_conversation(explorer_id);
             }
 
             SupportedResources(explorer_id) => {
                 //it automatically sends the update to UI
-                self.convo_manager.create_supported_resources_conversation(explorer_id);
+                self.convo_manager
+                    .create_supported_resources_conversation(explorer_id);
             }
 
             // Asteroid/Sunray Commands
@@ -529,34 +543,43 @@ impl Orchestrator {
 
             // Planet AI Control Commands
             StartPlanetAI(planet_id) => {
-                self.convo_manager.create_start_planet_conversation(planet_id);
+                self.convo_manager
+                    .create_start_planet_conversation(planet_id);
             }
             StopPlanetAI(planet_id) => {
-                self.convo_manager.create_stop_planet_conversation(planet_id);
+                self.convo_manager
+                    .create_stop_planet_conversation(planet_id);
             }
             ResetPlanetAI(planet_id) => {
                 // morally a stop + start
-                self.convo_manager.create_stop_planet_conversation(planet_id);
-                self.convo_manager.create_start_planet_conversation(planet_id);
+                self.convo_manager
+                    .create_stop_planet_conversation(planet_id);
+                self.convo_manager
+                    .create_start_planet_conversation(planet_id);
             }
             KillPlanet(planet_id) => {
-                self.convo_manager.create_kill_planet_conversation(planet_id);
+                self.convo_manager
+                    .create_kill_planet_conversation(planet_id);
             }
 
             // Explorer AI Control Commands
             StartExplorerAI(explorer_id) => {
-                self.convo_manager.create_start_explorer_conversation(explorer_id);
+                self.convo_manager
+                    .create_start_explorer_conversation(explorer_id);
             }
             StopExplorerAI(explorer_id) => {
-                self.convo_manager.create_stop_explorer_conversation(explorer_id);
+                self.convo_manager
+                    .create_stop_explorer_conversation(explorer_id);
             }
             ResetExplorerAI(explorer_id) => {
-                self.convo_manager.create_reset_explorer_conversation(explorer_id);
+                self.convo_manager
+                    .create_reset_explorer_conversation(explorer_id);
             }
             KillExplorer(explorer_id) => {
                 self.convo_manager.create_kill_explorer_conversation(
                     explorer_id,
-                    *self.orch_context_ref
+                    *self
+                        .orch_context_ref
                         .explorers_location
                         .get(&explorer_id)
                         .expect("Explorer not found in explorers_location when trying to kill it"),
@@ -568,7 +591,6 @@ impl Orchestrator {
 
     //TODO: EXPLORERS_SENDERS AND PLANETS_SENDERS ARE NEEDED TO BE OWNED?
     fn process_messages(&mut self) {
-
         let convo_manager_guard = self.convo_manager;
         let planet_threads = self.planet_threads.clone();
         let stop = self.message_processor_stop.clone();
@@ -659,7 +681,8 @@ impl Orchestrator {
         }
 
         //Kill all explorers, first store senders in vec to prevent holding lock in dashmap
-        let explorer_senders: Vec<Sender<OrchestratorToExplorer>> = self.orch_context_ref
+        let explorer_senders: Vec<Sender<OrchestratorToExplorer>> = self
+            .orch_context_ref
             .channels_manager
             .get_orch_to_exp_senders_struct() // This returns the DashMap
             .iter()
@@ -675,7 +698,8 @@ impl Orchestrator {
         }
 
         // Retrieve senders to all planets and kill them
-        let explorer_senders: Vec<Sender<OrchestratorToPlanet>> = self.orch_context_ref
+        let explorer_senders: Vec<Sender<OrchestratorToPlanet>> = self
+            .orch_context_ref
             .channels_manager
             .get_to_planet_senders_struct() // This returns the DashMap
             .iter()
@@ -692,7 +716,7 @@ impl Orchestrator {
             }
         }
     }
-    
+
     /// Creates an Explorer and spawns its thread.
     ///
     /// # Panics
@@ -701,15 +725,21 @@ impl Orchestrator {
     ///
     pub fn add_explorer(&mut self, explorer_type: ExplorerType, into_planet: ID) {
         let id = get_id_manager().get_next_explorer_id_by_type(explorer_type);
-        let exp_sender = self.orch_context_ref.channels_manager.get_from_explorers_sender();
+        let exp_sender = self
+            .orch_context_ref
+            .channels_manager
+            .get_from_explorers_sender();
         // Create channels
-        let (_tx_orchestrator_to_explorer, rx_orchestrator_to_explorer) =
-            self.orch_context_ref.channels_manager.create_orch_to_explorer_channel(id);
-        let (_tx_planet_to_explorer, rx_planet_to_explorer) =
-            self.orch_context_ref.channels_manager.create_planet_to_exp_channel(id);
+        let (_tx_orchestrator_to_explorer, rx_orchestrator_to_explorer) = self
+            .orch_context_ref
+            .channels_manager
+            .create_orch_to_explorer_channel(id);
+        let (_tx_planet_to_explorer, rx_planet_to_explorer) = self
+            .orch_context_ref
+            .channels_manager
+            .create_planet_to_exp_channel(id);
 
         let mut explorer: Box<dyn ExplorerAI + Send> = match explorer_type {
-
             ExplorerType::Explorer => Box::new(explorer_nico::Explorer::new(
                 id,
                 exp_sender,
@@ -762,16 +792,16 @@ impl Orchestrator {
             }
         });
 
-        self.orch_context_ref.explorers_location.insert(id, into_planet);
-
+        self.orch_context_ref
+            .explorers_location
+            .insert(id, into_planet);
 
         // Add handle to the hashmap
         self.explorer_threads.insert(id, handle);
 
         // Move Manually the explorer to the planet
-        self.convo_manager.create_send_manual_move_conversation(
-            id, None, into_planet,
-        );
+        self.convo_manager
+            .create_send_manual_move_conversation(id, None, into_planet);
 
         log_internal(
             LogTarget::General,

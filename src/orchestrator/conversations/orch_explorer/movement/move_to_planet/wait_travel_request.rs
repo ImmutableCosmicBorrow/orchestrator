@@ -50,7 +50,6 @@ create_response_state!(
     },
 );
 
-
 impl WaitingTravelRequest {
     /// Accesses the Galaxy Map (thread-safe) to verify if the destination planet
     /// shares an edge with the current planet.
@@ -58,10 +57,9 @@ impl WaitingTravelRequest {
     /// Returns `true` if they are neighbors, `false` otherwise.
     fn check_neighbors(&self, planet_1: ID, planet_2: ID) -> bool {
         let galaxy = self.orch_context.galaxy.read().unwrap();
-        if let (Some(curr_planet_ref), Some(dst_planet_ref)) = (
-            galaxy.get(&planet_1),
-            galaxy.get(&planet_2),
-        ) {
+        if let (Some(curr_planet_ref), Some(dst_planet_ref)) =
+            (galaxy.get(&planet_1), galaxy.get(&planet_2))
+        {
             // Check if dst_planet_id is in the neighbors of curr_planet_ref
             return curr_planet_ref
                 .neighbors_snapshot()
@@ -75,14 +73,15 @@ impl WaitingTravelRequest {
 ///
 /// Validates the spatial relationship between planets and determines whether to
 /// proceed with the travel handshake or reject the request.
-fn wait_travel_req_transition(this: Box<MoveToPlanetConversation<WaitingTravelRequest>>, msg: Option<PossibleMessage>) -> Option<Box<dyn Conversation + Send + Sync>> {
-    if let Some(PossibleMessage::ExplorerToOrch(
-                    ExplorerToOrchestrator::TravelToPlanetRequest {
-                        explorer_id,
-                        dst_planet_id,
-                        current_planet_id,
-                    },
-                )) = msg
+fn wait_travel_req_transition(
+    this: Box<MoveToPlanetConversation<WaitingTravelRequest>>,
+    msg: Option<PossibleMessage>,
+) -> Option<Box<dyn Conversation + Send + Sync>> {
+    if let Some(PossibleMessage::ExplorerToOrch(ExplorerToOrchestrator::TravelToPlanetRequest {
+        explorer_id,
+        dst_planet_id,
+        current_planet_id,
+    })) = msg
     {
         // Destination is reachable. Transition to notify the destination planet.
         if this.state.check_neighbors(current_planet_id, dst_planet_id) {
@@ -97,11 +96,11 @@ fn wait_travel_req_transition(this: Box<MoveToPlanetConversation<WaitingTravelRe
                 LogTarget::Conversations,
                 Channel::Trace,
                 payload!(
-                        action : "Destination planet can be reached, transitioning to SendIncomingRequest".to_string(),
-                        explorer_id : explorer_id,
-                        conversation_id : this.id,
-                        planet_id: dst_planet_id,
-                    ),
+                    action : "Destination planet can be reached, transitioning to SendIncomingRequest".to_string(),
+                    explorer_id : explorer_id,
+                    conversation_id : this.id,
+                    planet_id: dst_planet_id,
+                ),
             );
             //Transition
             let next_conv =
@@ -110,12 +109,8 @@ fn wait_travel_req_transition(this: Box<MoveToPlanetConversation<WaitingTravelRe
         }
 
         // Case 2: Destination unreachable. Transition to send a negative MoveToPlanet to the explorer
-        let next_state = SendMoveRequest::new(
-            this.state.orch_context,
-            dst_planet_id,
-            explorer_id,
-            false,
-        );
+        let next_state =
+            SendMoveRequest::new(this.state.orch_context, dst_planet_id, explorer_id, false);
         let next_conv = MoveToPlanetConversation::<SendMoveRequest>::new(this.id, next_state);
         return Some(Box::new(next_conv));
     }
@@ -124,5 +119,3 @@ fn wait_travel_req_transition(this: Box<MoveToPlanetConversation<WaitingTravelRe
     let error_state = ErrorState::new(Box::new(CommonErrorTypes::WrongMessage), this.id);
     Some(Box::new(error_state) as Box<dyn Conversation + Send + Sync>)
 }
-
-

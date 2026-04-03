@@ -1,12 +1,15 @@
 use crate::convo_manager::OrchContextRef;
 use crate::globals::TIMEOUT;
-use crate::logging_utils::{log_internal, LogTarget};
+use crate::logging_utils::{LogTarget, log_internal};
+use crate::orchestrator::ChannelsManagerRef;
+use crate::orchestrator::conversations::EntitiesIDTuple;
 use crate::orchestrator::conversations::orch_planet::lifecycle::kill_planet::{
     KillPlanetConversation, SendPlanetKill,
 };
-use crate::orchestrator::conversations::EntitiesIDTuple;
-use crate::orchestrator::conversations::{ChannelsContext, CommonErrorTypes, Conversation, ErrorState, PlanetCommunicator, PossibleExpectedKinds, PossibleMessage};
-use crate::orchestrator::ChannelsManagerRef;
+use crate::orchestrator::conversations::{
+    ChannelsContext, CommonErrorTypes, Conversation, ErrorState, PlanetCommunicator,
+    PossibleExpectedKinds, PossibleMessage,
+};
 use crate::{create_request_state, create_response_state, define_conversation, payload};
 use common_game::logging::Channel;
 use common_game::protocols::orchestrator_planet::{
@@ -37,7 +40,6 @@ create_request_state!(
     methods_settings: { },
 );
 
-
 ///Transition Function for [`SendingAsteroid`] state:
 ///
 /// Returns:
@@ -47,25 +49,23 @@ create_request_state!(
 /// [`ErrorState`] with [`CommonErrorTypes::PlanetSenderNotFound`] if the sender to the planet is not in the [`crate::channels_manager::OrchToPlanetSenders`] list in the [`crate::channels_manager::ChannelsManager`]
 ///
 /// [`AsteroidConversation<WaitingAsteroidAck>`] if the asteroid has been correctly sent, going to the next state
-fn sending_asteroid_transition(this: Box<AsteroidConversation<SendingAsteroid>>) -> Option<Box<dyn Conversation + Send + Sync>> {
-    
-    let asteroid = this.state.orch_context.forge.generate_asteroid();    
-    match this.state.to_planet(this.state.planet_id, OrchestratorToPlanet::Asteroid(asteroid))
-    {
+fn sending_asteroid_transition(
+    this: Box<AsteroidConversation<SendingAsteroid>>,
+) -> Option<Box<dyn Conversation + Send + Sync>> {
+    let asteroid = this.state.orch_context.forge.generate_asteroid();
+    match this.state.to_planet(
+        this.state.planet_id,
+        OrchestratorToPlanet::Asteroid(asteroid),
+    ) {
         Ok(()) => {
-            let state_struct = WaitingAsteroidAck::new(
-                this.state.orch_context,
-                this.state.planet_id,
-                
-            );
-            let next_state =
-                AsteroidConversation::<WaitingAsteroidAck>::new(this.id, state_struct);
+            let state_struct =
+                WaitingAsteroidAck::new(this.state.orch_context, this.state.planet_id);
+            let next_state = AsteroidConversation::<WaitingAsteroidAck>::new(this.id, state_struct);
             Some(Box::new(next_state) as Box<dyn Conversation + Send + Sync>)
         }
         Err(err) => {
             let error_state = ErrorState::new(Box::new(err), this.id);
-            Some(Box::new(error_state)
-                as Box<dyn Conversation + Send + Sync>)
+            Some(Box::new(error_state) as Box<dyn Conversation + Send + Sync>)
         }
     }
 }
@@ -84,8 +84,6 @@ create_response_state!(
     methods_settings: { },
 );
 
-
-
 ///Transition Function for [`WaitingAsteroidAck`] state:
 ///
 /// Returns:
@@ -95,10 +93,13 @@ create_response_state!(
 /// [None] if the planet defends itself with a rocket, ending the conversation
 ///
 /// [`KillPlanetConversation<SendPlanetKill>`] if the planet cannot defend himself and has to be killed with a [`KillPlanetConversation`]
-fn waiting_asteroid_ack_transition(this: Box<AsteroidConversation<WaitingAsteroidAck>>, msg:  Option<PossibleMessage>) -> Option<Box<dyn Conversation + Send + Sync>> {
+fn waiting_asteroid_ack_transition(
+    this: Box<AsteroidConversation<WaitingAsteroidAck>>,
+    msg: Option<PossibleMessage>,
+) -> Option<Box<dyn Conversation + Send + Sync>> {
     if let Some(PossibleMessage::PlanetToOrch(PlanetToOrchestrator::AsteroidAck {
-               planet_id,
-                rocket,
+        planet_id,
+        rocket,
     })) = msg
     {
         if rocket.is_some() {
@@ -118,19 +119,16 @@ fn waiting_asteroid_ack_transition(this: Box<AsteroidConversation<WaitingAsteroi
             LogTarget::AsteroidsSunrays,
             Channel::Info,
             payload!(
-                    action : "Planet received an asteroid and did not defend, so it will be killed",
-                    planet_id : planet_id,
-                    conversation_id : this.id
-                ),
+                action : "Planet received an asteroid and did not defend, so it will be killed",
+                planet_id : planet_id,
+                conversation_id : this.id
+            ),
         );
 
         //Transition to KillStateConversation
         let new_state = KillPlanetConversation::<SendPlanetKill>::new(
             this.id,
-            SendPlanetKill::new(
-                this.state.orch_context,
-                this.state.planet_id,
-            ),
+            SendPlanetKill::new(this.state.orch_context, this.state.planet_id),
         );
         return Some(Box::new(new_state) as Box<dyn Conversation + Send + Sync>);
     }

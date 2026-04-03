@@ -1,11 +1,13 @@
 use crate::convo_manager::OrchContextRef;
-use std::ops::Mul;
-use crate::globals::{get_explorer_timeout, TIMEOUT};
-use crate::logging_utils::{log_internal, LogTarget};
-use crate::orchestrator::conversations::PossibleExpectedKinds::ExplorerToOrchKind;
-use crate::orchestrator::conversations::{ChannelsContext, CommonErrorTypes, Conversation, ErrorState, ErrorType, PossibleExpectedKinds, PossibleMessage};
-use crate::orchestrator::conversations::{EntitiesIDTuple, ExplorerCommunicator};
+use crate::globals::{TIMEOUT, get_explorer_timeout};
+use crate::logging_utils::{LogTarget, log_internal};
 use crate::orchestrator::ChannelsManagerRef;
+use crate::orchestrator::conversations::PossibleExpectedKinds::ExplorerToOrchKind;
+use crate::orchestrator::conversations::{
+    ChannelsContext, CommonErrorTypes, Conversation, ErrorState, ErrorType, PossibleExpectedKinds,
+    PossibleMessage,
+};
+use crate::orchestrator::conversations::{EntitiesIDTuple, ExplorerCommunicator};
 use crate::{create_request_state, create_response_state, define_conversation, payload};
 use common_game::components::resource::ComplexResourceType;
 use common_game::logging::Channel;
@@ -13,6 +15,7 @@ use common_game::protocols::orchestrator_explorer::{
     ExplorerToOrchestrator, ExplorerToOrchestratorKind, OrchestratorToExplorer,
 };
 use common_game::utils::ID;
+use std::ops::Mul;
 use std::time::Duration;
 
 ///**Combine Resource Conversation**
@@ -76,15 +79,21 @@ create_request_state!(
 /// [`ErrorState`] if the crafting request failed to send to the explorer.
 ///
 /// [`CombineResourceConversation<WaitingCombineResourceResult>`] if the request was sent successfully.
-fn send_comb_resource_req_transition(this: Box<CombineResourceConversation<SendingCombineResourceRequest>>) -> Option<Box<dyn Conversation + Send + Sync>> {
-    match this.state.to_explorer(this.state.explorer_id,
+fn send_comb_resource_req_transition(
+    this: Box<CombineResourceConversation<SendingCombineResourceRequest>>,
+) -> Option<Box<dyn Conversation + Send + Sync>> {
+    match this.state.to_explorer(
+        this.state.explorer_id,
         OrchestratorToExplorer::CombineResourceRequest {
             to_generate: this.state.to_combine,
         },
     ) {
         Ok(()) => {
-            let state_struct =
-                WaitingCombineResourceResult::new(this.state.orch_context, this.state.explorer_id, this.state.to_combine);
+            let state_struct = WaitingCombineResourceResult::new(
+                this.state.orch_context,
+                this.state.explorer_id,
+                this.state.to_combine,
+            );
             let next_conv = CombineResourceConversation::<WaitingCombineResourceResult>::new(
                 this.id,
                 state_struct,
@@ -93,8 +102,7 @@ fn send_comb_resource_req_transition(this: Box<CombineResourceConversation<Sendi
         }
         Err(err) => {
             let error_state = ErrorState::new(Box::new(err), this.id);
-            Some(Box::new(error_state)
-                as Box<dyn Conversation + Send + Sync>)
+            Some(Box::new(error_state) as Box<dyn Conversation + Send + Sync>)
         }
     }
 }
@@ -127,13 +135,16 @@ create_response_state!(
 /// [`ErrorState`] with [`CraftingFailed`] if the explorer returns an error.
 ///
 /// [`ErrorState`] with [`CommonErrorTypes::WrongMessage`] if an unexpected message is received.
-fn wait_comb_resource_res_transition(this: Box<CombineResourceConversation<WaitingCombineResourceResult>>, msg: Option<PossibleMessage>) -> Option<Box<dyn Conversation + Send + Sync>> {
+fn wait_comb_resource_res_transition(
+    this: Box<CombineResourceConversation<WaitingCombineResourceResult>>,
+    msg: Option<PossibleMessage>,
+) -> Option<Box<dyn Conversation + Send + Sync>> {
     if let Some(PossibleMessage::ExplorerToOrch(
-                    ExplorerToOrchestrator::CombineResourceResponse {
-                        explorer_id,
-                        generated,
-                    },
-                )) = msg
+        ExplorerToOrchestrator::CombineResourceResponse {
+            explorer_id,
+            generated,
+        },
+    )) = msg
     {
         return match generated {
             Ok(()) => {
@@ -141,11 +152,11 @@ fn wait_comb_resource_res_transition(this: Box<CombineResourceConversation<Waiti
                     LogTarget::Conversations,
                     Channel::Debug,
                     payload!(
-                            action : "Explorer generated a resource correctly, closing conversation",
-                            explorer_id: explorer_id,
-                            resource : format!{"{:?}", this.state.to_combine},
-                            conversation_id: this.id,
-                        ),
+                        action : "Explorer generated a resource correctly, closing conversation",
+                        explorer_id: explorer_id,
+                        resource : format!{"{:?}", this.state.to_combine},
+                        conversation_id: this.id,
+                    ),
                 );
                 None
             }
@@ -157,8 +168,7 @@ fn wait_comb_resource_res_transition(this: Box<CombineResourceConversation<Waiti
                     resource: this.state.to_combine,
                 };
                 let error_state = ErrorState::new(Box::new(error_struct), this.id);
-                Some(Box::new(error_state)
-                    as Box<dyn Conversation + Send + Sync>)
+                Some(Box::new(error_state) as Box<dyn Conversation + Send + Sync>)
             }
         };
     }

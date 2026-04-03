@@ -1,10 +1,13 @@
 use crate::convo_manager::OrchContextRef;
-use crate::orchestrator::conversations::EntitiesIDTuple;
-use crate::globals::{get_explorer_timeout, TIMEOUT};
-use crate::logging_utils::{log_internal, LogTarget};
-use crate::orchestrator::conversations::PossibleExpectedKinds::ExplorerToOrchKind;
-use crate::orchestrator::conversations::{ChannelsContext, CommonErrorTypes, Conversation, ErrorState, ExplorerCommunicator, PossibleExpectedKinds, PossibleMessage};
+use crate::globals::{TIMEOUT, get_explorer_timeout};
+use crate::logging_utils::{LogTarget, log_internal};
 use crate::orchestrator::ChannelsManagerRef;
+use crate::orchestrator::conversations::EntitiesIDTuple;
+use crate::orchestrator::conversations::PossibleExpectedKinds::ExplorerToOrchKind;
+use crate::orchestrator::conversations::{
+    ChannelsContext, CommonErrorTypes, Conversation, ErrorState, ExplorerCommunicator,
+    PossibleExpectedKinds, PossibleMessage,
+};
 use crate::{create_request_state, create_response_state, define_conversation, payload};
 use common_game::logging::Channel;
 use common_game::protocols::orchestrator_explorer::{
@@ -48,8 +51,6 @@ create_request_state!(
     },
 );
 
-
-
 /// Transition Function for [`SendingExplorerStart`] state:
 ///
 /// Returns:
@@ -59,20 +60,18 @@ create_request_state!(
 /// [`ErrorState`] with [`CommonErrorTypes::ExplorerSenderNotFound`] if the communication channel is missing.
 ///
 /// The next state: [`StartExplorerConversation<WaitingExplorerStartResult>`] if the start command was sent successfully.
-fn send_explorer_start_transition(this: Box<StartExplorerConversation<SendingExplorerStart>>) -> Option<Box<dyn Conversation + Send + Sync>> {
-    match this
-        .state
-        .to_explorer(this.state.explorer_id, OrchestratorToExplorer::StartExplorerAI)
-    {
+fn send_explorer_start_transition(
+    this: Box<StartExplorerConversation<SendingExplorerStart>>,
+) -> Option<Box<dyn Conversation + Send + Sync>> {
+    match this.state.to_explorer(
+        this.state.explorer_id,
+        OrchestratorToExplorer::StartExplorerAI,
+    ) {
         Ok(()) => {
-            let next_state = WaitingExplorerStartResult::new(
-                this.state.orch_context,
-                this.state.explorer_id
-            );
-            let next_conv = StartExplorerConversation::<WaitingExplorerStartResult>::new(
-                this.id,
-                next_state,
-            );
+            let next_state =
+                WaitingExplorerStartResult::new(this.state.orch_context, this.state.explorer_id);
+            let next_conv =
+                StartExplorerConversation::<WaitingExplorerStartResult>::new(this.id, next_state);
             Some(Box::new(next_conv))
         }
         Err(err) => {
@@ -81,7 +80,6 @@ fn send_explorer_start_transition(this: Box<StartExplorerConversation<SendingExp
         }
     }
 }
-
 
 // --- WAITING EXPLORER START DEFINITION ---
 
@@ -101,7 +99,6 @@ create_response_state!(
     },
 );
 
-
 /// Transition Function for [`WaitingExplorerStartResult`] state:
 ///
 /// Returns:
@@ -109,19 +106,22 @@ create_response_state!(
 /// [None] if the [`ExplorerToOrchestrator::StartExplorerAIResult`] is successfully received, closing the conversation.
 ///
 /// [`ErrorState`] with [`CommonErrorTypes::WrongMessage`] if the received message does not match the expected result kind.
-fn wait_exp_start_res_transition(this: Box<StartExplorerConversation<WaitingExplorerStartResult>>, msg: Option<PossibleMessage>) -> Option<Box<dyn Conversation + Send + Sync>> {
-    if let Some(PossibleMessage::ExplorerToOrch(
-                    ExplorerToOrchestrator::StartExplorerAIResult { explorer_id },
-    )) = msg
+fn wait_exp_start_res_transition(
+    this: Box<StartExplorerConversation<WaitingExplorerStartResult>>,
+    msg: Option<PossibleMessage>,
+) -> Option<Box<dyn Conversation + Send + Sync>> {
+    if let Some(PossibleMessage::ExplorerToOrch(ExplorerToOrchestrator::StartExplorerAIResult {
+        explorer_id,
+    })) = msg
     {
         log_internal(
             LogTarget::Conversations,
             Channel::Info,
             payload!(
-                    action : "Started Explorer, closing conversation",
-                    explorer_id : explorer_id,
-                    conversation_id : this.id
-                ),
+                action : "Started Explorer, closing conversation",
+                explorer_id : explorer_id,
+                conversation_id : this.id
+            ),
         );
         return None;
     }

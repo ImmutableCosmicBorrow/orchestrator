@@ -3,8 +3,8 @@
 use super::EventKind;
 use super::context::{DispatchCtx, WorldCtx};
 use super::state::PlannedEvent;
+use crate::convo_manager::{ConvoManager, convo_factory};
 use crate::logging_utils::{LogTarget, log_internal};
-use crate::convo_manager::{convo_factory, ConvoManager};
 use crate::payload;
 use common_game::logging::Channel;
 
@@ -16,7 +16,6 @@ pub(super) fn dispatch(event: PlannedEvent, dispatch_ctx: &ConvoManager) {
 }
 
 fn dispatch_asteroid(event: PlannedEvent, dispatch_ctx: &ConvoManager) {
-
     log_internal(
         LogTarget::AsteroidsSunrays,
         Channel::Trace,
@@ -27,7 +26,6 @@ fn dispatch_asteroid(event: PlannedEvent, dispatch_ctx: &ConvoManager) {
 }
 
 fn dispatch_sunray(event: PlannedEvent, dispatch_ctx: &ConvoManager) {
-
     log_internal(
         LogTarget::AsteroidsSunrays,
         Channel::Trace,

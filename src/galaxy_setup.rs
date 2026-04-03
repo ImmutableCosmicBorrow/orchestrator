@@ -1,7 +1,7 @@
 use crate::id::IdManager;
-use crate::logging_utils::{log_internal, LogTarget};
+use crate::logging_utils::{LogTarget, log_internal};
 use crate::payload;
-use crate::planet::{add_planet_with_neighbors, PlanetMap};
+use crate::planet::{PlanetMap, add_planet_with_neighbors};
 
 use crate::id::PlanetKind;
 use common_game::logging::Channel;
@@ -177,9 +177,9 @@ pub fn galaxy_loader(
             .or_insert_with(|| spawn_planet_with_channels(channels_manager.clone(), id));
 
         for &neighbor_id in &neighbors {
-            planet_threads
-                .entry(neighbor_id)
-                .or_insert_with(|| spawn_planet_with_channels(channels_manager.clone(), neighbor_id));
+            planet_threads.entry(neighbor_id).or_insert_with(|| {
+                spawn_planet_with_channels(channels_manager.clone(), neighbor_id)
+            });
         }
     }
 

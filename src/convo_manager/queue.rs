@@ -48,4 +48,3 @@ impl Clone for PQueue {
 }
 
 pub type ConversationMap = Arc<Mutex<HashMap<ID, Box<dyn Conversation + Send + Sync>>>>;
-

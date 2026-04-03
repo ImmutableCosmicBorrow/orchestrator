@@ -1,6 +1,6 @@
 use crate::channels_manager::ChannelsManager;
 pub(crate) use crate::channels_manager::OrchToExplorerSenders;
-use crate::logging_utils::{log_internal, log_msg_to, LogTarget};
+use crate::logging_utils::{LogTarget, log_internal, log_msg_to};
 use crate::orchestrator::{ChannelsManagerRef, ExplorerBagContent};
 use crate::payload;
 use crate::ui::OrchestratorToUiUpdate;
@@ -16,10 +16,10 @@ use std::fmt::Debug;
 use std::hash::Hash;
 use std::time::Duration;
 
+pub mod macros;
 pub(crate) mod orch_explorer;
 pub(crate) mod orch_planet;
 pub(crate) mod util;
-pub mod macros;
 
 ///**The Conversation Trait**
 ///
@@ -133,13 +133,11 @@ impl PossibleMessage {
                     ..
                 },
             )
-            | PossibleMessage::ExplorerToOrch(
-                ExplorerToOrchestrator::MovedToPlanetResult {
-                    planet_id,
-                    explorer_id, ..
-                }
-            )
-            => (Some(*planet_id), Some(*explorer_id)),
+            | PossibleMessage::ExplorerToOrch(ExplorerToOrchestrator::MovedToPlanetResult {
+                planet_id,
+                explorer_id,
+                ..
+            }) => (Some(*planet_id), Some(*explorer_id)),
 
             PossibleMessage::ExplorerToOrch(ExplorerToOrchestrator::TravelToPlanetRequest {
                 current_planet_id,
@@ -160,14 +158,11 @@ pub(crate) trait ChannelsContext {
     fn get_channels_manager(&self) -> ChannelsManagerRef;
 }
 
-
-
-pub(crate) trait PlanetCommunicator:  ChannelsContext {
-
+pub(crate) trait PlanetCommunicator: ChannelsContext {
     fn to_planet(&self, planet_id: ID, msg: OrchestratorToPlanet) -> Result<(), CommonErrorTypes> {
-
         let sender = {
-            self.get_channels_manager().get_orch_to_planet_sender(planet_id)
+            self.get_channels_manager()
+                .get_orch_to_planet_sender(planet_id)
         };
 
         if let Some(s) = sender {
@@ -177,8 +172,8 @@ pub(crate) trait PlanetCommunicator:  ChannelsContext {
                 EventType::MessageOrchestratorToPlanet,
                 (ActorType::Planet, planet_id),
                 payload!(
-                    message : format!("{:?}", msg)
-            ),
+                        message : format!("{:?}", msg)
+                ),
             );
             s.send(msg)
                 .map_err(|_| CommonErrorTypes::MessageToPlanetFailed(planet_id))
@@ -186,15 +181,17 @@ pub(crate) trait PlanetCommunicator:  ChannelsContext {
             Err(CommonErrorTypes::PlanetSenderNotFound(planet_id))
         }
     }
-
 }
 
-
 pub(crate) trait ExplorerCommunicator: ChannelsContext {
-    fn to_explorer(&self, explorer_id: ID, msg: OrchestratorToExplorer) -> Result<(), CommonErrorTypes> {
-
+    fn to_explorer(
+        &self,
+        explorer_id: ID,
+        msg: OrchestratorToExplorer,
+    ) -> Result<(), CommonErrorTypes> {
         let sender = {
-            self.get_channels_manager().get_orch_to_explorer_sender(explorer_id)
+            self.get_channels_manager()
+                .get_orch_to_explorer_sender(explorer_id)
         };
 
         if let Some(s) = sender {
@@ -205,7 +202,8 @@ pub(crate) trait ExplorerCommunicator: ChannelsContext {
                 (ActorType::Explorer, explorer_id),
                 payload!( message : format!("{:?}", msg) ),
             );
-            s.send(msg).map_err(|_| CommonErrorTypes::MessageToExplorerFailed(explorer_id))
+            s.send(msg)
+                .map_err(|_| CommonErrorTypes::MessageToExplorerFailed(explorer_id))
         } else {
             Err(CommonErrorTypes::ExplorerSenderNotFound(explorer_id))
         }
@@ -215,16 +213,18 @@ pub(crate) trait ExplorerCommunicator: ChannelsContext {
 pub(crate) trait UiCommunicator: ChannelsContext {
     fn to_ui(&self, msg: OrchestratorToUiUpdate) -> Result<(), CommonErrorTypes> {
         let sender = self.get_channels_manager().get_ui_sender();
-        sender.send(msg).map_err(|_| CommonErrorTypes::MessageToUiFailed)
+        sender
+            .send(msg)
+            .map_err(|_| CommonErrorTypes::MessageToUiFailed)
     }
 }
 //Implement PlanetCommunicator for every type that implements ChannelsContext using default implementation
-impl <T: ChannelsContext> PlanetCommunicator for T {}
+impl<T: ChannelsContext> PlanetCommunicator for T {}
 
 //Implement ExplorerCommunicator for every type that implements ChannelsContext using default implementation
-impl <T: ChannelsContext> ExplorerCommunicator for T {}
+impl<T: ChannelsContext> ExplorerCommunicator for T {}
 
-impl <T: ChannelsContext> UiCommunicator for T {}
+impl<T: ChannelsContext> UiCommunicator for T {}
 pub(crate) enum ToPlanetError {
     SendingMessageFailure(ID),
     SenderNotFound(ID),
@@ -272,9 +272,7 @@ impl ErrorType for CommonErrorTypes {
             CommonErrorTypes::MessageToPlanetFailed(id) => {
                 format!("failed to send message to planet {id}")
             }
-            CommonErrorTypes::MessageToUiFailed => {
-                "failed to send message to ui".to_string()
-            }
+            CommonErrorTypes::MessageToUiFailed => "failed to send message to ui".to_string(),
         }
     }
 }
@@ -310,7 +308,6 @@ impl ErrorType for TimeoutErrorType {
         )
     }
 }
-
 
 /// **Error State**
 ///

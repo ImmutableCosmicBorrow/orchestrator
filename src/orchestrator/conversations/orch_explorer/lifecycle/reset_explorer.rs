@@ -1,10 +1,13 @@
 use crate::convo_manager::OrchContextRef;
-use crate::globals::{get_explorer_timeout, TIMEOUT};
-use crate::logging_utils::{log_internal, LogTarget};
+use crate::globals::{TIMEOUT, get_explorer_timeout};
+use crate::logging_utils::{LogTarget, log_internal};
+use crate::orchestrator::ChannelsManagerRef;
 use crate::orchestrator::conversations::EntitiesIDTuple;
 use crate::orchestrator::conversations::PossibleExpectedKinds::ExplorerToOrchKind;
-use crate::orchestrator::conversations::{ChannelsContext, CommonErrorTypes, Conversation, ErrorState, ExplorerCommunicator, PossibleExpectedKinds, PossibleMessage};
-use crate::orchestrator::ChannelsManagerRef;
+use crate::orchestrator::conversations::{
+    ChannelsContext, CommonErrorTypes, Conversation, ErrorState, ExplorerCommunicator,
+    PossibleExpectedKinds, PossibleMessage,
+};
 use crate::{create_request_state, create_response_state, define_conversation, payload};
 use common_game::logging::Channel;
 use common_game::protocols::orchestrator_explorer::{
@@ -48,7 +51,6 @@ create_request_state!(
     },
 );
 
-
 /// Transition Function for [`SendingExplorerReset`] state:
 ///
 /// Returns:
@@ -58,23 +60,23 @@ create_request_state!(
 /// [`ErrorState`] with [`CommonErrorTypes::ExplorerSenderNotFound`] if the communication channel is missing.
 ///
 /// The next state: [`ResetExplorerConversation<WaitingExplorerResetResult>`] if the reset command was sent successfully.
-fn send_explorer_reset_transition(this: Box<ResetExplorerConversation<SendingExplorerReset>>) -> Option<Box<dyn Conversation + Send + Sync>> {
-    match this
-        .state
-        .to_explorer(this.state.explorer_id, OrchestratorToExplorer::ResetExplorerAI)
-    {
+fn send_explorer_reset_transition(
+    this: Box<ResetExplorerConversation<SendingExplorerReset>>,
+) -> Option<Box<dyn Conversation + Send + Sync>> {
+    match this.state.to_explorer(
+        this.state.explorer_id,
+        OrchestratorToExplorer::ResetExplorerAI,
+    ) {
         Ok(()) => {
-            let next_state = WaitingExplorerResetResult::new(this.state.orch_context, this.state.explorer_id);
-            let next_conv = ResetExplorerConversation::<WaitingExplorerResetResult>::new(
-                this.id,
-                next_state,
-            );
+            let next_state =
+                WaitingExplorerResetResult::new(this.state.orch_context, this.state.explorer_id);
+            let next_conv =
+                ResetExplorerConversation::<WaitingExplorerResetResult>::new(this.id, next_state);
             Some(Box::new(next_conv))
         }
         Err(err) => {
             let error_state = ErrorState::new(Box::new(err), this.id);
-            Some(Box::new(error_state)
-                as Box<dyn Conversation + Send + Sync>)
+            Some(Box::new(error_state) as Box<dyn Conversation + Send + Sync>)
         }
     }
 }
@@ -97,7 +99,6 @@ create_response_state!(
     },
 );
 
-
 /// Transition Function for [`WaitingExplorerResetResult`] state:
 ///
 /// Returns:
@@ -105,19 +106,22 @@ create_response_state!(
 /// [None] if the [`ExplorerToOrchestrator::ResetExplorerAIResult`] is successfully received, closing the conversation.
 ///
 /// [`ErrorState`] with [`CommonErrorTypes::WrongMessage`] if the received message does not match the expected result kind.
-fn wait_exp_reset_res_transition(this: Box<ResetExplorerConversation<WaitingExplorerResetResult>>, msg: Option<PossibleMessage>) -> Option<Box<dyn Conversation + Send + Sync>> {
-    if let Some(PossibleMessage::ExplorerToOrch(
-                    ExplorerToOrchestrator::ResetExplorerAIResult { explorer_id },
-                )) = msg
+fn wait_exp_reset_res_transition(
+    this: Box<ResetExplorerConversation<WaitingExplorerResetResult>>,
+    msg: Option<PossibleMessage>,
+) -> Option<Box<dyn Conversation + Send + Sync>> {
+    if let Some(PossibleMessage::ExplorerToOrch(ExplorerToOrchestrator::ResetExplorerAIResult {
+        explorer_id,
+    })) = msg
     {
         log_internal(
             LogTarget::Conversations,
             Channel::Info,
             payload!(
-                    action : "Reset explorer, closing conversation",
-                    explorer_id : explorer_id,
-                    conversation_id : this.id,
-                ),
+                action : "Reset explorer, closing conversation",
+                explorer_id : explorer_id,
+                conversation_id : this.id,
+            ),
         );
         return None;
     }

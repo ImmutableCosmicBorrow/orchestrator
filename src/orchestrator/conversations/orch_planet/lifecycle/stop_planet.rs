@@ -1,9 +1,12 @@
 use crate::globals::TIMEOUT;
-use crate::logging_utils::{log_internal, LogTarget};
+use crate::logging_utils::{LogTarget, log_internal};
+use crate::orchestrator::Duration;
 use crate::orchestrator::conversations::EntitiesIDTuple;
 use crate::orchestrator::conversations::PossibleExpectedKinds::PlanetToOrchKind;
-use crate::orchestrator::conversations::{ChannelsContext, CommonErrorTypes, Conversation, ErrorState, PlanetCommunicator, PossibleExpectedKinds, PossibleMessage};
-use crate::orchestrator::Duration;
+use crate::orchestrator::conversations::{
+    ChannelsContext, CommonErrorTypes, Conversation, ErrorState, PlanetCommunicator,
+    PossibleExpectedKinds, PossibleMessage,
+};
 use crate::orchestrator::{ChannelsManagerRef, OrchContextRef};
 use crate::{create_request_state, create_response_state, define_conversation, payload};
 use common_game::logging::Channel;
@@ -48,7 +51,6 @@ create_request_state!(
     },
 );
 
-
 /// Transition Function for [`SendingPlanetStop`] state:
 ///
 /// Returns:
@@ -58,23 +60,24 @@ create_request_state!(
 /// [`ErrorState`] with [`CommonErrorTypes::PlanetSenderNotFound`] if the sender to the planet is not in the list
 ///
 /// The next state: [`StopPlanetConversation<WaitingPlanetStopResult>`] if the stop command was sent successfully.
-fn send_planet_stop_transition(this: Box<StopPlanetConversation<SendingPlanetStop>>) -> Option<Box<dyn Conversation + Send + Sync>> {
+fn send_planet_stop_transition(
+    this: Box<StopPlanetConversation<SendingPlanetStop>>,
+) -> Option<Box<dyn Conversation + Send + Sync>> {
     match this
         .state
         .to_planet(this.state.planet_id, OrchestratorToPlanet::StopPlanetAI)
     {
         Ok(()) => {
-                
-            let next_state = WaitingPlanetStopResult::new(this.state.orch_context, this.state.planet_id);
-            let next_conv = StopPlanetConversation::<WaitingPlanetStopResult>::new(this.id, next_state);
+            let next_state =
+                WaitingPlanetStopResult::new(this.state.orch_context, this.state.planet_id);
+            let next_conv =
+                StopPlanetConversation::<WaitingPlanetStopResult>::new(this.id, next_state);
             Some(Box::new(next_conv))
-    }
+        }
         Err(err) => {
-            
-        let error_state = ErrorState::new(Box::new(err), this.id);
-        Some(Box::new(error_state)
-            as Box<dyn Conversation + Send + Sync>)
-    }
+            let error_state = ErrorState::new(Box::new(err), this.id);
+            Some(Box::new(error_state) as Box<dyn Conversation + Send + Sync>)
+        }
     }
 }
 
@@ -103,19 +106,22 @@ create_response_state!(
 /// [None] if the stop result is successfully received and processed, closing the conversation.
 ///
 /// [`ErrorState`] with [`CommonErrorTypes::WrongMessage`] if the trigger message is different from the expected one [`PlanetToOrchestrator::StopPlanetAIResult`]
-fn wait_planet_stop_res_transition(this: Box<StopPlanetConversation<WaitingPlanetStopResult>>, msg: Option<PossibleMessage>) -> Option<Box<dyn Conversation + Send + Sync>> {
+fn wait_planet_stop_res_transition(
+    this: Box<StopPlanetConversation<WaitingPlanetStopResult>>,
+    msg: Option<PossibleMessage>,
+) -> Option<Box<dyn Conversation + Send + Sync>> {
     if let Some(PossibleMessage::PlanetToOrch(PlanetToOrchestrator::StopPlanetAIResult {
-       planet_id,
-        })) = msg
+        planet_id,
+    })) = msg
     {
         log_internal(
             LogTarget::Conversations,
             Channel::Info,
             payload!(
-                    action : "Stopped Planet, closing conversation",
-                    planet_id : planet_id,
-                    conversation_id : this.id
-                ),
+                action : "Stopped Planet, closing conversation",
+                planet_id : planet_id,
+                conversation_id : this.id
+            ),
         );
         return None;
     }

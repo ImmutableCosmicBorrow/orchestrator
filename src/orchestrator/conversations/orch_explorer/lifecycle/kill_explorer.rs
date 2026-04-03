@@ -1,11 +1,14 @@
+use crate::globals::{TIMEOUT, get_explorer_timeout};
+use crate::logging_utils::{LogTarget, log_internal};
 use crate::orchestrator::conversations::EntitiesIDTuple;
-use crate::globals::{get_explorer_timeout, TIMEOUT};
-use crate::logging_utils::{log_internal, LogTarget};
+use crate::orchestrator::conversations::PossibleExpectedKinds::ExplorerToOrchKind;
 use crate::orchestrator::conversations::orch_planet::galaxy_events::adv_dead_explorer::{
     AdvDeadExplorer, SendingDeadExpAdv,
 };
-use crate::orchestrator::conversations::PossibleExpectedKinds::ExplorerToOrchKind;
-use crate::orchestrator::conversations::{ChannelsContext, CommonErrorTypes, Conversation, ErrorState, ExplorerCommunicator, PossibleExpectedKinds, PossibleMessage};
+use crate::orchestrator::conversations::{
+    ChannelsContext, CommonErrorTypes, Conversation, ErrorState, ExplorerCommunicator,
+    PossibleExpectedKinds, PossibleMessage,
+};
 use crate::orchestrator::{ChannelsManagerRef, ExplorersLocationRef, OrchContextRef};
 use crate::{create_request_state, create_response_state, define_conversation, payload};
 use common_game::logging::Channel;
@@ -63,29 +66,27 @@ create_request_state!(
 /// [`ErrorState`] if the kill command fails to send or the sender is not found.
 ///
 /// [`KillExplorerConversation<WaitingKillExplorerResult>`] if the request was sent successfully.
-fn send_explorer_kill_transition(this: Box<KillExplorerConversation<SendingExplorerKill>>) -> Option<Box<dyn Conversation + Send + Sync>> {
+fn send_explorer_kill_transition(
+    this: Box<KillExplorerConversation<SendingExplorerKill>>,
+) -> Option<Box<dyn Conversation + Send + Sync>> {
     match this
         .state
         .to_explorer(this.state.explorer_id, OrchestratorToExplorer::KillExplorer)
     {
         Ok(()) => {
-            
             let next_state = WaitingKillExplorerResult::new(
                 this.state.orch_context,
                 this.state.explorer_id,
                 this.state.curr_planet_id,
                 this.state.handle_outgoing,
             );
-            let next_conv = KillExplorerConversation::<WaitingKillExplorerResult>::new(
-                this.id,
-                next_state,
-            );
+            let next_conv =
+                KillExplorerConversation::<WaitingKillExplorerResult>::new(this.id, next_state);
             Some(Box::new(next_conv))
         }
         Err(err) => {
             let error_state = ErrorState::new(Box::new(err), this.id);
-            Some(Box::new(error_state)
-                as Box<dyn Conversation + Send + Sync>)
+            Some(Box::new(error_state) as Box<dyn Conversation + Send + Sync>)
         }
     }
 }
@@ -110,7 +111,6 @@ create_response_state!(
     },
 );
 
-
 /// Transition Function for [`WaitingKillExplorerResult`] state:
 ///
 /// Returns:
@@ -118,11 +118,13 @@ create_response_state!(
 /// [`AdvDeadExplorer<SendingDeadExpAdv>`] if `handle_outgoing` is true, to notify the planet of the dead explorer.
 ///
 /// None if `handle_outgoing` is false (we already took care of the dead explorer in its planet), closing the conversation
-fn wait_exp_kill_res_transition(this: Box<KillExplorerConversation<WaitingKillExplorerResult>>, msg: Option<PossibleMessage>) -> Option<Box<dyn Conversation + Send + Sync>> {
-
+fn wait_exp_kill_res_transition(
+    this: Box<KillExplorerConversation<WaitingKillExplorerResult>>,
+    msg: Option<PossibleMessage>,
+) -> Option<Box<dyn Conversation + Send + Sync>> {
     if let Some(PossibleMessage::ExplorerToOrch(ExplorerToOrchestrator::KillExplorerResult {
         explorer_id,
-     })) = msg
+    })) = msg
     {
         //Delete killed explorer from the explorer location list
         this.state.delete_dead_explorer();
@@ -131,10 +133,10 @@ fn wait_exp_kill_res_transition(this: Box<KillExplorerConversation<WaitingKillEx
             LogTarget::Conversations,
             Channel::Info,
             payload!(
-                    action : "Killed explorer",
-                    explorer_id : explorer_id,
-                    conversation_id : this.id
-                ),
+                action : "Killed explorer",
+                explorer_id : explorer_id,
+                conversation_id : this.id
+            ),
         );
 
         // handle outgoing --> Notify planet of dead explorer
@@ -153,10 +155,10 @@ fn wait_exp_kill_res_transition(this: Box<KillExplorerConversation<WaitingKillEx
             LogTarget::Conversations,
             Channel::Warning,
             payload!(
-                    action : "Conversation already took care of this dead Explorer and is Ending",
-                    explorer_id : explorer_id,
-                    conversation_id : this.id,
-                ),
+                action : "Conversation already took care of this dead Explorer and is Ending",
+                explorer_id : explorer_id,
+                conversation_id : this.id,
+            ),
         );
         return None;
     }
@@ -166,9 +168,9 @@ fn wait_exp_kill_res_transition(this: Box<KillExplorerConversation<WaitingKillEx
         LogTarget::Conversations,
         Channel::Warning,
         payload!(
-                action : "Wrong Message arrived, sending error state",
-                conversation_id : this.id,
-            ),
+            action : "Wrong Message arrived, sending error state",
+            conversation_id : this.id,
+        ),
     );
     let error_state = ErrorState::new(Box::new(CommonErrorTypes::WrongMessage), this.id);
     Some(Box::new(error_state) as Box<dyn Conversation + Send + Sync>)
@@ -178,7 +180,8 @@ impl WaitingKillExplorerResult {
     /// Helper function to remove an explorer from the location list
     fn delete_dead_explorer(&self) {
         assert!(
-            self.orch_context.explorers_location
+            self.orch_context
+                .explorers_location
                 .remove(&self.explorer_id)
                 .is_some(),
             "Trying to delete the dead explorer {} from the location map, but the entry is not found!",

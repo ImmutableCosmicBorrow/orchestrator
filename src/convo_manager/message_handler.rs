@@ -1,9 +1,9 @@
-use common_game::logging::Channel;
 use crate::convo_manager::ConvoManager;
 use crate::logging_utils::LogTarget;
 use crate::orchestrator::conversations::PossibleMessage;
 use crate::orchestrator::log_internal;
 use crate::payload;
+use common_game::logging::Channel;
 
 impl ConvoManager {
     pub(crate) fn handle_message(&self, message: PossibleMessage) {
@@ -30,4 +30,3 @@ impl ConvoManager {
         }
     }
 }
-

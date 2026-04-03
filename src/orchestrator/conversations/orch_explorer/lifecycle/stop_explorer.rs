@@ -1,9 +1,16 @@
 use crate::convo_manager::OrchContextRef;
-use crate::orchestrator::conversations::EntitiesIDTuple;
-use crate::globals::{get_explorer_timeout, TIMEOUT};
+use crate::globals::{TIMEOUT, get_explorer_timeout};
 use crate::logging_utils::{LogTarget, log_internal};
+use crate::orchestrator::conversations::EntitiesIDTuple;
+use crate::orchestrator::conversations::PossibleExpectedKinds::ExplorerToOrchKind;
+use crate::orchestrator::conversations::orch_explorer::lifecycle::start_explorer::{
+    SendingExplorerStart, WaitingExplorerStartResult,
+};
+use crate::orchestrator::conversations::{
+    ChannelsContext, CommonErrorTypes, Conversation, ErrorState, ExplorerCommunicator,
+    PossibleExpectedKinds, PossibleMessage, ToExplorerError,
+};
 use crate::orchestrator::{ChannelsManagerRef, ExplorerBagContent};
-use crate::orchestrator::conversations::{ChannelsContext, CommonErrorTypes, Conversation, ErrorState, ExplorerCommunicator, PossibleExpectedKinds, PossibleMessage, ToExplorerError};
 use crate::{create_request_state, create_response_state, define_conversation, payload};
 use common_game::logging::Channel;
 use common_game::protocols::orchestrator_explorer::{
@@ -11,8 +18,6 @@ use common_game::protocols::orchestrator_explorer::{
 };
 use common_game::utils::ID;
 use std::time::Duration;
-use crate::orchestrator::conversations::orch_explorer::lifecycle::start_explorer::{SendingExplorerStart, WaitingExplorerStartResult};
-use crate::orchestrator::conversations::PossibleExpectedKinds::ExplorerToOrchKind;
 
 ///**Stop Explorer Conversation**
 ///
@@ -57,23 +62,23 @@ create_request_state!(
 /// [`ErrorState`] with [`CommonErrorTypes::ExplorerSenderNotFound`] if the communication channel is missing.
 ///
 /// The next state: [`StopExplorerConversation<WaitingExplorerStopResult>`] if the stop command was sent successfully.
-fn send_explorer_stop_transition(this: Box<StopExplorerConversation<SendingExplorerStop>>) -> Option<Box<dyn Conversation + Send + Sync>> {
-    match this
-        .state
-        .to_explorer(this.state.explorer_id,OrchestratorToExplorer::StopExplorerAI)
-    {
+fn send_explorer_stop_transition(
+    this: Box<StopExplorerConversation<SendingExplorerStop>>,
+) -> Option<Box<dyn Conversation + Send + Sync>> {
+    match this.state.to_explorer(
+        this.state.explorer_id,
+        OrchestratorToExplorer::StopExplorerAI,
+    ) {
         Ok(()) => {
-            let next_state = WaitingExplorerStopResult::new(this.state.orch_context ,this.state.explorer_id);
-            let next_conv = StopExplorerConversation::<WaitingExplorerStopResult>::new(
-                this.id,
-                next_state,
-            );
+            let next_state =
+                WaitingExplorerStopResult::new(this.state.orch_context, this.state.explorer_id);
+            let next_conv =
+                StopExplorerConversation::<WaitingExplorerStopResult>::new(this.id, next_state);
             Some(Box::new(next_conv))
         }
         Err(err) => {
             let error_state = ErrorState::new(Box::new(err), this.id);
-            Some(Box::new(error_state)
-                as Box<dyn Conversation + Send + Sync>)
+            Some(Box::new(error_state) as Box<dyn Conversation + Send + Sync>)
         }
     }
 }
@@ -102,20 +107,23 @@ create_response_state!(
 ///
 /// [None] if the [`ExplorerToOrchestrator::StopExplorerAIResult`] is successfully received, closing the conversation.
 ///
-/// [`ErrorState`] with [`CommonErrorTypes::WrongMessage`] if the received message does not match the expected result kind. 
-fn wait_exp_stop_res_transition(this: Box<StopExplorerConversation<WaitingExplorerStopResult>>, msg: Option<PossibleMessage>) -> Option<Box<dyn Conversation + Send + Sync>> {
-    if let Some(PossibleMessage::ExplorerToOrch(
-                    ExplorerToOrchestrator::StopExplorerAIResult { explorer_id },
-                )) = msg
+/// [`ErrorState`] with [`CommonErrorTypes::WrongMessage`] if the received message does not match the expected result kind.
+fn wait_exp_stop_res_transition(
+    this: Box<StopExplorerConversation<WaitingExplorerStopResult>>,
+    msg: Option<PossibleMessage>,
+) -> Option<Box<dyn Conversation + Send + Sync>> {
+    if let Some(PossibleMessage::ExplorerToOrch(ExplorerToOrchestrator::StopExplorerAIResult {
+        explorer_id,
+    })) = msg
     {
         log_internal(
             LogTarget::Conversations,
             Channel::Info,
             payload!(
-                    action : "Stopped Explorer, closing conversation",
-                    explorer_id : explorer_id,
-                    conversation_id : this.id
-                ),
+                action : "Stopped Explorer, closing conversation",
+                explorer_id : explorer_id,
+                conversation_id : this.id
+            ),
         );
         return None;
     }

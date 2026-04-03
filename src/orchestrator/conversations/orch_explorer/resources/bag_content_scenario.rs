@@ -1,10 +1,13 @@
 use crate::convo_manager::OrchContextRef;
-use crate::globals::{get_explorer_timeout, TIMEOUT};
-use crate::logging_utils::{log_internal, LogTarget};
-use crate::orchestrator::conversations::PossibleExpectedKinds::ExplorerToOrchKind;
-use crate::orchestrator::conversations::{ChannelsContext, CommonErrorTypes, Conversation, ErrorState, PossibleExpectedKinds, PossibleMessage};
-use crate::orchestrator::conversations::{EntitiesIDTuple, ExplorerCommunicator, UiCommunicator};
+use crate::globals::{TIMEOUT, get_explorer_timeout};
+use crate::logging_utils::{LogTarget, log_internal};
 use crate::orchestrator::ChannelsManagerRef;
+use crate::orchestrator::conversations::PossibleExpectedKinds::ExplorerToOrchKind;
+use crate::orchestrator::conversations::{
+    ChannelsContext, CommonErrorTypes, Conversation, ErrorState, PossibleExpectedKinds,
+    PossibleMessage,
+};
+use crate::orchestrator::conversations::{EntitiesIDTuple, ExplorerCommunicator, UiCommunicator};
 use crate::ui::OrchestratorToUiUpdate;
 use crate::{create_request_state, create_response_state, define_conversation, payload};
 use common_game::logging::Channel;
@@ -45,7 +48,6 @@ create_request_state!(
     },
 );
 
-
 /// Transition Function for [`SendingBagContentRequest`] state:
 ///
 /// Returns:
@@ -55,23 +57,23 @@ create_request_state!(
 /// [`ErrorState`] with [`CommonErrorTypes::ExplorerSenderNotFound`] if the communication channel is missing.
 ///
 /// The next state: [`BagContentConversation<WaitingBagContentResponse>`] if the request was sent successfully.
-fn send_bag_content_req_transition(this: Box<BagContentConversation<SendingBagContentRequest>>) -> Option<Box<dyn Conversation + Send + Sync>> {
-    match this
-        .state
-        .to_explorer(this.state.explorer_id, OrchestratorToExplorer::BagContentRequest)
-    {
+fn send_bag_content_req_transition(
+    this: Box<BagContentConversation<SendingBagContentRequest>>,
+) -> Option<Box<dyn Conversation + Send + Sync>> {
+    match this.state.to_explorer(
+        this.state.explorer_id,
+        OrchestratorToExplorer::BagContentRequest,
+    ) {
         Ok(()) => {
-            let next_state = WaitingBagContentResponse::new(this.state.orch_context, this.state.explorer_id);
-            let next_conv = BagContentConversation::<WaitingBagContentResponse>::new(
-                this.id,
-                next_state
-            );
+            let next_state =
+                WaitingBagContentResponse::new(this.state.orch_context, this.state.explorer_id);
+            let next_conv =
+                BagContentConversation::<WaitingBagContentResponse>::new(this.id, next_state);
             Some(Box::new(next_conv))
         }
         Err(err) => {
             let error_state = ErrorState::new(Box::new(err), this.id);
-            Some(Box::new(error_state)
-                as Box<dyn Conversation + Send + Sync>)
+            Some(Box::new(error_state) as Box<dyn Conversation + Send + Sync>)
         }
     }
 }
@@ -94,7 +96,6 @@ create_response_state!(
     },
 );
 
-
 /// Transition Function for [`WaitingBagContentResponse`] state:
 ///
 /// Returns:
@@ -103,45 +104,49 @@ create_response_state!(
 ///
 /// [`ErrorState`] with [`CommonErrorTypes::WrongMessage`] if the received message does not match the expected response kind.
 /// [`ErrorState`] with [`CommonErrorTypes::MessageToUiFailed`] if the update to the UI fails.
-fn wait_bag_content_res_transition(this: Box<BagContentConversation<WaitingBagContentResponse>>, msg: Option<PossibleMessage>) -> Option<Box<dyn Conversation + Send + Sync>> {
-
+fn wait_bag_content_res_transition(
+    this: Box<BagContentConversation<WaitingBagContentResponse>>,
+    msg: Option<PossibleMessage>,
+) -> Option<Box<dyn Conversation + Send + Sync>> {
     if let Some(PossibleMessage::ExplorerToOrch(ExplorerToOrchestrator::BagContentResponse {
-                                                    explorer_id,
-                                                    bag_content,
-                                                })) = msg
+        explorer_id,
+        bag_content,
+    })) = msg
     {
         let bag_content_log = format!("{bag_content:?}");
 
-        return match this.state.to_ui(OrchestratorToUiUpdate::ExplorerSnapshot(explorer_id, bag_content)) {
+        return match this.state.to_ui(OrchestratorToUiUpdate::ExplorerSnapshot(
+            explorer_id,
+            bag_content,
+        )) {
             Ok(()) => {
                 log_internal(
                     LogTarget::Conversations,
                     Channel::Debug,
                     payload!(
-                            action : "Sent ExplorerBagContent to UI",
-                            explorer_id : explorer_id,
-                            conversation_id : this.id,
-                            bag_content : bag_content_log
-                        ),
+                        action : "Sent ExplorerBagContent to UI",
+                        explorer_id : explorer_id,
+                        conversation_id : this.id,
+                        bag_content : bag_content_log
+                    ),
                 );
                 None
-            },
+            }
 
             Err(err) => {
                 log_internal(
                     LogTarget::Conversations,
                     Channel::Warning,
                     payload!(
-                            action : "Failed to send ExplorerBagContent to UI",
-                            explorer_id : explorer_id,
-                            conversation_id : this.id
-                        ),
+                        action : "Failed to send ExplorerBagContent to UI",
+                        explorer_id : explorer_id,
+                        conversation_id : this.id
+                    ),
                 );
                 let error_state = ErrorState::new(Box::new(err), this.id);
-                Some(Box::new(error_state)
-                    as Box<dyn Conversation + Send + Sync>)
+                Some(Box::new(error_state) as Box<dyn Conversation + Send + Sync>)
             }
-        }
+        };
     }
 
     //Wrong Message, close conversation

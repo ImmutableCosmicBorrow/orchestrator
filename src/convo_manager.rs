@@ -2,30 +2,29 @@ use crate::convo_manager::convo_scheduler::ConvoScheduler;
 pub(crate) use crate::orchestrator::{OrchContext, OrchContextRef};
 use std::sync::Arc;
 
-pub mod queue;
+pub mod convo_factory;
 mod convo_scheduler;
 mod message_handler;
-pub mod convo_factory;
-
-
-
+pub mod queue;
 
 pub(crate) struct ConvoManager {
     pub(crate) convo_scheduler: ConvoScheduler,
-    orch_context: OrchContextRef
+    orch_context: OrchContextRef,
 }
 
 impl ConvoManager {
     pub(crate) fn new(orch_context: OrchContextRef) -> Self {
-        Self { convo_scheduler: ConvoScheduler::new(), orch_context }
+        Self {
+            convo_scheduler: ConvoScheduler::new(),
+            orch_context,
+        }
     }
-    
+
     pub(crate) fn get_convo_scheduler(&self) -> &ConvoScheduler {
         &self.convo_scheduler
     }
-    
+
     pub(crate) fn get_orch_context(&self) -> Arc<OrchContext> {
         self.orch_context.clone()
     }
 }
-

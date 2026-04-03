@@ -1,10 +1,13 @@
 use crate::convo_manager::OrchContextRef;
-use crate::globals::{get_explorer_timeout, TIMEOUT};
-use crate::logging_utils::{log_internal, LogTarget};
-use crate::orchestrator::conversations::PossibleExpectedKinds::ExplorerToOrchKind;
-use crate::orchestrator::conversations::{ChannelsContext, CommonErrorTypes, Conversation, ErrorState, ExplorerCommunicator, PossibleExpectedKinds, PossibleMessage};
-use crate::orchestrator::conversations::{EntitiesIDTuple, UiCommunicator};
+use crate::globals::{TIMEOUT, get_explorer_timeout};
+use crate::logging_utils::{LogTarget, log_internal};
 use crate::orchestrator::ChannelsManagerRef;
+use crate::orchestrator::conversations::PossibleExpectedKinds::ExplorerToOrchKind;
+use crate::orchestrator::conversations::{
+    ChannelsContext, CommonErrorTypes, Conversation, ErrorState, ExplorerCommunicator,
+    PossibleExpectedKinds, PossibleMessage,
+};
+use crate::orchestrator::conversations::{EntitiesIDTuple, UiCommunicator};
 use crate::ui::OrchestratorToUiUpdate;
 use crate::{create_request_state, create_response_state, define_conversation, payload};
 use common_game::logging::Channel;
@@ -24,7 +27,6 @@ use std::time::Duration;
 ///
 /// The conversation flow starts by sending a request to the explorer to get the planet supported combinations and terminates once the
 /// [`ExplorerToOrchestrator::SupportedCombinationResult`] is received and processed.
-
 
 // --- SUPPORTED COMBINATION CONVERSATION ---
 define_conversation!(
@@ -57,25 +59,29 @@ create_request_state!(
 /// [`ErrorState`] with [`CommonErrorTypes::ExplorerSenderNotFound`] if the communication channel is missing.
 ///
 /// The next state: [`SupportedCombinationConversation<WaitingSupportedCombinationResult>`] if the request was sent successfully.
-fn send_supp_comb_req_transition(this: Box<SupportedCombinationConversation<SendingSupportedCombinationRequest>>) -> Option<Box<dyn Conversation + Send + Sync>> {
-    match this
-        .state
-        .to_explorer(this.state.explorer_id, OrchestratorToExplorer::SupportedCombinationRequest)
-    {
+fn send_supp_comb_req_transition(
+    this: Box<SupportedCombinationConversation<SendingSupportedCombinationRequest>>,
+) -> Option<Box<dyn Conversation + Send + Sync>> {
+    match this.state.to_explorer(
+        this.state.explorer_id,
+        OrchestratorToExplorer::SupportedCombinationRequest,
+    ) {
         Ok(()) => {
-            let state_struct = WaitingSupportedCombinationResult::new(this.state.orch_context,  this.state.explorer_id);
-            let next_conv = SupportedCombinationConversation::<
-                WaitingSupportedCombinationResult,
-            >::new(
-                this.id, state_struct,
+            let state_struct = WaitingSupportedCombinationResult::new(
+                this.state.orch_context,
+                this.state.explorer_id,
             );
+            let next_conv =
+                SupportedCombinationConversation::<WaitingSupportedCombinationResult>::new(
+                    this.id,
+                    state_struct,
+                );
             Some(Box::new(next_conv))
         }
 
         Err(err) => {
             let error_state = ErrorState::new(Box::new(err), this.id);
-            Some(Box::new(error_state)
-                as Box<dyn Conversation + Send + Sync>)
+            Some(Box::new(error_state) as Box<dyn Conversation + Send + Sync>)
         }
     }
 }
@@ -98,8 +104,6 @@ create_response_state!(
     },
 );
 
-
-
 /// Transition Function for [`WaitingSupportedCombinationResult`] state:
 ///
 /// Returns:
@@ -108,22 +112,26 @@ create_response_state!(
 ///
 /// [`ErrorState`] with [`CommonErrorTypes::WrongMessage`] if the received message does not match the expected result kind.
 /// [`ErrorState`] with [`CommonErrorTypes::MessageToUiFailed`] if update to the UI failed
-fn wait_supp_comb_res_transition(this: Box<SupportedCombinationConversation<WaitingSupportedCombinationResult>>, msg: Option<PossibleMessage>) -> Option<Box<dyn Conversation + Send + Sync>> {
-
+fn wait_supp_comb_res_transition(
+    this: Box<SupportedCombinationConversation<WaitingSupportedCombinationResult>>,
+    msg: Option<PossibleMessage>,
+) -> Option<Box<dyn Conversation + Send + Sync>> {
     if let Some(PossibleMessage::ExplorerToOrch(
-                    ExplorerToOrchestrator::SupportedCombinationResult {
-                        explorer_id,
-                        combination_list,
-                    },
+        ExplorerToOrchestrator::SupportedCombinationResult {
+            explorer_id,
+            combination_list,
+        },
     )) = msg
     {
         let combinations_log = format!("{combination_list:?}");
 
         //Try sending update to the UI
-        return match this.state.to_ui(OrchestratorToUiUpdate::SupportedCombinations(
-            explorer_id,
-            combination_list,
-        )) {
+        return match this
+            .state
+            .to_ui(OrchestratorToUiUpdate::SupportedCombinations(
+                explorer_id,
+                combination_list,
+            )) {
             Ok(()) => {
                 log_internal(
                     LogTarget::Conversations,
@@ -136,27 +144,26 @@ fn wait_supp_comb_res_transition(this: Box<SupportedCombinationConversation<Wait
                     ),
                 );
                 None
-            },
+            }
 
             Err(err) => {
                 log_internal(
                     LogTarget::Conversations,
                     Channel::Warning,
                     payload!(
-                            action : "Failed to send Supported Combination to UI",
-                            explorer_id : explorer_id,
-                            conversation_id : this.id
-                        ),
+                        action : "Failed to send Supported Combination to UI",
+                        explorer_id : explorer_id,
+                        conversation_id : this.id
+                    ),
                 );
                 let error_state = ErrorState::new(Box::new(err), this.id);
-                Some(Box::new(error_state)
-                    as Box<dyn Conversation + Send + Sync>)
+                Some(Box::new(error_state) as Box<dyn Conversation + Send + Sync>)
             }
         };
     }
 
     //Wrong Message, close conversation
-    let error_state = ErrorState::new(Box::new(CommonErrorTypes::WrongMessage),this.id);
+    let error_state = ErrorState::new(Box::new(CommonErrorTypes::WrongMessage), this.id);
     Some(Box::new(error_state) as Box<dyn Conversation + Send + Sync>)
 }
 

@@ -1,4 +1,3 @@
-
 use crate::ui::{OrchestratorToUiUpdate, UiToOrchestratorCommand};
 use common_explorer::ExplorerBagContent;
 use common_game::protocols::orchestrator_explorer::{
@@ -82,9 +81,7 @@ impl PlanetsChannels {
     }
 
     fn get_orch_to_planet_rcv(&self, planet_id: ID) -> Option<Receiver<OrchestratorToPlanet>> {
-        self.to_planet_receivers
-            .get(&planet_id).map(|s| s.clone())
-
+        self.to_planet_receivers.get(&planet_id).map(|s| s.clone())
     }
 
     fn get_planet_to_orch_sender(&self) -> Sender<PlanetToOrchestrator> {
@@ -107,7 +104,10 @@ impl PlanetsChannels {
     }
 
     fn get_planet_list(&self) -> Vec<ID> {
-        self.to_planet_senders.iter().map(|entry| *entry.key()).collect()
+        self.to_planet_senders
+            .iter()
+            .map(|entry| *entry.key())
+            .collect()
     }
 }
 
@@ -135,8 +135,7 @@ impl ExplorersChannels {
     }
 
     fn set_orch_to_explorer_sender(&self, explorer_id: ID, sender: Sender<OrchestratorToExplorer>) {
-        self.to_explorer_senders
-            .insert(explorer_id, sender);
+        self.to_explorer_senders.insert(explorer_id, sender);
     }
 
     fn set_orch_to_explorer_rcv(
@@ -144,8 +143,7 @@ impl ExplorersChannels {
         explorer_id: ID,
         receiver: Receiver<OrchestratorToExplorer>,
     ) {
-        self.to_explorer_receivers
-            .insert(explorer_id, receiver);
+        self.to_explorer_receivers.insert(explorer_id, receiver);
     }
 
     fn get_orch_to_explorer_sender(
@@ -153,7 +151,8 @@ impl ExplorersChannels {
         explorer_id: ID,
     ) -> Option<Sender<OrchestratorToExplorer>> {
         self.to_explorer_senders
-            .get(&explorer_id).map(|s| s.clone())
+            .get(&explorer_id)
+            .map(|s| s.clone())
     }
 
     fn get_orch_to_explorer_rcv(
@@ -161,7 +160,8 @@ impl ExplorersChannels {
         explorer_id: ID,
     ) -> Option<Receiver<OrchestratorToExplorer>> {
         self.to_explorer_receivers
-            .get(&explorer_id).map(|s| s.clone())
+            .get(&explorer_id)
+            .map(|s| s.clone())
     }
 
     fn get_from_explorers_rcv(&self) -> Receiver<ExplorerToOrchestrator<ExplorerBagContent>> {
@@ -172,7 +172,10 @@ impl ExplorersChannels {
     }
 
     fn get_explorer_list(&self) -> Vec<ID> {
-        self.to_explorer_senders.iter().map(|entry| *entry.key()).collect()
+        self.to_explorer_senders
+            .iter()
+            .map(|entry| *entry.key())
+            .collect()
     }
 }
 
@@ -197,41 +200,40 @@ impl PlanetExplorerChannels {
     }
 
     fn set_planet_to_exp_sender(&self, exp_id: ID, sender: Sender<PlanetToExplorer>) {
-        self.planet_to_explorer_senders
-            .insert(exp_id, sender);
+        self.planet_to_explorer_senders.insert(exp_id, sender);
     }
     fn set_planet_to_exp_rcv(&self, exp_id: ID, rcv: Receiver<PlanetToExplorer>) {
-        self.planet_to_explorer_receivers
-            .insert(exp_id, rcv);
+        self.planet_to_explorer_receivers.insert(exp_id, rcv);
     }
     fn set_exp_to_planet_sender(&self, planet_id: ID, sender: Sender<ExplorerToPlanet>) {
-        self.explorer_to_planet_senders
-            .insert(planet_id, sender);
+        self.explorer_to_planet_senders.insert(planet_id, sender);
     }
     fn set_exp_to_planet_rcv(&self, planet_id: ID, rcv: Receiver<ExplorerToPlanet>) {
-        self.explorer_to_planet_receivers
-            .insert(planet_id, rcv);
+        self.explorer_to_planet_receivers.insert(planet_id, rcv);
     }
 
     fn get_planet_to_exp_sender(&self, exp_id: ID) -> Option<Sender<PlanetToExplorer>> {
         self.planet_to_explorer_senders
-            .get(&exp_id).map(|s| s.clone())
+            .get(&exp_id)
+            .map(|s| s.clone())
     }
 
     fn get_planet_to_exp_rcv(&self, exp_id: ID) -> Option<Receiver<PlanetToExplorer>> {
         self.planet_to_explorer_receivers
-            .get(&exp_id).map(|s| s.clone())
+            .get(&exp_id)
+            .map(|s| s.clone())
     }
 
     fn get_exp_to_planet_sender(&self, planet_id: ID) -> Option<Sender<ExplorerToPlanet>> {
         self.explorer_to_planet_senders
-            .get(&planet_id).map(|s| s.clone())
-
+            .get(&planet_id)
+            .map(|s| s.clone())
     }
 
     fn get_exp_to_planet_rcv(&self, planet_id: ID) -> Option<Receiver<ExplorerToPlanet>> {
         self.explorer_to_planet_receivers
-            .get(&planet_id).map(|s| s.clone())
+            .get(&planet_id)
+            .map(|s| s.clone())
     }
 }
 #[derive(Clone)]

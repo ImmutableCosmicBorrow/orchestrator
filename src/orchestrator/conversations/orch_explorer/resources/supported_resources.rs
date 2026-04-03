@@ -1,10 +1,14 @@
 use crate::convo_manager::OrchContextRef;
-use crate::globals::{get_explorer_timeout, TIMEOUT};
-use crate::logging_utils::{log_internal, LogTarget};
-use crate::orchestrator::conversations::PossibleExpectedKinds::ExplorerToOrchKind;
-use crate::orchestrator::conversations::{ChannelsContext, CommonErrorTypes, Conversation, ErrorState, ExplorerCommunicator, PossibleExpectedKinds, PossibleMessage};
-use crate::orchestrator::conversations::{EntitiesIDTuple, UiCommunicator};
+use crate::globals::{TIMEOUT, get_explorer_timeout};
+use crate::id::PlanetKind::Orbitron;
+use crate::logging_utils::{LogTarget, log_internal};
 use crate::orchestrator::ChannelsManagerRef;
+use crate::orchestrator::conversations::PossibleExpectedKinds::ExplorerToOrchKind;
+use crate::orchestrator::conversations::{
+    ChannelsContext, CommonErrorTypes, Conversation, ErrorState, ExplorerCommunicator,
+    PossibleExpectedKinds, PossibleMessage,
+};
+use crate::orchestrator::conversations::{EntitiesIDTuple, UiCommunicator};
 use crate::ui::OrchestratorToUiUpdate;
 use crate::{create_request_state, create_response_state, define_conversation, payload};
 use common_game::logging::Channel;
@@ -14,7 +18,6 @@ use common_game::protocols::orchestrator_explorer::{
 use common_game::utils::ID;
 use std::ops::Mul;
 use std::time::Duration;
-use crate::id::PlanetKind::Orbitron;
 
 ///**Supported Resources Conversation**
 ///
@@ -57,26 +60,28 @@ create_request_state!(
 /// [`ErrorState`] with [`CommonErrorTypes::ExplorerSenderNotFound`] if the communication channel is missing.
 ///
 /// The next state: [`SupportedResourcesConversation<WaitingSupportedResourcesResult>`] if the request was sent successfully.
-fn send_supp_resources_req_transition(this: Box<SupportedResourcesConversation<SendingSupportedResourcesRequest>>) -> Option<Box<dyn Conversation + Send + Sync>> {
-    match this
-        .state
-        .to_explorer(this.state.explorer_id, OrchestratorToExplorer::SupportedResourceRequest)
-    {
+fn send_supp_resources_req_transition(
+    this: Box<SupportedResourcesConversation<SendingSupportedResourcesRequest>>,
+) -> Option<Box<dyn Conversation + Send + Sync>> {
+    match this.state.to_explorer(
+        this.state.explorer_id,
+        OrchestratorToExplorer::SupportedResourceRequest,
+    ) {
         Ok(()) => {
-            let state_struct = WaitingSupportedResourcesResult::new(this.state.orch_context, this.state.explorer_id);
-            let next_conv =
-                SupportedResourcesConversation::<WaitingSupportedResourcesResult>::new(
-                    this.id,
-                    state_struct,
-                );
+            let state_struct = WaitingSupportedResourcesResult::new(
+                this.state.orch_context,
+                this.state.explorer_id,
+            );
+            let next_conv = SupportedResourcesConversation::<WaitingSupportedResourcesResult>::new(
+                this.id,
+                state_struct,
+            );
             Some(Box::new(next_conv))
         }
-        
+
         Err(err) => {
-            
             let error_state = ErrorState::new(Box::new(err), this.id);
-            Some(Box::new(error_state)
-                as Box<dyn Conversation + Send + Sync>)
+            Some(Box::new(error_state) as Box<dyn Conversation + Send + Sync>)
         }
     }
 }
@@ -99,21 +104,23 @@ create_response_state!(
     },
 );
 
-
 /// Transition Function for [`WaitingSupportedResourcesResult`] state:
 ///
 /// Returns:
 ///
 /// [None] if the [`ExplorerToOrchestrator::SupportedResourceResult`] is successfully received, closing the conversation.
 ///
-/// [`ErrorState`] with [`CommonErrorTypes::WrongMessage`] if the received message does not match the expected result kind. 
+/// [`ErrorState`] with [`CommonErrorTypes::WrongMessage`] if the received message does not match the expected result kind.
 /// [`ErrorState`] with [`CommonErrorTypes::MessageToUiFailed`] if update to the UI failed
-fn wait_supp_resources_res_transition(this: Box<SupportedResourcesConversation<WaitingSupportedResourcesResult>>, msg: Option<PossibleMessage>) -> Option<Box<dyn Conversation + Send + Sync>> {
+fn wait_supp_resources_res_transition(
+    this: Box<SupportedResourcesConversation<WaitingSupportedResourcesResult>>,
+    msg: Option<PossibleMessage>,
+) -> Option<Box<dyn Conversation + Send + Sync>> {
     if let Some(PossibleMessage::ExplorerToOrch(
-                    ExplorerToOrchestrator::SupportedResourceResult {
-                        explorer_id,
-                        supported_resources,
-                    },
+        ExplorerToOrchestrator::SupportedResourceResult {
+            explorer_id,
+            supported_resources,
+        },
     )) = msg
     {
         let resources_log = format!("{supported_resources:?}");
@@ -136,21 +143,20 @@ fn wait_supp_resources_res_transition(this: Box<SupportedResourcesConversation<W
                     ),
                 );
                 None
-            },
+            }
 
             Err(err) => {
                 log_internal(
                     LogTarget::Conversations,
                     Channel::Warning,
                     payload!(
-                            action : "Failed to send Supported Resources to UI",
-                            explorer_id : explorer_id,
-                            conversation_id : this.id
-                        ),
+                        action : "Failed to send Supported Resources to UI",
+                        explorer_id : explorer_id,
+                        conversation_id : this.id
+                    ),
                 );
                 let error_state = ErrorState::new(Box::new(err), this.id);
-                Some(Box::new(error_state)
-                    as Box<dyn Conversation + Send + Sync>)
+                Some(Box::new(error_state) as Box<dyn Conversation + Send + Sync>)
             }
         };
     }

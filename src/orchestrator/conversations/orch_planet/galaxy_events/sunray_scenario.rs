@@ -1,20 +1,24 @@
 use crate::convo_manager::OrchContextRef;
 use crate::globals::TIMEOUT;
-use crate::logging_utils::{log_internal, LogTarget};
+use crate::logging_utils::{LogTarget, log_internal};
+use crate::orchestrator::ChannelsManagerRef;
 use crate::orchestrator::conversations::EntitiesIDTuple;
 use crate::orchestrator::conversations::PossibleExpectedKinds::PlanetToOrchKind;
-use crate::orchestrator::conversations::{ChannelsContext, CommonErrorTypes, Conversation, ErrorState, PlanetCommunicator, PossibleExpectedKinds, PossibleMessage, };
-use crate::orchestrator::ChannelsManagerRef;
+use crate::orchestrator::conversations::{
+    ChannelsContext, CommonErrorTypes, Conversation, ErrorState, PlanetCommunicator,
+    PossibleExpectedKinds, PossibleMessage,
+};
 use crate::{create_request_state, create_response_state, define_conversation, payload};
 use common_game::logging::Channel;
-use common_game::protocols::orchestrator_planet::{OrchestratorToPlanet, PlanetToOrchestrator, PlanetToOrchestratorKind};
+use common_game::protocols::orchestrator_planet::{
+    OrchestratorToPlanet, PlanetToOrchestrator, PlanetToOrchestratorKind,
+};
 use common_game::utils::ID;
 use std::time::Duration;
 
 /// Default timeout duration for waiting for a Sunray acknowledgment.
 /// The planet should respond quickly to sunray events.
 const SUNRAY_ACK_TIMEOUT: Duration = Duration::from_secs(5);
-
 
 // --- CONVERSATION FSM WRAPPER DEFINITION ---
 
@@ -39,7 +43,6 @@ create_request_state!(
     },
 );
 
-
 /// Transition Function for [`SendSunray`] state:
 ///
 /// Returns:
@@ -49,7 +52,9 @@ create_request_state!(
 /// [`ErrorState`] with [`CommonErrorTypes::PlanetSenderNotFound`] if the sender to the planet is not in the list
 ///
 /// The next state: [`SunrayConversation<WaitingSunrayAck>`] if the sunray was sent successfully.
-fn send_sunray_transition(this: Box<SunrayConversation<SendSunray>>) -> Option<Box<dyn Conversation + Send + Sync>> {
+fn send_sunray_transition(
+    this: Box<SunrayConversation<SendSunray>>,
+) -> Option<Box<dyn Conversation + Send + Sync>> {
     let sunray = this.state.orch_context.forge.generate_sunray();
     match this
         .state
@@ -63,14 +68,11 @@ fn send_sunray_transition(this: Box<SunrayConversation<SendSunray>>) -> Option<B
             Some(Box::new(next_conv) as Box<dyn Conversation + Send + Sync>)
         }
         Err(err) => {
-
             let error_state = ErrorState::new(Box::new(err), this.id);
-            Some(Box::new(error_state)
-                as Box<dyn Conversation + Send + Sync>)
+            Some(Box::new(error_state) as Box<dyn Conversation + Send + Sync>)
         }
     }
 }
-
 
 // --- WAIT SUNRAY ACK STATE DEFINITION ---
 
@@ -97,18 +99,20 @@ create_response_state!(
 /// [None] if the [`PlanetToOrchestrator::SunrayAck`] is successfully received, ending the conversation.
 ///
 /// [`ErrorState`] with [`CommonErrorTypes::WrongMessage`] if the trigger message is different from the expected one.
-fn wait_sunray_ack_transition(this: Box<SunrayConversation<WaitingSunrayAck>>, msg: Option<PossibleMessage>) -> Option<Box<dyn Conversation + Send + Sync>> {
-    if let Some(PossibleMessage::PlanetToOrch(PlanetToOrchestrator::SunrayAck { planet_id })) =
-        msg
+fn wait_sunray_ack_transition(
+    this: Box<SunrayConversation<WaitingSunrayAck>>,
+    msg: Option<PossibleMessage>,
+) -> Option<Box<dyn Conversation + Send + Sync>> {
+    if let Some(PossibleMessage::PlanetToOrch(PlanetToOrchestrator::SunrayAck { planet_id })) = msg
     {
         log_internal(
             LogTarget::AsteroidsSunrays,
             Channel::Trace,
             payload!(
-                    action : "Planet received the Sunray, closing conversation",
-                    planet_id : planet_id,
-                    conversation_id : this.id
-                ),
+                action : "Planet received the Sunray, closing conversation",
+                planet_id : planet_id,
+                conversation_id : this.id
+            ),
         );
         return None;
     }
@@ -126,11 +130,11 @@ fn on_timeout(this: Box<SunrayConversation<WaitingSunrayAck>>) {
         LogTarget::AsteroidsSunrays,
         Channel::Warning,
         payload!(
-                action : "Sunray conversation timed out waiting for planet acknowledgment",
-                planet_id : this.state.planet_id,
-                conversation_id : this.id,
-                timeout_secs : SUNRAY_ACK_TIMEOUT.as_secs()
-            ),
+            action : "Sunray conversation timed out waiting for planet acknowledgment",
+            planet_id : this.state.planet_id,
+            conversation_id : this.id,
+            timeout_secs : SUNRAY_ACK_TIMEOUT.as_secs()
+        ),
     );
 }
 

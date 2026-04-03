@@ -41,7 +41,6 @@ create_request_state!(
     },
 );
 
-
 /// ### Transition Function: Initiating the Acquisition
 ///
 /// This function performs the critical handshake setup by resolving communication
@@ -60,12 +59,14 @@ create_request_state!(
 /// * **Communication Errors**: If the planet sender is missing or the channel is
 ///   closed, it transitions to [`ErrorState`] with either [`PlanetSenderNotFound`]
 ///   or [`IncomingMessageFailed`].
-fn send_incoming_req_transition(this: Box<MoveToPlanetConversation<SendIncomingRequest>>) -> Option<Box<dyn Conversation + Send + Sync>> {
-    
+fn send_incoming_req_transition(
+    this: Box<MoveToPlanetConversation<SendIncomingRequest>>,
+) -> Option<Box<dyn Conversation + Send + Sync>> {
     //Try to get the sender to the explorer to give to the p,anet that will host the explorer
     if let Some(sender) = this.state.get_plan_to_explorer_sender() {
         // Try to initiate the handshake with the destination planet
-        return match this.state.to_planet(this.state.dst_planet_id,
+        return match this.state.to_planet(
+            this.state.dst_planet_id,
             OrchestratorToPlanet::IncomingExplorerRequest {
                 explorer_id: this.state.explorer_id,
                 new_sender: sender,
@@ -78,19 +79,16 @@ fn send_incoming_req_transition(this: Box<MoveToPlanetConversation<SendIncomingR
                     this.state.curr_planet_id,
                     this.state.dst_planet_id,
                 );
-                
-                let new_state = MoveToPlanetConversation::<WaitingIncomingResponse>::new(
-                    this.id,
-                    state_struct,
-                );
+
+                let new_state =
+                    MoveToPlanetConversation::<WaitingIncomingResponse>::new(this.id, state_struct);
                 Some(Box::new(new_state))
             }
 
             //Sender to planet not found or message failed
             Err(err) => {
                 let error_state = ErrorState::new(Box::new(err), this.id);
-                Some(Box::new(error_state)
-                    as Box<dyn Conversation + Send + Sync>)
+                Some(Box::new(error_state) as Box<dyn Conversation + Send + Sync>)
             }
         };
     }
@@ -107,7 +105,8 @@ fn send_incoming_req_transition(this: Box<MoveToPlanetConversation<SendIncomingR
 
 impl SendIncomingRequest {
     fn get_plan_to_explorer_sender(&self) -> Option<Sender<PlanetToExplorer>> {
-        self.get_channels_manager().get_planet_to_exp_sender(self.explorer_id)
+        self.get_channels_manager()
+            .get_planet_to_exp_sender(self.explorer_id)
     }
 }
 
@@ -130,8 +129,6 @@ create_response_state!(
 
     },
 );
-
-
 
 /// ### Transition Function: Processing Acquisition Results
 ///
@@ -157,14 +154,15 @@ create_response_state!(
 ///   transitions to an error state.
 /// * **Protocol Violation**: If a message other than the acquisition response is
 ///   received, transitions to [`CommonErrorTypes::WrongMessage`].
-fn wait_incoming_res_transition(this: Box<MoveToPlanetConversation<WaitingIncomingResponse>>, msg: Option<PossibleMessage>) -> Option<Box<dyn Conversation + Send + Sync>> {
-    if let Some(PossibleMessage::PlanetToOrch(
-                    PlanetToOrchestrator::IncomingExplorerResponse {
-                        planet_id: _planet_id,
-                        explorer_id: _explorer_id,
-                        res,
-                    },
-    )) = msg
+fn wait_incoming_res_transition(
+    this: Box<MoveToPlanetConversation<WaitingIncomingResponse>>,
+    msg: Option<PossibleMessage>,
+) -> Option<Box<dyn Conversation + Send + Sync>> {
+    if let Some(PossibleMessage::PlanetToOrch(PlanetToOrchestrator::IncomingExplorerResponse {
+        planet_id: _planet_id,
+        explorer_id: _explorer_id,
+        res,
+    })) = msg
     {
         return if res.is_ok() {
             //Explorer comes from another planet, transition to SendOutgoingRequest
@@ -179,9 +177,7 @@ fn wait_incoming_res_transition(this: Box<MoveToPlanetConversation<WaitingIncomi
                 let next_state =
                     MoveToPlanetConversation::<SendOutgoingRequest>::new(this.id, state_struct);
                 Some(Box::new(next_state))
-
             } else {
-
                 let state = SendMoveRequest::new(
                     this.state.orch_context,
                     this.state.dst_planet_id,
@@ -189,11 +185,11 @@ fn wait_incoming_res_transition(this: Box<MoveToPlanetConversation<WaitingIncomi
                     true,
                 );
                 //transition to SendMoveRequest
-                let next_state =
-                    MoveToPlanetConversation::<SendMoveRequest>::new(this.id, state);
+                let next_state = MoveToPlanetConversation::<SendMoveRequest>::new(this.id, state);
                 Some(Box::new(next_state))
             }
-        } else { //Incoming Request has failed, transitioning to SendMoveRequest with flag is_explorer_moving to false
+        } else {
+            //Incoming Request has failed, transitioning to SendMoveRequest with flag is_explorer_moving to false
 
             let state = SendMoveRequest::new(
                 this.state.orch_context,
@@ -202,8 +198,7 @@ fn wait_incoming_res_transition(this: Box<MoveToPlanetConversation<WaitingIncomi
                 false,
             );
             //transition to SendMoveRequest
-            let next_state =
-                MoveToPlanetConversation::<SendMoveRequest>::new(this.id, state);
+            let next_state = MoveToPlanetConversation::<SendMoveRequest>::new(this.id, state);
             Some(Box::new(next_state))
         };
     }
@@ -211,4 +206,3 @@ fn wait_incoming_res_transition(this: Box<MoveToPlanetConversation<WaitingIncomi
     let error_state = ErrorState::new(Box::new(CommonErrorTypes::WrongMessage), this.id);
     Some(Box::new(error_state) as Box<dyn Conversation + Send + Sync>)
 }
-

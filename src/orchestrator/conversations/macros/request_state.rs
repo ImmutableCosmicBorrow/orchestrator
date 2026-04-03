@@ -1,5 +1,3 @@
-
-
 //Macro for defining request states (don't expect any message)
 #[macro_export]
 macro_rules! create_request_state {
@@ -30,14 +28,14 @@ macro_rules! create_request_state {
                 }
             }
         }
-        
+
         impl ChannelsContext for $state {
             fn get_channels_manager(&self) -> ChannelsManagerRef {
                 self.orch_context.channels_manager.clone()
             }
         }
-        
-        
+
+
 
         impl Conversation for $conv<$state> {
             fn get_id(&self) -> ID { self.id }
