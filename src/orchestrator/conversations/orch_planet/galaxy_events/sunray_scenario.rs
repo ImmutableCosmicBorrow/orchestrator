@@ -1,15 +1,14 @@
-use crate::orchestrator::conversations::EntitiesIDTuple;
+use crate::convo_manager::OrchContextRef;
 use crate::globals::TIMEOUT;
 use crate::logging_utils::{log_internal, LogTarget};
+use crate::orchestrator::conversations::EntitiesIDTuple;
 use crate::orchestrator::conversations::PossibleExpectedKinds::PlanetToOrchKind;
-use crate::orchestrator::conversations::{ChannelsContext, CommonErrorTypes, Conversation, ErrorState, PlanetCommunicator, PlanetContext, PossibleExpectedKinds, PossibleMessage, ToPlanetError, };
+use crate::orchestrator::conversations::{ChannelsContext, CommonErrorTypes, Conversation, ErrorState, PlanetCommunicator, PossibleExpectedKinds, PossibleMessage, };
 use crate::orchestrator::ChannelsManagerRef;
 use crate::{create_request_state, create_response_state, define_conversation, payload};
-use common_game::components::forge::Forge;
 use common_game::logging::Channel;
 use common_game::protocols::orchestrator_planet::{OrchestratorToPlanet, PlanetToOrchestrator, PlanetToOrchestratorKind};
 use common_game::utils::ID;
-use std::sync::Arc;
 use std::time::Duration;
 
 /// Default timeout duration for waiting for a Sunray acknowledgment.
@@ -31,9 +30,7 @@ create_request_state!(
     timeout: Some(TIMEOUT),
     expected_msg: None,
     fields: {
-        channels_manager: ChannelsManagerRef,
         planet_id: ID,
-        forge: Arc<Forge>,
     },
     entities_id_fn: |this: &SunrayConversation<SendSunray>| { (Some(this.state.planet_id), None) },
     transition_fn: send_sunray_transition,
@@ -42,17 +39,6 @@ create_request_state!(
     },
 );
 
-impl PlanetContext for SendSunray {
-    fn get_planet_id(&self) -> ID {
-        self.planet_id
-    }
-}
-
-impl ChannelsContext for SendSunray {
-    fn get_channels_manager(&self) -> &ChannelsManagerRef {
-        &self.channels_manager
-    }
-}
 
 /// Transition Function for [`SendSunray`] state:
 ///
@@ -64,15 +50,15 @@ impl ChannelsContext for SendSunray {
 ///
 /// The next state: [`SunrayConversation<WaitingSunrayAck>`] if the sunray was sent successfully.
 fn send_sunray_transition(this: Box<SunrayConversation<SendSunray>>) -> Option<Box<dyn Conversation + Send + Sync>> {
-    let sunray = this.state.forge.generate_sunray();
+    let sunray = this.state.orch_context.forge.generate_sunray();
     match this
         .state
-        .to_planet(OrchestratorToPlanet::Sunray(sunray))
+        .to_planet(this.state.planet_id, OrchestratorToPlanet::Sunray(sunray))
     {
         //Correctly message sending
         Ok(()) => {
             let planet_id = this.state.planet_id;
-            let next_state = WaitingSunrayAck::new(planet_id);
+            let next_state = WaitingSunrayAck::new(this.state.orch_context, planet_id);
             let next_conv = SunrayConversation::<WaitingSunrayAck>::new(this.id, next_state);
             Some(Box::new(next_conv) as Box<dyn Conversation + Send + Sync>)
         }

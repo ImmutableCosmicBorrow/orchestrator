@@ -6,7 +6,7 @@ use crate::orchestrator::log_internal;
 use crate::payload;
 
 impl ConvoManager {
-    pub(crate) fn handle_message(&mut self, message: PossibleMessage) {
+    pub(crate) fn handle_message(&self, message: PossibleMessage) {
         let message_kind = message.to_kind_type();
         let entities_ids = message.get_entity_ids();
         let convo_id = self

@@ -1,17 +1,15 @@
+use crate::convo_manager::OrchContextRef;
+use crate::globals::TIMEOUT;
+use crate::logging_utils::{log_internal, LogTarget};
 use crate::orchestrator::conversations::EntitiesIDTuple;
-use crate::orchestrator::Duration;
-use crate::logging_utils::{LogTarget, log_internal};
-use crate::orchestrator::{ChannelsManagerRef, ExplorerBagContent};
 use crate::orchestrator::conversations::PossibleExpectedKinds::PlanetToOrchKind;
-use crate::orchestrator::conversations::{ChannelsContext, CommonErrorTypes, Conversation, ErrorState, PlanetCommunicator, PlanetContext, PossibleExpectedKinds, PossibleMessage, ToPlanetError};
+use crate::orchestrator::conversations::{ChannelsContext, CommonErrorTypes, Conversation, ErrorState, PlanetCommunicator, PossibleExpectedKinds, PossibleMessage};
+use crate::orchestrator::Duration;
+use crate::orchestrator::ChannelsManagerRef;
 use crate::{create_request_state, create_response_state, define_conversation, payload};
 use common_game::logging::Channel;
-use common_game::protocols::orchestrator_planet::PlanetToOrchestratorKind::StartPlanetAIResult;
 use common_game::protocols::orchestrator_planet::{OrchestratorToPlanet, PlanetToOrchestrator, PlanetToOrchestratorKind};
 use common_game::utils::ID;
-use crate::globals::TIMEOUT;
-use crate::orchestrator::conversations::orch_planet::lifecycle::internal_state_scenario::SendingInternalStateRequest;
-use crate::orchestrator::conversations::orch_planet::lifecycle::kill_planet::WaitingPlanetKillResult;
 
 ///**Start Planet Conversation**
 ///
@@ -40,7 +38,6 @@ create_request_state!(
     timeout: Some(TIMEOUT),
     expected_msg: None,
     fields: {
-        channels_manager: ChannelsManagerRef,
         planet_id: ID,
     },
     entities_id_fn: |this: &StartPlanetConversation<SendingPlanetStart>| { (Some(this.state.planet_id), None) },
@@ -50,25 +47,13 @@ create_request_state!(
     },
 );
 
-impl PlanetContext for SendingPlanetStart {
-    fn get_planet_id(&self) -> ID {
-        self.planet_id
-    }
-}
-
-impl ChannelsContext for SendingPlanetStart {
-    fn get_channels_manager(&self) -> &ChannelsManagerRef {
-        &self.channels_manager
-    }
-}
-
 fn send_planet_start_transition(this: Box<StartPlanetConversation<SendingPlanetStart>>) -> Option<Box<dyn Conversation + Send + Sync>> {
     match this
         .state
-        .to_planet(OrchestratorToPlanet::StartPlanetAI)
+        .to_planet(this.state.planet_id, OrchestratorToPlanet::StartPlanetAI)
     {
         Ok(()) => {
-            let next_state = WaitingPlanetStartResult::new(this.state.planet_id);
+            let next_state = WaitingPlanetStartResult::new(this.state.orch_context, this.state.planet_id);
             let next_conv =
                 StartPlanetConversation::<WaitingPlanetStartResult>::new(this.id, next_state);
             Some(Box::new(next_conv))
@@ -98,12 +83,6 @@ create_response_state!(
 
     },
 );
-
-impl PlanetContext for WaitingPlanetStartResult {
-    fn get_planet_id(&self) -> ID {
-        self.planet_id
-    }
-}
 
 /// Transition Function for [`WaitingPlanetStartResult`] state:
 ///

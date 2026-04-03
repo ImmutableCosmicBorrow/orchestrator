@@ -22,7 +22,7 @@ macro_rules! define_conversation {
 }
 
 
-//Macro to look for specific behaviors in the settings block
+//Macro to look for specific behaviors in the settings block, overriding the default behaviors of the trait
 #[macro_export]
 macro_rules! conversation_settings_dispatcher {
     (error_details, $logic:expr) => {

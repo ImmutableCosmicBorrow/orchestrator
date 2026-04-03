@@ -1,5 +1,3 @@
-use chrono::Duration;
-use crate::orchestrator::conversations::{EntitiesIDTuple, PossibleExpectedKinds};
 
 #[macro_export]
 macro_rules! create_response_state {
@@ -17,15 +15,23 @@ macro_rules! create_response_state {
     ) => {
         pub(crate) struct $state {
             expected_msg: PossibleExpectedKinds,
+            orch_context: OrchContextRef,
             $($field: $type),*
         }
 
         impl $state {
-            pub(crate) fn new($($field: $type),*) -> Self {
+            pub(crate) fn new(orch_context: OrchContextRef, $($field: $type),*) -> Self {
                 Self {
                     $($field,)*
                     expected_msg: $expected_msg,
+                    orch_context,
                 }
+            }
+        }
+
+        impl ChannelsContext for $state {
+            fn get_channels_manager(&self) -> ChannelsManagerRef {
+                self.orch_context.channels_manager.clone()
             }
         }
 

@@ -1,20 +1,20 @@
-use crate::orchestrator::conversations::{EntitiesIDTuple, UiCommunicator};
+use crate::convo_manager::OrchContextRef;
 use crate::globals::{get_explorer_timeout, TIMEOUT};
-use crate::logging_utils::{LogTarget, log_internal};
-use crate::orchestrator::{ChannelsManagerRef, ExplorerBagContent};
-use crate::orchestrator::conversations::{ChannelsContext, CommonErrorTypes, Conversation, ErrorState, ExplorerCommunicator, ExplorerContext, PossibleExpectedKinds, PossibleMessage, ToExplorerError};
-use crate::{create_request_state, create_response_state, define_conversation, payload};
+use crate::logging_utils::{log_internal, LogTarget};
+use crate::orchestrator::conversations::PossibleExpectedKinds::ExplorerToOrchKind;
+use crate::orchestrator::conversations::{ChannelsContext, CommonErrorTypes, Conversation, ErrorState, ExplorerCommunicator, PossibleExpectedKinds, PossibleMessage};
+use crate::orchestrator::conversations::{EntitiesIDTuple, UiCommunicator};
+use crate::orchestrator::ChannelsManagerRef;
 use crate::ui::OrchestratorToUiUpdate;
+use crate::{create_request_state, create_response_state, define_conversation, payload};
 use common_game::logging::Channel;
 use common_game::protocols::orchestrator_explorer::{
     ExplorerToOrchestrator, ExplorerToOrchestratorKind, OrchestratorToExplorer,
 };
 use common_game::utils::ID;
-use crossbeam_channel::Sender;
 use std::ops::Mul;
 use std::time::Duration;
-use crate::orchestrator::conversations::orch_explorer::resources::supported_combination::{SendingSupportedCombinationRequest, WaitingSupportedCombinationResult};
-use crate::orchestrator::conversations::PossibleExpectedKinds::ExplorerToOrchKind;
+use crate::id::PlanetKind::Orbitron;
 
 ///**Supported Resources Conversation**
 ///
@@ -39,7 +39,6 @@ create_request_state!(
     timeout: Some(TIMEOUT),
     expected_msg: None,
     fields: {
-        channels_manager: ChannelsManagerRef,
         explorer_id: ID,
     },
     entities_id_fn: |this: &SupportedResourcesConversation<SendingSupportedResourcesRequest>| { (None, Some(this.state.explorer_id)) },
@@ -48,18 +47,6 @@ create_request_state!(
 
     },
 );
-
-impl ExplorerContext for SendingSupportedResourcesRequest {
-    fn get_explorer_id(&self) -> ID {
-        self.explorer_id
-    }
-}
-
-impl ChannelsContext for SendingSupportedResourcesRequest {
-    fn get_channels_manager(&self) -> &ChannelsManagerRef {
-        &self.channels_manager
-    }
-}
 
 /// Transition Function for [`SendingSupportedResourcesRequest`] state:
 ///
@@ -73,10 +60,10 @@ impl ChannelsContext for SendingSupportedResourcesRequest {
 fn send_supp_resources_req_transition(this: Box<SupportedResourcesConversation<SendingSupportedResourcesRequest>>) -> Option<Box<dyn Conversation + Send + Sync>> {
     match this
         .state
-        .to_explorer(OrchestratorToExplorer::SupportedResourceRequest)
+        .to_explorer(this.state.explorer_id, OrchestratorToExplorer::SupportedResourceRequest)
     {
         Ok(()) => {
-            let state_struct = WaitingSupportedResourcesResult::new(this.state.channels_manager, this.state.explorer_id);
+            let state_struct = WaitingSupportedResourcesResult::new(this.state.orch_context, this.state.explorer_id);
             let next_conv =
                 SupportedResourcesConversation::<WaitingSupportedResourcesResult>::new(
                     this.id,
@@ -103,7 +90,6 @@ create_response_state!(
     timeout: Some(get_explorer_timeout().mul(2)),
     expected_msg: ExplorerToOrchKind(ExplorerToOrchestratorKind::SupportedResourceResult),
     fields: {
-        channels_manager: ChannelsManagerRef,
         explorer_id: ID,
     },
     entities_id_closure: |this: &SupportedResourcesConversation<WaitingSupportedResourcesResult>| { (None, Some(this.state.explorer_id)) },
@@ -113,20 +99,6 @@ create_response_state!(
     },
 );
 
-impl ExplorerContext for WaitingSupportedResourcesResult {
-    fn get_explorer_id(&self) -> ID {
-        self.explorer_id
-    }
-}
-
-impl ChannelsContext for WaitingSupportedResourcesResult {
-    fn get_channels_manager(&self) -> &ChannelsManagerRef {
-        &self.channels_manager
-    }
-}
-
-// Use default behavior for sending UI messages
-impl UiCommunicator for WaitingSupportedResourcesResult {}
 
 /// Transition Function for [`WaitingSupportedResourcesResult`] state:
 ///

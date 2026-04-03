@@ -1,8 +1,9 @@
+use crate::convo_manager::OrchContextRef;
 use crate::orchestrator::conversations::EntitiesIDTuple;
 use crate::globals::{get_explorer_timeout, TIMEOUT};
 use crate::logging_utils::{log_internal, LogTarget};
 use crate::orchestrator::conversations::PossibleExpectedKinds::ExplorerToOrchKind;
-use crate::orchestrator::conversations::{ChannelsContext, CommonErrorTypes, Conversation, ErrorState, ExplorerCommunicator, ExplorerContext, PossibleExpectedKinds, PossibleMessage};
+use crate::orchestrator::conversations::{ChannelsContext, CommonErrorTypes, Conversation, ErrorState, ExplorerCommunicator, PossibleExpectedKinds, PossibleMessage};
 use crate::orchestrator::ChannelsManagerRef;
 use crate::{create_request_state, create_response_state, define_conversation, payload};
 use common_game::logging::Channel;
@@ -38,7 +39,6 @@ create_request_state!(
     timeout: Some(TIMEOUT),
     expected_msg: None,
     fields: {
-        channels_manager: ChannelsManagerRef,
         explorer_id: ID,
     },
     entities_id_fn: |this: &StartExplorerConversation<SendingExplorerStart>| { (None, Some(this.state.explorer_id)) },
@@ -48,17 +48,7 @@ create_request_state!(
     },
 );
 
-impl ExplorerContext for SendingExplorerStart {
-    fn get_explorer_id(&self) -> ID {
-        self.explorer_id
-    }
-}
 
-impl ChannelsContext for SendingExplorerStart {
-    fn get_channels_manager(&self) -> &ChannelsManagerRef {
-        &self.channels_manager
-    }
-}
 
 /// Transition Function for [`SendingExplorerStart`] state:
 ///
@@ -72,10 +62,11 @@ impl ChannelsContext for SendingExplorerStart {
 fn send_explorer_start_transition(this: Box<StartExplorerConversation<SendingExplorerStart>>) -> Option<Box<dyn Conversation + Send + Sync>> {
     match this
         .state
-        .to_explorer(OrchestratorToExplorer::StartExplorerAI)
+        .to_explorer(this.state.explorer_id, OrchestratorToExplorer::StartExplorerAI)
     {
         Ok(()) => {
             let next_state = WaitingExplorerStartResult::new(
+                this.state.orch_context,
                 this.state.explorer_id
             );
             let next_conv = StartExplorerConversation::<WaitingExplorerStartResult>::new(
@@ -110,13 +101,6 @@ create_response_state!(
     },
 );
 
-
-
-impl ExplorerContext for WaitingExplorerStartResult {
-    fn get_explorer_id(&self) -> ID {
-        self.explorer_id
-    }
-}
 
 /// Transition Function for [`WaitingExplorerStartResult`] state:
 ///

@@ -1,20 +1,18 @@
-use crate::orchestrator::conversations::{EntitiesIDTuple, ExplorerCommunicator, UiCommunicator};
+use crate::convo_manager::OrchContextRef;
 use crate::globals::{get_explorer_timeout, TIMEOUT};
-use crate::logging_utils::{LogTarget, log_internal};
-use crate::orchestrator::conversations::{ChannelsContext, CommonErrorTypes, Conversation, ErrorState, ExplorerContext, PossibleExpectedKinds, PossibleMessage, ToExplorerError};
-use crate::{create_request_state, create_response_state, define_conversation, payload};
+use crate::logging_utils::{log_internal, LogTarget};
+use crate::orchestrator::conversations::PossibleExpectedKinds::ExplorerToOrchKind;
+use crate::orchestrator::conversations::{ChannelsContext, CommonErrorTypes, Conversation, ErrorState, PossibleExpectedKinds, PossibleMessage};
+use crate::orchestrator::conversations::{EntitiesIDTuple, ExplorerCommunicator, UiCommunicator};
+use crate::orchestrator::ChannelsManagerRef;
 use crate::ui::OrchestratorToUiUpdate;
-use common_explorer::ExplorerBagContent;
+use crate::{create_request_state, create_response_state, define_conversation, payload};
 use common_game::logging::Channel;
 use common_game::protocols::orchestrator_explorer::{
     ExplorerToOrchestrator, ExplorerToOrchestratorKind, OrchestratorToExplorer,
 };
 use common_game::utils::ID;
-use crossbeam_channel::Sender;
 use std::time::Duration;
-use crate::orchestrator::ChannelsManagerRef;
-use crate::orchestrator::conversations::orch_explorer::lifecycle::start_explorer::{SendingExplorerStart, WaitingExplorerStartResult};
-use crate::orchestrator::conversations::PossibleExpectedKinds::ExplorerToOrchKind;
 
 ///**Bag Content Conversation**
 ///
@@ -38,7 +36,6 @@ create_request_state!(
     timeout: Some(TIMEOUT),
     expected_msg: None,
     fields: {
-        channels_manager: ChannelsManagerRef,
         explorer_id: ID,
     },
     entities_id_fn: |this: &BagContentConversation<SendingBagContentRequest>| { (None, Some(this.state.explorer_id)) },
@@ -48,17 +45,6 @@ create_request_state!(
     },
 );
 
-impl ExplorerContext for SendingBagContentRequest {
-    fn get_explorer_id(&self) -> ID {
-        self.explorer_id
-    }
-}
-
-impl ChannelsContext for SendingBagContentRequest {
-    fn get_channels_manager(&self) -> &ChannelsManagerRef {
-        &self.channels_manager
-    }
-}
 
 /// Transition Function for [`SendingBagContentRequest`] state:
 ///
@@ -72,10 +58,10 @@ impl ChannelsContext for SendingBagContentRequest {
 fn send_bag_content_req_transition(this: Box<BagContentConversation<SendingBagContentRequest>>) -> Option<Box<dyn Conversation + Send + Sync>> {
     match this
         .state
-        .to_explorer(OrchestratorToExplorer::BagContentRequest)
+        .to_explorer(this.state.explorer_id, OrchestratorToExplorer::BagContentRequest)
     {
         Ok(()) => {
-            let next_state = WaitingBagContentResponse::new(this.state.explorer_id, this.state.channels_manager.clone());
+            let next_state = WaitingBagContentResponse::new(this.state.orch_context, this.state.explorer_id);
             let next_conv = BagContentConversation::<WaitingBagContentResponse>::new(
                 this.id,
                 next_state
@@ -100,7 +86,6 @@ create_response_state!(
     expected_msg: ExplorerToOrchKind(ExplorerToOrchestratorKind::BagContentResponse),
     fields: {
         explorer_id: ID,
-        channels_manager: ChannelsManagerRef
     },
     entities_id_closure: |this: &BagContentConversation<WaitingBagContentResponse>| { (None, Some(this.state.explorer_id)) },
     transition: wait_bag_content_res_transition,
@@ -109,22 +94,6 @@ create_response_state!(
     },
 );
 
-
-
-impl ExplorerContext for WaitingBagContentResponse {
-    fn get_explorer_id(&self) -> ID {
-        self.explorer_id
-    }
-}
-
-impl ChannelsContext for WaitingBagContentResponse {
-    fn get_channels_manager(&self) -> &ChannelsManagerRef {
-        &self.channels_manager
-    }
-}
-
-// Use default behavior to send messages to UI
-impl UiCommunicator for WaitingBagContentResponse {}
 
 /// Transition Function for [`WaitingBagContentResponse`] state:
 ///

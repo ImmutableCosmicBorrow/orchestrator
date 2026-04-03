@@ -1,19 +1,18 @@
-use crate::orchestrator::conversations::EntitiesIDTuple;
+use crate::convo_manager::OrchContextRef;
 use crate::globals::TIMEOUT;
 use crate::logging_utils::{log_internal, LogTarget};
 use crate::orchestrator::conversations::orch_planet::lifecycle::kill_planet::{
     KillPlanetConversation, SendPlanetKill,
 };
-use crate::orchestrator::conversations::{ChannelsContext, CommonErrorTypes, Conversation, ErrorState, PlanetCommunicator, PlanetContext, PossibleExpectedKinds, PossibleMessage, ToPlanetError};
-use crate::orchestrator::{ChannelsManagerRef, ExplorersLocationRef};
+use crate::orchestrator::conversations::EntitiesIDTuple;
+use crate::orchestrator::conversations::{ChannelsContext, CommonErrorTypes, Conversation, ErrorState, PlanetCommunicator, PossibleExpectedKinds, PossibleMessage};
+use crate::orchestrator::ChannelsManagerRef;
 use crate::{create_request_state, create_response_state, define_conversation, payload};
-use common_game::components::forge::Forge;
 use common_game::logging::Channel;
 use common_game::protocols::orchestrator_planet::{
     OrchestratorToPlanet, PlanetToOrchestrator, PlanetToOrchestratorKind,
 };
 use common_game::utils::ID;
-use std::sync::Arc;
 use std::time::Duration;
 
 /// Default timeout duration for waiting for an Asteroid acknowledgment.
@@ -30,28 +29,14 @@ create_request_state!(
     priority: 4,
     timeout: Some(TIMEOUT),
     expected_msg: None,
-    fields: { 
-        channels_manager: ChannelsManagerRef,
+    fields: {
         planet_id: ID,
-        forge: Arc<Forge>,
-        explorers_location_ref: ExplorersLocationRef,
     },
     entities_id_fn: |this: &AsteroidConversation<SendingAsteroid>| { return (Some(this.state.planet_id), None) },
     transition_fn: sending_asteroid_transition,
     methods_settings: { },
 );
 
-impl PlanetContext for SendingAsteroid {
-    fn get_planet_id(&self) -> ID {
-        self.planet_id
-    }
-}
-
-impl ChannelsContext for SendingAsteroid {
-    fn get_channels_manager(&self) -> &ChannelsManagerRef {
-        &self.channels_manager
-    }
-}
 
 ///Transition Function for [`SendingAsteroid`] state:
 ///
@@ -63,14 +48,15 @@ impl ChannelsContext for SendingAsteroid {
 ///
 /// [`AsteroidConversation<WaitingAsteroidAck>`] if the asteroid has been correctly sent, going to the next state
 fn sending_asteroid_transition(this: Box<AsteroidConversation<SendingAsteroid>>) -> Option<Box<dyn Conversation + Send + Sync>> {
-    let asteroid = this.state.forge.generate_asteroid();
-    match this.state.to_planet(OrchestratorToPlanet::Asteroid(asteroid))
+    
+    let asteroid = this.state.orch_context.forge.generate_asteroid();    
+    match this.state.to_planet(this.state.planet_id, OrchestratorToPlanet::Asteroid(asteroid))
     {
         Ok(()) => {
             let state_struct = WaitingAsteroidAck::new(
-                this.state.channels_manager,
+                this.state.orch_context,
                 this.state.planet_id,
-                this.state.explorers_location_ref,
+                
             );
             let next_state =
                 AsteroidConversation::<WaitingAsteroidAck>::new(this.id, state_struct);
@@ -92,23 +78,12 @@ create_response_state!(
     priority: 4,
     timeout: Some(ASTEROID_ACK_TIMEOUT),
     expected_msg: PossibleExpectedKinds::PlanetToOrchKind(PlanetToOrchestratorKind::AsteroidAck),
-    fields: { channels_manager: ChannelsManagerRef, planet_id: ID, explorers_location_ref: ExplorersLocationRef },
+    fields: { planet_id: ID},
     entities_id_closure: |this: &AsteroidConversation<WaitingAsteroidAck>| { return (Some(this.state.planet_id), None) },
     transition: waiting_asteroid_ack_transition,
     methods_settings: { },
 );
 
-impl PlanetContext for WaitingAsteroidAck {
-    fn get_planet_id(&self) -> ID {
-        self.planet_id
-    }
-}
-
-impl ChannelsContext for WaitingAsteroidAck {
-    fn get_channels_manager(&self) -> &ChannelsManagerRef {
-        &self.channels_manager
-    }
-}
 
 
 ///Transition Function for [`WaitingAsteroidAck`] state:
@@ -153,9 +128,8 @@ fn waiting_asteroid_ack_transition(this: Box<AsteroidConversation<WaitingAsteroi
         let new_state = KillPlanetConversation::<SendPlanetKill>::new(
             this.id,
             SendPlanetKill::new(
-                this.state.channels_manager,
+                this.state.orch_context,
                 this.state.planet_id,
-                this.state.explorers_location_ref,
             ),
         );
         return Some(Box::new(new_state) as Box<dyn Conversation + Send + Sync>);

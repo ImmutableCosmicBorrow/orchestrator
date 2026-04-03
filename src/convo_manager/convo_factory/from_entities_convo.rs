@@ -8,7 +8,7 @@ use crate::payload;
 
 impl ConvoManager {
     pub(crate) fn try_create_conversation(
-        &mut self,
+        &self,
         message: &PossibleMessage,
         message_kind: &PossibleExpectedKinds,
         entities_ids: (Option<ID>, Option<ID>),

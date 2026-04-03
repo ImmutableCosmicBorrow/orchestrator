@@ -1,8 +1,9 @@
+use crate::convo_manager::OrchContextRef;
 use std::ops::Mul;
 use crate::globals::{get_explorer_timeout, TIMEOUT};
 use crate::logging_utils::{log_internal, LogTarget};
 use crate::orchestrator::conversations::PossibleExpectedKinds::ExplorerToOrchKind;
-use crate::orchestrator::conversations::{ChannelsContext, CommonErrorTypes, Conversation, ErrorState, ErrorType, ExplorerContext, PossibleExpectedKinds, PossibleMessage};
+use crate::orchestrator::conversations::{ChannelsContext, CommonErrorTypes, Conversation, ErrorState, ErrorType, PossibleExpectedKinds, PossibleMessage};
 use crate::orchestrator::conversations::{EntitiesIDTuple, ExplorerCommunicator};
 use crate::orchestrator::ChannelsManagerRef;
 use crate::{create_request_state, create_response_state, define_conversation, payload};
@@ -58,7 +59,6 @@ create_request_state!(
     timeout: Some(TIMEOUT),
     expected_msg: None,
     fields: {
-        channels_manager: ChannelsManagerRef,
         explorer_id: ID,
         to_combine: ComplexResourceType
     },
@@ -69,18 +69,6 @@ create_request_state!(
     },
 );
 
-impl ExplorerContext for SendingCombineResourceRequest {
-    fn get_explorer_id(&self) -> ID {
-        self.explorer_id
-    }
-}
-
-impl ChannelsContext for SendingCombineResourceRequest {
-    fn get_channels_manager(&self) -> &ChannelsManagerRef {
-        &self.channels_manager
-    }
-}
-
 /// Transition Function for [`SendingCombineResourceRequest`] state:
 ///
 /// Returns:
@@ -89,14 +77,14 @@ impl ChannelsContext for SendingCombineResourceRequest {
 ///
 /// [`CombineResourceConversation<WaitingCombineResourceResult>`] if the request was sent successfully.
 fn send_comb_resource_req_transition(this: Box<CombineResourceConversation<SendingCombineResourceRequest>>) -> Option<Box<dyn Conversation + Send + Sync>> {
-    match this.state.to_explorer(
+    match this.state.to_explorer(this.state.explorer_id,
         OrchestratorToExplorer::CombineResourceRequest {
             to_generate: this.state.to_combine,
         },
     ) {
         Ok(()) => {
             let state_struct =
-                WaitingCombineResourceResult::new(this.state.explorer_id, this.state.to_combine);
+                WaitingCombineResourceResult::new(this.state.orch_context, this.state.explorer_id, this.state.to_combine);
             let next_conv = CombineResourceConversation::<WaitingCombineResourceResult>::new(
                 this.id,
                 state_struct,
@@ -129,12 +117,6 @@ create_response_state!(
 
     },
 );
-
-impl ExplorerContext for WaitingCombineResourceResult {
-    fn get_explorer_id(&self) -> ID {
-        self.explorer_id
-    }
-}
 
 /// Transition Function for [`WaitingCombineResourceResult`] state:
 ///

@@ -1,24 +1,19 @@
 use crate::id::IdManager;
-use crate::logging_utils::{LogTarget, log_internal};
+use crate::logging_utils::{log_internal, LogTarget};
 use crate::payload;
-use crate::planet::{PlanetMap, add_planet_with_neighbors};
+use crate::planet::{add_planet_with_neighbors, PlanetMap};
 
 use crate::id::PlanetKind;
 use common_game::logging::Channel;
-use common_game::protocols::orchestrator_planet::OrchestratorToPlanet;
 use common_game::utils::ID;
 
-use crossbeam_channel::Sender;
-
-use crate::channels_manager::ChannelsManager;
+use crate::orchestrator::ChannelsManagerRef;
 use std::collections::HashMap;
 use std::path::Path;
 use std::thread;
 use std::thread::JoinHandle;
-use crate::orchestrator::ChannelsManagerRef;
 
 // Planets are removed from PlanetMap and stopped via OrchestratorToPlanet message.
-pub(crate) type OrchPlanSenderMap = HashMap<ID, Sender<OrchestratorToPlanet>>;
 /// Holds handles so the orchestrator can join or inspect planet threads if needed.
 pub(crate) type PlanetThreadMap = HashMap<ID, JoinHandle<()>>;
 
@@ -29,11 +24,11 @@ pub(crate) fn spawn_planet_with_channels(
     planet_id: ID,
 ) -> JoinHandle<()> {
     //create Orchestrator to Planet channels
-    let (_tx_orch_in, rx_orch_in) = channels_manager.read().unwrap().create_orch_to_planet_channel(planet_id);
+    let (_tx_orch_in, rx_orch_in) = channels_manager.create_orch_to_planet_channel(planet_id);
     //create Explorer to Planet channel (fix the receiver for the planet)
-    let (_tx_expl_in, rx_expl_in) = channels_manager.read().unwrap().create_exp_to_planet_channel(planet_id);
+    let (_tx_expl_in, rx_expl_in) = channels_manager.create_exp_to_planet_channel(planet_id);
     //get the sender to send messages to the Orchestrator
-    let tx_orch_out = channels_manager.read().unwrap().get_from_planets_sender();
+    let tx_orch_out = channels_manager.get_from_planets_sender();
 
     let planet_res = match IdManager::planet_kind(planet_id) {
         PlanetKind::Trip => crate::planet_factory::create_trip_planet(

@@ -77,7 +77,7 @@ pub(super) fn background_events_guard() -> BackgroundEventsGuard {
 }
 
 pub(super) fn init_background_event_scheduler(
-    convo_manager: Arc<Mutex<ConvoManager>>,
+    convo_manager: Arc<ConvoManager>,
 ) {
     scheduler::init_background_event_scheduler(
         convo_manager

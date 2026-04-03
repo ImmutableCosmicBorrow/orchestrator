@@ -1,9 +1,11 @@
-use crate::orchestrator::conversations::EntitiesIDTuple;
+use crate::convo_manager::OrchContextRef;
 use crate::globals::{get_explorer_timeout, TIMEOUT};
-use crate::logging_utils::{LogTarget, log_internal};
-use crate::orchestrator::conversations::{ChannelsContext, CommonErrorTypes, Conversation, ErrorState, ErrorType, ExplorerCommunicator, ExplorerContext, PossibleExpectedKinds, PossibleMessage, ToExplorerError};
+use crate::logging_utils::{log_internal, LogTarget};
+use crate::orchestrator::conversations::EntitiesIDTuple;
+use crate::orchestrator::conversations::PossibleExpectedKinds::ExplorerToOrchKind;
+use crate::orchestrator::conversations::{ChannelsContext, CommonErrorTypes, Conversation, ErrorState, ErrorType, ExplorerCommunicator, PossibleExpectedKinds, PossibleMessage};
+use crate::orchestrator::ChannelsManagerRef;
 use crate::{create_request_state, create_response_state, define_conversation, payload};
-use common_explorer::ExplorerBagContent;
 use common_game::components::resource::BasicResourceType;
 use common_game::logging::Channel;
 use common_game::protocols::orchestrator_explorer::{
@@ -12,9 +14,6 @@ use common_game::protocols::orchestrator_explorer::{
 use common_game::utils::ID;
 use std::ops::Mul;
 use std::time::Duration;
-use crate::orchestrator::ChannelsManagerRef;
-use crate::orchestrator::conversations::orch_explorer::resources::combine_resource::{SendingCombineResourceRequest, WaitingCombineResourceResult};
-use crate::orchestrator::conversations::PossibleExpectedKinds::ExplorerToOrchKind;
 
 ///**Craft Resource Conversation**
 ///
@@ -57,7 +56,6 @@ create_request_state!(
     timeout: Some(TIMEOUT),
     expected_msg: None,
     fields: {
-        channels_manager: ChannelsManagerRef,
         explorer_id: ID,
         to_craft: BasicResourceType,
     },
@@ -67,17 +65,6 @@ create_request_state!(
 
     },
 );
-impl ExplorerContext for SendingCraftResourceRequest {
-    fn get_explorer_id(&self) -> ID {
-        self.explorer_id
-    }
-}
-
-impl ChannelsContext for SendingCraftResourceRequest {
-    fn get_channels_manager(&self) -> &ChannelsManagerRef {
-        &self.channels_manager
-    }
-}
 
 /// Transition Function for [`SendingCraftResourceRequest`] state:
 ///
@@ -87,7 +74,7 @@ impl ChannelsContext for SendingCraftResourceRequest {
 ///
 /// [`CraftResourceConversation<WaitingCraftResourceResult>`] if the request was sent successfully.
 fn send_craft_resource_req_transition(this: Box<CraftResourceConversation<SendingCraftResourceRequest>>) -> Option<Box<dyn Conversation + Send + Sync>> {
-    match this.state.to_explorer(
+    match this.state.to_explorer(this.state.explorer_id,
         OrchestratorToExplorer::GenerateResourceRequest {
             to_generate: this.state.to_craft,
         },
@@ -95,7 +82,7 @@ fn send_craft_resource_req_transition(this: Box<CraftResourceConversation<Sendin
         Ok(()) => {
             
             let state_struct =
-                WaitingCraftResourceResult::new(this.state.explorer_id, this.state.to_craft);
+                WaitingCraftResourceResult::new(this.state.orch_context, this.state.explorer_id, this.state.to_craft);
             let next_conv = CraftResourceConversation::<WaitingCraftResourceResult>::new(
                 this.id,
                 state_struct,
@@ -129,11 +116,6 @@ create_response_state!(
     },
 );
 
-impl ExplorerContext for WaitingCraftResourceResult {
-    fn get_explorer_id(&self) -> ID {
-        self.explorer_id
-    }
-}
 
 /// Transition Function for [`WaitingCraftResourceResult`] state:
 ///

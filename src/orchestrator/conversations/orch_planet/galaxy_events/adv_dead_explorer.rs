@@ -1,8 +1,9 @@
+use crate::convo_manager::OrchContextRef;
 use crate::globals::TIMEOUT;
 use crate::logging_utils::{log_internal, LogTarget};
 use crate::orchestrator::conversations::EntitiesIDTuple;
 use crate::orchestrator::conversations::PossibleExpectedKinds::PlanetToOrchKind;
-use crate::orchestrator::conversations::{ChannelsContext, CommonErrorTypes, Conversation, ErrorState, ErrorType, PlanetCommunicator, PlanetContext, PossibleExpectedKinds, PossibleMessage};
+use crate::orchestrator::conversations::{ChannelsContext, CommonErrorTypes, Conversation, ErrorState, ErrorType, PlanetCommunicator, PossibleExpectedKinds, PossibleMessage};
 use crate::orchestrator::ChannelsManagerRef;
 use crate::{create_request_state, create_response_state, define_conversation, payload};
 use common_game::logging::Channel;
@@ -50,8 +51,7 @@ create_request_state!(
     priority: 4,
     timeout: Some(TIMEOUT),
     expected_msg: None,
-    fields: { 
-        channels_manager: ChannelsManagerRef,
+    fields: {
         planet_id: ID,
         dead_explorer_id: ID,
     },
@@ -59,19 +59,6 @@ create_request_state!(
     transition_fn: send_dead_exp_adv_transition,
     methods_settings: { },
 );
-
-impl PlanetContext for SendingDeadExpAdv {
-    fn get_planet_id(&self) -> ID {
-        self.planet_id
-    }
-}
-
-impl ChannelsContext for SendingDeadExpAdv {
-    fn get_channels_manager(&self) -> &ChannelsManagerRef {
-        &self.channels_manager
-    }
-}
-
 
 /// Transition Function for [`SendingDeadExpAdv`] state:
 ///
@@ -83,12 +70,12 @@ impl ChannelsContext for SendingDeadExpAdv {
 fn send_dead_exp_adv_transition(this: Box<AdvDeadExplorer<SendingDeadExpAdv>>) -> Option<Box<dyn Conversation + Send + Sync>> {
     match this
         .state
-        .to_planet(OrchestratorToPlanet::OutgoingExplorerRequest {
+        .to_planet(this.state.planet_id,OrchestratorToPlanet::OutgoingExplorerRequest {
             explorer_id: this.state.planet_id,
         }) {
         Ok(()) => {
             let planet_id = this.state.planet_id;
-            let state_struct = WaitingDeadAdvResponse::new(planet_id);
+            let state_struct = WaitingDeadAdvResponse::new(this.state.orch_context, planet_id);
             let next_state =
                 AdvDeadExplorer::<WaitingDeadAdvResponse>::new(this.id, state_struct);
             Some(Box::new(next_state))
@@ -117,13 +104,6 @@ create_response_state!(
     transition: wait_dead_adv_response_transition,
     methods_settings: {},
 );
-
-impl PlanetContext for WaitingDeadAdvResponse {
-    fn get_planet_id(&self) -> ID {
-        self.planet_id
-    }
-}
-
 
 /// Transition Function for [`WaitingDeadAdvResponse`] state:
 ///

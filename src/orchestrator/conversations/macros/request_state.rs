@@ -1,6 +1,4 @@
-use chrono::Duration;
-use crate::orchestrator::conversations::{PossibleExpectedKinds, PossibleMessage, ErrorState, CommonErrorTypes, EntitiesIDTuple};
-use crate::orchestrator::ExplorerBagContent;
+
 
 //Macro for defining request states (don't expect any message)
 #[macro_export]
@@ -11,25 +9,35 @@ macro_rules! create_request_state {
         priority: $pri:expr,
         timeout: $timeout:expr,
         expected_msg: $expected_msg:expr,
-        fields: { $($field:ident : $type:ty),* $(,)? },//Takes the field specified and builds the state struct
+        fields: { $($field:ident : $type:ty),* $(,)? }, //Takes the field specified and builds the state struct
         entities_id_fn: $entities_id_logic:expr,
-        transition_fn:  $transition_logic:expr,//Takes a closure that is the transition function fo the state
+        transition_fn:  $transition_logic:expr, //Takes a closure that is the transition function fo the state
         methods_settings: { $($key:ident : $logic:expr),* },
 
     ) => {
         pub(crate) struct $state {
             expected_msg: Option<PossibleExpectedKinds>,
+            orch_context: OrchContextRef,
             $($field: $type),*
         }
 
         impl $state {
-            pub(crate) fn new($($field: $type),*) -> Self {
+            pub(crate) fn new(orch_context: OrchContextRef, $($field: $type),*) -> Self {
                 Self {
                     $($field,)*
                     expected_msg: $expected_msg,
+                    orch_context,
                 }
             }
         }
+        
+        impl ChannelsContext for $state {
+            fn get_channels_manager(&self) -> ChannelsManagerRef {
+                self.orch_context.channels_manager.clone()
+            }
+        }
+        
+        
 
         impl Conversation for $conv<$state> {
             fn get_id(&self) -> ID { self.id }

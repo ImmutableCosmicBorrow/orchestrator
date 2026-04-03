@@ -1,3 +1,4 @@
+use crate::convo_manager::OrchContextRef;
 use crate::globals::get_explorer_timeout;
 use crate::logging_utils::{log_internal, LogTarget};
 use crate::orchestrator::conversations::orch_explorer::movement::move_to_planet::{
@@ -5,7 +6,7 @@ use crate::orchestrator::conversations::orch_explorer::movement::move_to_planet:
 };
 use crate::orchestrator::conversations::EntitiesIDTuple;
 use crate::orchestrator::conversations::PossibleExpectedKinds::ExplorerToOrchKind;
-use crate::orchestrator::conversations::{ChannelsContext, CommonErrorTypes, Conversation, ErrorState, ExplorerContext, PlanetContext, PossibleExpectedKinds, PossibleMessage};
+use crate::orchestrator::conversations::{ChannelsContext, CommonErrorTypes, Conversation, ErrorState, PossibleExpectedKinds, PossibleMessage};
 use crate::orchestrator::{ChannelsManagerRef, ExplorersLocationRef};
 use crate::planet::PlanetMap;
 use crate::{create_response_state, payload};
@@ -39,11 +40,8 @@ create_response_state!(
     timeout: Some(get_explorer_timeout()),
     expected_msg: ExplorerToOrchKind(ExplorerToOrchestratorKind::TravelToPlanetRequest),
     fields: {
-        channels_manager: ChannelsManagerRef,
         explorer_id: ID,
         curr_planet_id: ID,
-        galaxy: PlanetMap,
-        explorers_location: ExplorersLocationRef,
     },
     entities_id_closure: |this: &MoveToPlanetConversation<WaitingTravelRequest>| { (Some(this.state.curr_planet_id), Some(this.state.explorer_id)) },
     transition: wait_travel_req_transition,
@@ -51,23 +49,7 @@ create_response_state!(
 
     },
 );
-impl ExplorerContext for WaitingTravelRequest {
-    fn get_explorer_id(&self) -> ID {
-        self.explorer_id
-    }
-}
 
-impl ChannelsContext for WaitingTravelRequest {
-    fn get_channels_manager(&self) -> &ChannelsManagerRef {
-        &self.channels_manager
-    }
-}
-
-impl PlanetContext for WaitingTravelRequest {
-    fn get_planet_id(&self) -> ID {
-        self.curr_planet_id
-    }
-}
 
 impl WaitingTravelRequest {
     /// Accesses the Galaxy Map (thread-safe) to verify if the destination planet
@@ -75,7 +57,7 @@ impl WaitingTravelRequest {
     ///
     /// Returns `true` if they are neighbors, `false` otherwise.
     fn check_neighbors(&self, planet_1: ID, planet_2: ID) -> bool {
-        let galaxy = self.galaxy.read().unwrap();
+        let galaxy = self.orch_context.galaxy.read().unwrap();
         if let (Some(curr_planet_ref), Some(dst_planet_ref)) = (
             galaxy.get(&planet_1),
             galaxy.get(&planet_2),
@@ -105,11 +87,10 @@ fn wait_travel_req_transition(this: Box<MoveToPlanetConversation<WaitingTravelRe
         // Destination is reachable. Transition to notify the destination planet.
         if this.state.check_neighbors(current_planet_id, dst_planet_id) {
             let next_state = SendIncomingRequest::new(
-                this.state.channels_manager,
+                this.state.orch_context,
                 explorer_id,
                 Some(current_planet_id),
                 dst_planet_id,
-                this.state.explorers_location,
             );
             //logging
             log_internal(
@@ -130,10 +111,9 @@ fn wait_travel_req_transition(this: Box<MoveToPlanetConversation<WaitingTravelRe
 
         // Case 2: Destination unreachable. Transition to send a negative MoveToPlanet to the explorer
         let next_state = SendMoveRequest::new(
-            this.state.channels_manager,
+            this.state.orch_context,
             dst_planet_id,
             explorer_id,
-            this.state.explorers_location,
             false,
         );
         let next_conv = MoveToPlanetConversation::<SendMoveRequest>::new(this.id, next_state);

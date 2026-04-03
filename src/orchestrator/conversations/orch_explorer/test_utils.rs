@@ -1,6 +1,5 @@
 #[cfg(test)]
 use crate::channels_manager::OrchToExplorerSenders;
-use crate::channels_manager::OrchToPlanetSenders;
 #[cfg(test)]
 use common_game::protocols::orchestrator_explorer::OrchestratorToExplorer;
 use common_game::utils::ID;
@@ -12,7 +11,7 @@ pub(crate) struct MakeSendersResult(
 );
 
 // --- Helper functions ---
-#[cfg(test)]
+/*#[cfg(test)]
 pub(crate) fn make_senders_with(explorer_id: ID) -> MakeSendersResult {
     use std::{
         collections::HashMap,
@@ -33,6 +32,8 @@ pub(crate) fn make_empty_senders() -> OrchToExplorerSenders {
 
     Arc::new(Mutex::new(HashMap::new()))
 }
+
+ */
 /*
 #[cfg(test)]
 pub(crate) fn make_to_explorer_struct(

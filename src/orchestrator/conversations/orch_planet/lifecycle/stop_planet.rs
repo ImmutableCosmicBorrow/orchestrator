@@ -2,9 +2,9 @@ use crate::globals::TIMEOUT;
 use crate::logging_utils::{log_internal, LogTarget};
 use crate::orchestrator::conversations::EntitiesIDTuple;
 use crate::orchestrator::conversations::PossibleExpectedKinds::PlanetToOrchKind;
-use crate::orchestrator::conversations::{ChannelsContext, CommonErrorTypes, Conversation, ErrorState, PlanetCommunicator, PlanetContext, PossibleExpectedKinds, PossibleMessage};
+use crate::orchestrator::conversations::{ChannelsContext, CommonErrorTypes, Conversation, ErrorState, PlanetCommunicator, PossibleExpectedKinds, PossibleMessage};
 use crate::orchestrator::Duration;
-use crate::orchestrator::ChannelsManagerRef;
+use crate::orchestrator::{ChannelsManagerRef, OrchContextRef};
 use crate::{create_request_state, create_response_state, define_conversation, payload};
 use common_game::logging::Channel;
 use common_game::protocols::orchestrator_planet::{
@@ -39,7 +39,6 @@ create_request_state!(
     timeout: Some(TIMEOUT),
     expected_msg: None,
     fields: {
-        channels_manager: ChannelsManagerRef,
         planet_id: ID,
     },
     entities_id_fn: |this: &StopPlanetConversation<SendingPlanetStop>| { (Some(this.state.planet_id), None) },
@@ -50,17 +49,6 @@ create_request_state!(
 );
 
 
-impl PlanetContext for SendingPlanetStop {
-    fn get_planet_id(&self) -> ID {
-        self.planet_id
-    }
-}
-
-impl ChannelsContext for SendingPlanetStop{
-    fn get_channels_manager(&self) -> &ChannelsManagerRef {
-        &self.channels_manager
-    }
-}
 /// Transition Function for [`SendingPlanetStop`] state:
 ///
 /// Returns:
@@ -73,11 +61,11 @@ impl ChannelsContext for SendingPlanetStop{
 fn send_planet_stop_transition(this: Box<StopPlanetConversation<SendingPlanetStop>>) -> Option<Box<dyn Conversation + Send + Sync>> {
     match this
         .state
-        .to_planet(OrchestratorToPlanet::StopPlanetAI)
+        .to_planet(this.state.planet_id, OrchestratorToPlanet::StopPlanetAI)
     {
         Ok(()) => {
                 
-            let next_state = WaitingPlanetStopResult::new(this.state.planet_id);
+            let next_state = WaitingPlanetStopResult::new(this.state.orch_context, this.state.planet_id);
             let next_conv = StopPlanetConversation::<WaitingPlanetStopResult>::new(this.id, next_state);
             Some(Box::new(next_conv))
     }
@@ -107,14 +95,6 @@ create_response_state!(
 
     },
 );
-
-
-
-impl PlanetContext for WaitingPlanetStopResult {
-    fn get_planet_id(&self) -> ID {
-        self.planet_id
-    }
-}
 
 /// Transition Function for [`WaitingPlanetStopResult`] state:
 ///

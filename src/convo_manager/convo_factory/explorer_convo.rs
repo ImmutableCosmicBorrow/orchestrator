@@ -1,26 +1,24 @@
-use common_game::components::resource::{BasicResourceType, ComplexResourceType};
-use common_game::logging::Channel;
-use common_game::utils::ID;
 use crate::convo_manager::ConvoManager;
-use crate::{get_id_manager, payload};
 use crate::logging_utils::{log_internal, LogTarget};
-use crate::orchestrator::{conversations, ChannelsManagerRef, ExplorersLocationRef};
 use crate::orchestrator::conversations::orch_explorer::lifecycle::kill_explorer::{KillExplorerConversation, SendingExplorerKill};
 use crate::orchestrator::conversations::orch_explorer::lifecycle::reset_explorer::{ResetExplorerConversation, SendingExplorerReset};
 use crate::orchestrator::conversations::orch_explorer::lifecycle::start_explorer::{SendingExplorerStart, StartExplorerConversation};
 use crate::orchestrator::conversations::orch_explorer::lifecycle::stop_explorer::{SendingExplorerStop, StopExplorerConversation};
 use crate::orchestrator::conversations::orch_explorer::movement::move_to_planet::manual_move_to_planet::SendManualMoveRequest;
-use crate::orchestrator::conversations::orch_explorer::movement::move_to_planet::MoveToPlanetConversation;
 use crate::orchestrator::conversations::orch_explorer::movement::move_to_planet::wait_travel_request::WaitingTravelRequest;
+use crate::orchestrator::conversations::orch_explorer::movement::move_to_planet::MoveToPlanetConversation;
 use crate::orchestrator::conversations::orch_explorer::movement::neighbors_discovery::{NeighborsDiscoveryConversation, WaitingNeighborsRequest};
 use crate::orchestrator::conversations::orch_explorer::resources::bag_content_scenario::{BagContentConversation, SendingBagContentRequest};
 use crate::orchestrator::conversations::orch_explorer::resources::combine_resource::{CombineResourceConversation, SendingCombineResourceRequest};
 use crate::orchestrator::conversations::orch_explorer::resources::craft_resource::{CraftResourceConversation, SendingCraftResourceRequest};
 use crate::orchestrator::conversations::orch_explorer::resources::supported_combination::{SendingSupportedCombinationRequest, SupportedCombinationConversation};
 use crate::orchestrator::conversations::orch_explorer::resources::supported_resources::{SendingSupportedResourcesRequest, SupportedResourcesConversation};
-use crate::planet::PlanetMap;
+use crate::orchestrator::conversations;
+use crate::{get_id_manager, payload};
+use common_game::components::resource::{BasicResourceType, ComplexResourceType};
+use common_game::logging::Channel;
+use common_game::utils::ID;
 
-//TODO: FIX TO USE ORCH CONTEXT
 
 impl ConvoManager {
 
@@ -30,9 +28,8 @@ impl ConvoManager {
     ) -> ID {
         let state =
             WaitingNeighborsRequest::new(
-                self.orch_context.channels_manager.clone(),
+                self.orch_context.clone(),
                 explorer_id,
-                self.orch_context.galaxy.clone(),
             );
 
         let id = get_id_manager().get_next_conversation_id();
@@ -66,11 +63,10 @@ impl ConvoManager {
 
 
         let state = SendManualMoveRequest::new(
-            self.orch_context.channels_manager.clone(),
+            self.orch_context.clone(),
             explorer_id,
             current_planet_id,
             dst_planet_id,
-            self.orch_context.explorers_location.clone(),
         );
 
         let id = get_id_manager().get_next_conversation_id();
@@ -103,11 +99,9 @@ impl ConvoManager {
     ) -> ID {
 
         let state = WaitingTravelRequest::new(
-            self.orch_context.channels_manager.clone(),
+            self.orch_context.clone(),
             explorer_id,
             current_planet_id,
-            self.orch_context.galaxy.clone(),
-            self.orch_context.explorers_location.clone(),
         );
 
         let id = get_id_manager().get_next_conversation_id();
@@ -138,7 +132,7 @@ impl ConvoManager {
         explorer_id: ID,
     ) -> ID {
         let state = SendingBagContentRequest::new(
-            self.orch_context.channels_manager.clone(),
+            self.orch_context.clone(),
             explorer_id,
         );
         let id = get_id_manager().get_next_conversation_id();
@@ -168,7 +162,7 @@ impl ConvoManager {
     ) -> ID {
 
         let state = SendingCraftResourceRequest::new(
-            self.orch_context.channels_manager.clone(),
+            self.orch_context.clone(),
             explorer_id,
             resource_type,
         );
@@ -201,7 +195,7 @@ impl ConvoManager {
         resource_type: ComplexResourceType,
     ) -> ID {
         let state = SendingCombineResourceRequest::new(
-            self.orch_context.channels_manager.clone(),
+            self.orch_context.clone(),
             explorer_id,
             resource_type,
         );
@@ -233,7 +227,7 @@ impl ConvoManager {
         explorer_id: ID,
     ) -> ID {
         let state = SendingExplorerStart::new(
-            self.orch_context.channels_manager.clone(),
+            self.orch_context.clone(),
             explorer_id,
         );
         let id = get_id_manager().get_next_conversation_id();
@@ -264,7 +258,7 @@ impl ConvoManager {
         explorer_id: ID,
     ) -> ID {
         let state = SendingExplorerStop::new(
-            self.orch_context.channels_manager.clone(),
+            self.orch_context.clone(),
             explorer_id,
         );
         let id = get_id_manager().get_next_conversation_id();
@@ -296,9 +290,9 @@ impl ConvoManager {
         handle_outgoing: bool,
     ) -> ID {
         let state = SendingExplorerKill::new(
-            self.orch_context.channels_manager.clone(),
+            self.orch_context.clone(),
             explorer_id,
-            self.orch_context.explorers_location.clone(),
+            planet_id,
             handle_outgoing,
         );
         let id = get_id_manager().get_next_conversation_id();
@@ -328,7 +322,7 @@ impl ConvoManager {
         explorer_id: ID,
     ) -> ID {
         let state = SendingExplorerReset::new(
-            self.orch_context.channels_manager.clone(),
+            self.orch_context.clone(),
             explorer_id,
         );
         let id = get_id_manager().get_next_conversation_id();
@@ -360,7 +354,7 @@ impl ConvoManager {
     ) -> ID {
         let state =
             SendingSupportedResourcesRequest::new(
-                self.orch_context.channels_manager.clone(),
+                self.orch_context.clone(),
                 explorer_id,
             );
         let id = get_id_manager().get_next_conversation_id();
@@ -391,7 +385,7 @@ impl ConvoManager {
     ) -> ID {
         let state =
             SendingSupportedCombinationRequest::new(
-                self.orch_context.channels_manager.clone(),
+                self.orch_context.clone(),
                 explorer_id,
             );
         let id = get_id_manager().get_next_conversation_id();

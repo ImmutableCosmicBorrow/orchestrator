@@ -1,25 +1,22 @@
-use crate::orchestrator::conversations::ExplorerCommunicator;
-use crate::orchestrator::conversations::EntitiesIDTuple;
+use crate::convo_manager::OrchContextRef;
 use crate::globals::{get_explorer_timeout, TIMEOUT};
-use crate::logging_utils::{LogTarget, log_internal};
-use crate::orchestrator::conversations::orch_explorer::movement::move_to_planet::{
-    MoveToPlanetConversation,
-};
-use crate::orchestrator::conversations::{ChannelsContext, CommonErrorTypes, Conversation, ErrorState, ErrorType, ExplorerContext, PlanetContext, PossibleExpectedKinds, PossibleMessage, ToExplorerError};
+use crate::logging_utils::{log_internal, LogTarget};
+use crate::orchestrator::conversations::orch_explorer::movement::move_to_planet::errors::MoveToPlanetErrors;
+use crate::orchestrator::conversations::orch_explorer::movement::move_to_planet::MoveToPlanetConversation;
+use crate::orchestrator::conversations::EntitiesIDTuple;
+use crate::orchestrator::conversations::ExplorerCommunicator;
+use crate::orchestrator::conversations::PossibleExpectedKinds::ExplorerToOrchKind;
+use crate::orchestrator::conversations::{ChannelsContext, CommonErrorTypes, Conversation, ErrorState, PossibleExpectedKinds, PossibleMessage};
+use crate::orchestrator::ChannelsManagerRef;
 use crate::{create_request_state, create_response_state, payload};
-use common_explorer::ExplorerBagContent;
 use common_game::logging::Channel;
-use common_game::protocols::orchestrator_explorer::{ExplorerToOrchestrator, ExplorerToOrchestratorKind};
 use common_game::protocols::orchestrator_explorer::ExplorerToOrchestratorKind::MovedToPlanetResult;
 use common_game::protocols::orchestrator_explorer::OrchestratorToExplorer::MoveToPlanet;
+use common_game::protocols::orchestrator_explorer::ExplorerToOrchestrator;
 use common_game::protocols::planet_explorer::ExplorerToPlanet;
 use common_game::utils::ID;
-use crossbeam_channel::{tick, Sender};
+use crossbeam_channel::Sender;
 use std::time::Duration;
-use crate::orchestrator::{ChannelsManagerRef, ExplorersLocationRef};
-use crate::orchestrator::conversations::orch_explorer::movement::move_to_planet::errors::MoveToPlanetErrors;
-use crate::orchestrator::conversations::orch_explorer::movement::move_to_planet::outgoing_explorer::SendOutgoingRequest;
-use crate::orchestrator::conversations::PossibleExpectedKinds::ExplorerToOrchKind;
 
 ///**Move To Planet Conversation - Send Move Request**
 ///
@@ -35,10 +32,8 @@ create_request_state!(
     timeout: Some(TIMEOUT),
     expected_msg: None,
     fields: {
-        channels_manager: ChannelsManagerRef,
         explorer_id: ID,
         dst_planet_id: ID,
-        explorers_location_ref: ExplorersLocationRef,
         is_explorer_moving: bool,
     },
     entities_id_fn: |this: &MoveToPlanetConversation<SendMoveRequest>  | { (Some(this.state.dst_planet_id), Some(this.state.explorer_id)) },
@@ -48,22 +43,6 @@ create_request_state!(
     },
 );
 
-impl ExplorerContext for SendMoveRequest {
-    fn get_explorer_id(&self) -> ID {
-        self.explorer_id
-    }
-}
-
-impl PlanetContext for SendMoveRequest {
-    fn get_planet_id(&self) -> ID {
-        self.dst_planet_id }
-}
-
-impl ChannelsContext for SendMoveRequest {
-    fn get_channels_manager(&self) -> &ChannelsManagerRef {
-        &self.channels_manager
-    }
-}
 /// ### Transition Function: Dispatching the Move Command
 ///
 /// This function evaluates the authorization state of the movement and constructs the
@@ -112,13 +91,13 @@ fn send_incoming_req_transition(this: Box<MoveToPlanetConversation<SendMoveReque
         planet_id: this.state.dst_planet_id,
     };
 
-    match this.state.to_explorer(message) {
+    match this.state.to_explorer(this.state.explorer_id, message) {
         Ok(()) => {
             let state_struct = WaitMoveToPlanetResponse::new(
+                this.state.orch_context,
                 this.state.explorer_id,
                 this.state.dst_planet_id,
                 this.state.is_explorer_moving,
-                this.state.explorers_location_ref,
             );
             let next_state = MoveToPlanetConversation::<WaitMoveToPlanetResponse>::new(
                 this.id,
@@ -137,7 +116,7 @@ fn send_incoming_req_transition(this: Box<MoveToPlanetConversation<SendMoveReque
 impl SendMoveRequest {
     /// Retrieves the sender to the destination planet from the shared registry.
     fn get_new_planet_sender(&self) -> Option<Sender<ExplorerToPlanet>> {
-        self.channels_manager.read().unwrap().get_exp_to_planet_sender(self.dst_planet_id)
+        self.get_channels_manager().get_exp_to_planet_sender(self.dst_planet_id)
     }
 
 }
@@ -157,7 +136,6 @@ create_response_state!(
         explorer_id: ID,
         dst_planet_id: ID,
         is_explorer_moving: bool,
-        explorers_location_ref: ExplorersLocationRef,
     },
     entities_id_closure: |this: &MoveToPlanetConversation<WaitMoveToPlanetResponse>| { (Some(this.state.dst_planet_id), Some(this.state.explorer_id)) },
     transition: wait_move_response_transition,
@@ -165,18 +143,6 @@ create_response_state!(
 
     },
 );
-
-impl ExplorerContext for WaitMoveToPlanetResponse {
-    fn get_explorer_id(&self) -> ID {
-        self.explorer_id
-    }
-}
-
-impl PlanetContext for WaitMoveToPlanetResponse {
-    fn get_planet_id(&self) -> ID {
-        self.dst_planet_id 
-    }
-}
 
 /// ### Transition Function: Finalizing World State
 ///
@@ -254,10 +220,8 @@ fn wait_move_response_transition(this: Box<MoveToPlanetConversation<WaitMoveToPl
 impl WaitMoveToPlanetResponse {
     /// Internal helper to update the thread-safe global list of explorer locations.
     fn move_explorer_location(&self, explorer_id: ID, dst_planet_id: ID) {
-        self
-            .explorers_location_ref
-            .lock()
-            .unwrap()
+        self.orch_context
+            .explorers_location
             .insert(explorer_id, dst_planet_id);
     }
 }

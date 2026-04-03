@@ -1,19 +1,18 @@
+use crate::convo_manager::OrchContextRef;
+use crate::globals::TIMEOUT;
+use crate::logging_utils::{log_internal, LogTarget};
 use crate::orchestrator::conversations::EntitiesIDTuple;
-use crate::orchestrator::Duration;
-use crate::logging_utils::{LogTarget, log_internal};
-use crate::orchestrator::{ChannelsManagerRef, ExplorerBagContent};
 use crate::orchestrator::conversations::PossibleExpectedKinds::PlanetToOrchKind;
-use crate::orchestrator::conversations::{ChannelsContext, CommonErrorTypes, Conversation, ErrorState, PlanetCommunicator, PlanetContext, PossibleExpectedKinds, PossibleMessage, ToPlanetError, UiCommunicator};
-use crate::{create_request_state, create_response_state, define_conversation, payload};
+use crate::orchestrator::conversations::{ChannelsContext, CommonErrorTypes, Conversation, ErrorState, PlanetCommunicator, PossibleExpectedKinds, PossibleMessage, UiCommunicator};
+use crate::orchestrator::Duration;
+use crate::orchestrator::ChannelsManagerRef;
 use crate::ui::OrchestratorToUiUpdate;
+use crate::{create_request_state, create_response_state, define_conversation, payload};
 use common_game::logging::Channel;
 use common_game::protocols::orchestrator_planet::{
     OrchestratorToPlanet, PlanetToOrchestrator, PlanetToOrchestratorKind,
 };
 use common_game::utils::ID;
-use crossbeam_channel::Sender;
-use crate::globals::TIMEOUT;
-use crate::orchestrator::conversations::orch_planet::galaxy_events::sunray_scenario::{SendSunray, SunrayConversation, WaitingSunrayAck};
 
 ///**Internal State Conversation**
 ///
@@ -44,7 +43,6 @@ create_request_state!(
     timeout: Some(TIMEOUT),
     expected_msg: None,
     fields: {
-        channels_manager: ChannelsManagerRef,
         planet_id: ID,
     },
     entities_id_fn: |this: &InternalStateConversation<SendingInternalStateRequest>| { (Some(this.state.planet_id), None) },
@@ -53,24 +51,13 @@ create_request_state!(
 
     },
 );
-impl PlanetContext for SendingInternalStateRequest {
-    fn get_planet_id(&self) -> ID {
-        self.planet_id
-    }
-}
-
-impl ChannelsContext for SendingInternalStateRequest {
-    fn get_channels_manager(&self) -> &ChannelsManagerRef {
-        &self.channels_manager
-    }
-}
 fn send_internal_state_req_transition(this: Box<InternalStateConversation<SendingInternalStateRequest>>) -> Option<Box<dyn Conversation + Send + Sync>> {
     match this
         .state
-        .to_planet(OrchestratorToPlanet::InternalStateRequest)
+        .to_planet(this.state.planet_id, OrchestratorToPlanet::InternalStateRequest)
     {
         Ok(()) => {
-            let next_state = WaitingInternalStateResponse::new(this.state.planet_id, this.state.channels_manager);
+            let next_state = WaitingInternalStateResponse::new(this.state.orch_context, this.state.planet_id,);
             let next_conv = InternalStateConversation::<WaitingInternalStateResponse>::new(
                 this.id,
                 next_state,
@@ -95,7 +82,6 @@ create_response_state!(
     expected_msg: PlanetToOrchKind(PlanetToOrchestratorKind::InternalStateResponse),
     fields: {
         planet_id: ID,
-        channels_manager: ChannelsManagerRef,
     },
     entities_id_closure: |this: &InternalStateConversation<WaitingInternalStateResponse>| { (Some(this.state.planet_id), None) },
     transition: wait_internal_state_res_transition,
@@ -104,14 +90,7 @@ create_response_state!(
     },
 );
 
-impl ChannelsContext for WaitingInternalStateResponse {
-    fn get_channels_manager(&self) -> &ChannelsManagerRef {
-        &self.channels_manager
-    }
-}
 
-// Implement trait to use default behavior of to_ui fn
-impl UiCommunicator for WaitingInternalStateResponse {}
 
 /// Transition Function for [`WaitingInternalStateResponse`] state:
 ///

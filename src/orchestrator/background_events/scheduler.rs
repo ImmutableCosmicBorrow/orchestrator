@@ -1,7 +1,6 @@
 //! Scheduler singleton, thread lifecycle, and orchestration loop.
 
 use super::EventKind;
-use super::context::{DispatchCtx, WorldCtx};
 use super::control;
 use super::dispatch;
 use super::planning;
@@ -12,6 +11,7 @@ use std::sync::{Arc, Mutex, OnceLock};
 use std::thread::{self, JoinHandle};
 use std::time::{Duration, Instant};
 use crate::convo_manager::ConvoManager;
+use crate::orchestrator::OrchContext;
 
 const REGIME_STEP_INTERVAL: Duration = Duration::from_secs(30);
 
@@ -22,11 +22,9 @@ struct SchedulerController {
 static SCHEDULER_CTRL: OnceLock<SchedulerController> = OnceLock::new();
 
 pub(super) fn init_background_event_scheduler(
-    convo_manager: Arc<Mutex<ConvoManager>>,
+    convo_manager: Arc<ConvoManager>,
 ) {
-    let convo_manager_guard = convo_manager.lock().unwrap();
-    let orch_context = convo_manager_guard.get_orch_context_ref();
-    
+
     let controller = scheduler_ctrl();
     let mut handle_guard = controller.handle.lock().unwrap();
 
@@ -36,13 +34,8 @@ pub(super) fn init_background_event_scheduler(
 
     control::reset_shutdown_flag();
 
-    let world = Arc::new(WorldCtx::new(orch_context.get_galaxy(), orch_context.get_explorers_location()));
-    let dispatch_ctx = Arc::new(DispatchCtx::new(convo_manager.clone()));
-
     let handle = thread::spawn({
-        let world = Arc::clone(&world);
-        let dispatch_ctx = Arc::clone(&dispatch_ctx);
-        move || scheduler_loop(&world, &dispatch_ctx)
+        move || scheduler_loop(convo_manager)
     });
 
     *handle_guard = Some(handle);
@@ -57,8 +50,10 @@ pub(super) fn join_scheduler_thread() {
     }
 }
 
-fn scheduler_loop(world: &WorldCtx, dispatch_ctx: &DispatchCtx) {
+fn scheduler_loop(convo_manager: Arc<ConvoManager>) {
     let mut state = SchedulerState::new();
+
+    let orch_context = &*convo_manager.get_orch_context();
 
     loop {
         if control::stop_requested() {
@@ -80,8 +75,8 @@ fn scheduler_loop(world: &WorldCtx, dispatch_ctx: &DispatchCtx) {
             state.maybe_advance_regimes(Instant::now(), REGIME_STEP_INTERVAL);
         }
 
-        let planet_ids = snapshot_planet_ids(world);
-        schedule_missing_events(&mut state, &planet_ids, world, Instant::now());
+        let planet_ids = snapshot_planet_ids(orch_context);
+        schedule_missing_events(&mut state, &planet_ids, orch_context, Instant::now());
 
         let Some(deadline) = timing::next_deadline(&state) else {
             if timing::idle_wait() {
@@ -94,25 +89,25 @@ fn scheduler_loop(world: &WorldCtx, dispatch_ctx: &DispatchCtx) {
             break;
         }
 
-        dispatch_due_events(&mut state, Instant::now(), world, dispatch_ctx);
+        dispatch_due_events(&mut state, Instant::now(), &*convo_manager);
     }
 }
 
 fn schedule_missing_events(
     state: &mut SchedulerState,
     planet_ids: &[ID],
-    world: &WorldCtx,
+    orch_context: &OrchContext,
     scheduled_at: Instant,
 ) {
-    maybe_schedule_event(EventKind::Asteroid, state, planet_ids, world, scheduled_at);
-    maybe_schedule_event(EventKind::Sunray, state, planet_ids, world, scheduled_at);
+    maybe_schedule_event(EventKind::Asteroid, state, planet_ids, orch_context, scheduled_at);
+    maybe_schedule_event(EventKind::Sunray, state, planet_ids, orch_context, scheduled_at);
 }
 
 fn maybe_schedule_event(
     kind: EventKind,
     state: &mut SchedulerState,
     planet_ids: &[ID],
-    world: &WorldCtx,
+    world: &OrchContext,
     scheduled_at: Instant,
 ) {
     if !state.is_enabled(kind) {
@@ -136,30 +131,28 @@ fn maybe_schedule_event(
 fn dispatch_due_events(
     state: &mut SchedulerState,
     now: Instant,
-    world: &WorldCtx,
-    dispatch_ctx: &DispatchCtx,
+    convo_manager: &ConvoManager,
 ) {
-    dispatch_due_event(EventKind::Asteroid, state, now, world, dispatch_ctx);
-    dispatch_due_event(EventKind::Sunray, state, now, world, dispatch_ctx);
+    dispatch_due_event(EventKind::Asteroid, state, now, convo_manager);
+    dispatch_due_event(EventKind::Sunray, state, now, convo_manager);
 }
 
 fn dispatch_due_event(
     kind: EventKind,
     state: &mut SchedulerState,
     now: Instant,
-    world: &WorldCtx,
-    dispatch_ctx: &DispatchCtx,
+    convo_manager: &ConvoManager
 ) {
     if !state.is_enabled(kind) {
         return;
     }
 
     if let Some(event) = state.planner.take_due(kind, now) {
-        dispatch::dispatch(event, world, dispatch_ctx);
+        dispatch::dispatch(event, convo_manager);
     }
 }
 
-fn snapshot_planet_ids(world: &WorldCtx) -> Vec<ID> {
+fn snapshot_planet_ids(world: &OrchContext) -> Vec<ID> {
     let galaxy = world.galaxy.read().unwrap();
     galaxy.keys().copied().collect()
 }

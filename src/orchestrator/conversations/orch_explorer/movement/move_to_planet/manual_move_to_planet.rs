@@ -1,11 +1,12 @@
-use crate::orchestrator::conversations::{EntitiesIDTuple, PlanetContext};
+use crate::convo_manager::OrchContextRef;
+use crate::orchestrator::conversations::{EntitiesIDTuple};
 use crate::orchestrator::conversations::ErrorState;
 use crate::orchestrator::conversations::CommonErrorTypes;
 use std::time::Duration;
 use crate::orchestrator::conversations::orch_explorer::movement::move_to_planet::{
     MoveToPlanetConversation,
 };
-use crate::orchestrator::conversations::{ChannelsContext, Conversation, ExplorerContext, PossibleExpectedKinds, PossibleMessage};
+use crate::orchestrator::conversations::{ChannelsContext, Conversation, PossibleExpectedKinds, PossibleMessage};
 use common_game::utils::ID;
 use crate::create_request_state;
 use crate::globals::TIMEOUT;
@@ -26,11 +27,9 @@ create_request_state!(
     timeout: Some(TIMEOUT),
     expected_msg: None,
     fields: {
-        channels_manager: ChannelsManagerRef,
         explorer_id: ID,
         curr_planet_id: Option<ID>,
         dst_planet_id: ID,
-        explorers_location_ref: ExplorersLocationRef,
     },
     entities_id_fn: |this: &MoveToPlanetConversation<SendManualMoveRequest>  | { (Some(this.state.dst_planet_id), Some(this.state.explorer_id)) },
     transition_fn: send_manual_move_req_transition,
@@ -39,24 +38,6 @@ create_request_state!(
     },
 );
 
-
-impl ExplorerContext for SendManualMoveRequest {
-    fn get_explorer_id(&self) -> ID {
-        self.explorer_id
-    }
-}
-
-impl PlanetContext for SendManualMoveRequest {
-    fn get_planet_id(&self) -> ID {
-        self.dst_planet_id
-    }
-}
-
-impl ChannelsContext for SendManualMoveRequest {
-    fn get_channels_manager(&self) -> &ChannelsManagerRef {
-        &self.channels_manager
-    }
-}
 /// ### Transition Function: Initiating Manual Handover
 ///
 /// This function prepares the standard movement handshake
@@ -66,11 +47,10 @@ impl ChannelsContext for SendManualMoveRequest {
 /// the process of notifying the destination planet of the entity's arrival.
 fn send_manual_move_req_transition(this: Box<MoveToPlanetConversation<SendManualMoveRequest>>) -> Option<Box<dyn Conversation + Send + Sync>> {
     let state_struct = SendIncomingRequest::new(
-        this.state.channels_manager,
+        this.state.orch_context,
         this.state.explorer_id,
         this.state.curr_planet_id,
         this.state.dst_planet_id,
-        this.state.explorers_location_ref,
     );
 
     let next_conv = MoveToPlanetConversation::<SendIncomingRequest>::new(this.id, state_struct);

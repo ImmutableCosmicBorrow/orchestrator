@@ -1,8 +1,9 @@
+use crate::convo_manager::OrchContextRef;
 use crate::globals::{get_explorer_timeout, TIMEOUT};
 use crate::logging_utils::{log_internal, LogTarget};
 use crate::orchestrator::conversations::EntitiesIDTuple;
 use crate::orchestrator::conversations::PossibleExpectedKinds::ExplorerToOrchKind;
-use crate::orchestrator::conversations::{ChannelsContext, CommonErrorTypes, Conversation, ErrorState, ErrorType, ExplorerCommunicator, ExplorerContext, PossibleExpectedKinds, PossibleMessage};
+use crate::orchestrator::conversations::{ChannelsContext, CommonErrorTypes, Conversation, ErrorState, ErrorType, ExplorerCommunicator, PossibleExpectedKinds, PossibleMessage};
 use crate::orchestrator::ChannelsManagerRef;
 use crate::planet::PlanetMap;
 use crate::{create_request_state, create_response_state, define_conversation, payload};
@@ -43,7 +44,6 @@ create_request_state!(
     timeout: Some(TIMEOUT),
     expected_msg: None,
     fields: {
-        channels_manager: ChannelsManagerRef,
         explorer_id: ID,
         neighbors_list: Vec<ID>
     },
@@ -54,17 +54,6 @@ create_request_state!(
     },
 );
 
-impl ExplorerContext for SendingNeighbors {
-    fn get_explorer_id(&self) -> ID {
-        self.explorer_id
-    }
-}
-
-impl ChannelsContext for SendingNeighbors {
-    fn get_channels_manager(&self) -> &ChannelsManagerRef {
-        &self.channels_manager
-    }
-}
 
 /// Transition Function for [`SendingNeighborsResponse`] state:
 ///
@@ -76,7 +65,7 @@ impl ChannelsContext for SendingNeighbors {
 fn send_neighbors_transition(this: Box<NeighborsDiscoveryConversation<SendingNeighbors>>) -> Option<Box<dyn Conversation + Send + Sync>> {
     match this
         .state
-        .to_explorer(OrchestratorToExplorer::NeighborsResponse {
+        .to_explorer(this.state.explorer_id, OrchestratorToExplorer::NeighborsResponse {
             neighbors: this.state.neighbors_list.clone(),
         }) {
         Ok(()) => {
@@ -108,9 +97,7 @@ create_response_state!(
     timeout: Some(get_explorer_timeout()),
     expected_msg: ExplorerToOrchKind(ExplorerToOrchestratorKind::NeighborsRequest),
     fields: {
-        channels_manager: ChannelsManagerRef,
         explorer_id: ID,
-        galaxy: PlanetMap
     },
     entities_id_closure: |this: &NeighborsDiscoveryConversation<WaitingNeighborsRequest>| { (None, Some(this.state.explorer_id)) },
     transition: wait_neighbors_req_transition,
@@ -119,19 +106,15 @@ create_response_state!(
     },
 );
 
-impl ExplorerContext for WaitingNeighborsRequest {
-    fn get_explorer_id(&self) -> ID {
-        self.explorer_id
-    }
-}
-
 impl WaitingNeighborsRequest {
     /// Helper function to access the galaxy map and retrieve the neighbors of a specific planet.
     fn get_neighbors(
         &self,
         curr_planet_id: ID,
     ) -> Result<Vec<ID>, Box<dyn ErrorType + Send + Sync>> {
-        if let Some(curr_planet_ref) = self.galaxy.read().unwrap().get(&curr_planet_id) {
+        let galaxy = self.orch_context.galaxy.clone();
+
+        if let Some(curr_planet_ref) = galaxy.read().unwrap().get(&curr_planet_id) {
             let neighbors = curr_planet_ref.neighbors_snapshot();
             Ok(neighbors)
         } else {
@@ -157,7 +140,7 @@ fn wait_neighbors_req_transition(this: Box<NeighborsDiscoveryConversation<Waitin
         return match this.state.get_neighbors(current_planet_id) {
             Ok(neighbors) => {
                 let state_struct =
-                    SendingNeighbors::new(this.state.channels_manager, this.state.explorer_id, neighbors);
+                    SendingNeighbors::new(this.state.orch_context, this.state.explorer_id, neighbors);
                 let next_state =
                     NeighborsDiscoveryConversation::<SendingNeighbors>::new(
                         this.id,

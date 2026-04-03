@@ -1,23 +1,20 @@
+use crate::convo_manager::OrchContextRef;
+use crate::globals::TIMEOUT;
+use crate::logging_utils::{log_msg_to, LogTarget};
+use crate::orchestrator::conversations::orch_explorer::movement::move_to_planet::errors::MoveToPlanetErrors;
+use crate::orchestrator::conversations::orch_explorer::movement::move_to_planet::move_explorer::SendMoveRequest;
+use crate::orchestrator::conversations::orch_explorer::movement::move_to_planet::MoveToPlanetConversation;
+use crate::orchestrator::conversations::PossibleExpectedKinds::PlanetToOrchKind;
+use crate::orchestrator::conversations::{ChannelsContext, CommonErrorTypes, Conversation, ErrorState, PossibleExpectedKinds, PossibleMessage};
 use crate::orchestrator::conversations::{EntitiesIDTuple, PlanetCommunicator};
 use crate::orchestrator::Duration;
-use crate::logging_utils::{LogTarget, log_msg_to};
-use crate::orchestrator::conversations::orch_explorer::movement::move_to_planet::errors::MoveToPlanetErrors;
-use crate::orchestrator::conversations::orch_explorer::movement::move_to_planet::{
-    MoveToPlanetConversation,
-};
-use crate::orchestrator::conversations::{ChannelsContext, CommonErrorTypes, Conversation, ErrorState, ErrorType, ExplorerContext, PlanetContext, PossibleExpectedKinds, PossibleMessage, ToPlanetError};
+use crate::orchestrator::{ChannelsManagerRef, ExplorersLocationRef};
 use crate::{create_request_state, create_response_state, payload};
-use common_explorer::ExplorerBagContent;
 use common_game::logging::{ActorType, Channel, EventType};
 use common_game::protocols::orchestrator_planet::{
     OrchestratorToPlanet, PlanetToOrchestrator, PlanetToOrchestratorKind,
 };
 use common_game::utils::ID;
-use crate::globals::TIMEOUT;
-use crate::orchestrator::{ChannelsManagerRef, ExplorersLocationRef};
-use crate::orchestrator::conversations::orch_explorer::movement::move_to_planet::incoming_explorer::{SendIncomingRequest, WaitingIncomingResponse};
-use crate::orchestrator::conversations::orch_explorer::movement::move_to_planet::move_explorer::SendMoveRequest;
-use crate::orchestrator::conversations::PossibleExpectedKinds::PlanetToOrchKind;
 //TODO: ASK THE OTHERS, IF OUTGOING FAILS WE MIGHT SEND AN OUTGOING TO THE DST_PLANET TO FREE THE CHANNEL OF THE EXPLORER, BUT THIS MIGHT RESULT IN AN INIFINTE LOOP
 
 ///**Move To Planet Conversation - Send Outgoing Request**
@@ -39,11 +36,9 @@ create_request_state!(
     timeout: Some(TIMEOUT),
     expected_msg: None,
     fields: {
-        channels_manager: ChannelsManagerRef,
         explorer_id: ID,
         curr_planet_id: ID,
         dst_planet_id: ID,
-        explorers_location_ref: ExplorersLocationRef,
     },
     entities_id_fn: |this: &MoveToPlanetConversation<SendOutgoingRequest>  | { (Some(this.state.curr_planet_id), Some(this.state.explorer_id)) },
     transition_fn: send_incoming_req_transition,
@@ -51,25 +46,6 @@ create_request_state!(
 
     },
 );
-
-
-impl ExplorerContext for SendOutgoingRequest {
-    fn get_explorer_id(&self) -> ID {
-        self.explorer_id
-    }
-}
-
-impl PlanetContext for SendOutgoingRequest {
-    fn get_planet_id(&self) -> ID {
-        self.curr_planet_id
-    }
-}
-
-impl ChannelsContext for SendOutgoingRequest {
-    fn get_channels_manager(&self) -> &ChannelsManagerRef {
-        &self.channels_manager
-    }
-}
 
 /// Transition Function for the [`SendOutgoingRequest`] state:
 ///
@@ -85,10 +61,10 @@ impl ChannelsContext for SendOutgoingRequest {
 /// * **[`CommonErrorTypes::PlanetSenderNotFound`]**: Occurs if the Orchestrator has no registered
 ///   communication channel for the source planet ID. This represents a critical desync in the
 ///   Galaxy Map or Orchestrator state.
-/// * **[`MoveToPlanetErrors::IncomingMessageFailed`]**: Occurs if the sender exists but the
+/// * **[`MoveToPlanetErrors::OutgoingMessageFailed`]**: Occurs if the sender exists but the
 ///   underlying transport (channel) has failed or closed unexpectedly.
 fn send_incoming_req_transition(this: Box<MoveToPlanetConversation<SendOutgoingRequest>>) -> Option<Box<dyn Conversation + Send + Sync>> {
-    match this.state.to_planet(
+    match this.state.to_planet(this.state.curr_planet_id,
         OrchestratorToPlanet::OutgoingExplorerRequest {
             explorer_id: this.state.explorer_id,
         },
@@ -106,11 +82,10 @@ fn send_incoming_req_transition(this: Box<MoveToPlanetConversation<SendOutgoingR
             );
 
             let state_struct = WaitingOutgoingResponse::new(
-                this.state.channels_manager,
+                this.state.orch_context,
                 this.state.explorer_id,
                 this.state.curr_planet_id,
                 this.state.dst_planet_id,
-                this.state.explorers_location_ref,
             );
             //Transition to WaitingOutgoingResponse
             let new_state =
@@ -148,11 +123,9 @@ create_response_state!(
     timeout: Some(TIMEOUT),
     expected_msg: PlanetToOrchKind(PlanetToOrchestratorKind::OutgoingExplorerResponse),
     fields: {
-        channels_manager: ChannelsManagerRef,
         explorer_id: ID,
         curr_planet_id: ID,
         dst_planet_id: ID,
-        explorers_location_ref: ExplorersLocationRef,
     },
     entities_id_closure: |this: &MoveToPlanetConversation<WaitingOutgoingResponse>| { (Some(this.state.curr_planet_id), Some(this.state.explorer_id)) },
     transition: wait_outgoing_res_transition,
@@ -161,23 +134,6 @@ create_response_state!(
     },
 );
 
-impl PlanetContext for WaitingOutgoingResponse {
-    fn get_planet_id(&self) -> ID {
-        self.curr_planet_id
-    }
-}
-
-impl ChannelsContext for WaitingOutgoingResponse {
-    fn get_channels_manager(&self) -> &ChannelsManagerRef {
-        &self.channels_manager
-    }
-}
-
-impl ExplorerContext for WaitingOutgoingResponse {
-    fn get_explorer_id(&self) -> ID {
-        self.explorer_id
-    }
-}
 /// ### Transition Function: Processing Explorer Release Results
 ///
 /// This function evaluates whether the source planet has released the entity and
@@ -205,10 +161,9 @@ fn wait_outgoing_res_transition(this: Box<MoveToPlanetConversation<WaitingOutgoi
     {
         return if res.is_ok() {
             let state = SendMoveRequest::new(
-                this.state.channels_manager,
+                this.state.orch_context,
                 this.state.dst_planet_id,
                 this.state.explorer_id,
-                this.state.explorers_location_ref,
                 true, // success flag for MoveToPlanet command
             );
             let next_conv = MoveToPlanetConversation::<SendMoveRequest>::new(this.id, state);

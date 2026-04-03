@@ -1,8 +1,9 @@
-use std::collections::HashMap;
-pub(crate) use crate::channels_manager::{OrchToExplorerSenders, OrchToPlanetSenders};
+use crate::channels_manager::ChannelsManager;
+pub(crate) use crate::channels_manager::OrchToExplorerSenders;
 use crate::logging_utils::{log_internal, log_msg_to, LogTarget};
 use crate::orchestrator::{ChannelsManagerRef, ExplorerBagContent};
 use crate::payload;
+use crate::ui::OrchestratorToUiUpdate;
 use common_game::logging::{ActorType, Channel, EventType};
 use common_game::protocols::orchestrator_explorer::{
     ExplorerToOrchestrator, ExplorerToOrchestratorKind, OrchestratorToExplorer,
@@ -14,13 +15,11 @@ use common_game::utils::ID;
 use std::fmt::Debug;
 use std::hash::Hash;
 use std::time::Duration;
-use crate::ui::OrchestratorToUiUpdate;
 
 pub(crate) mod orch_explorer;
 pub(crate) mod orch_planet;
 pub(crate) mod util;
 pub mod macros;
-//TODO: CREATE TRAIT FOR COMMS WITH PLANET AND EXPLORERS AND CLEAN THIS FILE
 
 ///**The Conversation Trait**
 ///
@@ -85,6 +84,7 @@ pub trait Conversation: Send + Sync {
 /// **Entities ID Tuple**
 /// Type that indicates the entities involved in a conversation
 /// Composed of two optional ID as every conversation has 0 up to 2 entities which interact
+/// first ID is always a planet ID, second is an explorer ID
 pub(crate) type EntitiesIDTuple = (Option<ID>, Option<ID>);
 
 /// **Expected Message Kinds**
@@ -156,28 +156,18 @@ impl PossibleMessage {
 
 pub(crate) type KillExplorersList = Vec<(ID, ID)>;
 
-pub(crate) trait PlanetContext {
-    fn get_planet_id(&self) -> ID;
-}
-
-pub(crate) trait ExplorerContext {
-    fn get_explorer_id(&self) -> ID;
-}
-
 pub(crate) trait ChannelsContext {
-    fn get_channels_manager(&self) -> &ChannelsManagerRef;
+    fn get_channels_manager(&self) -> ChannelsManagerRef;
 }
 
 
 
-pub(crate) trait PlanetCommunicator: PlanetContext + ChannelsContext {
+pub(crate) trait PlanetCommunicator:  ChannelsContext {
 
-    fn to_planet(&self, msg: OrchestratorToPlanet) -> Result<(), CommonErrorTypes> {
-
-        let planet_id = self.get_planet_id();
+    fn to_planet(&self, planet_id: ID, msg: OrchestratorToPlanet) -> Result<(), CommonErrorTypes> {
 
         let sender = {
-            self.get_channels_manager().read().unwrap().get_orch_to_planet_sender(self.get_planet_id())
+            self.get_channels_manager().get_orch_to_planet_sender(planet_id)
         };
 
         if let Some(s) = sender {
@@ -200,11 +190,11 @@ pub(crate) trait PlanetCommunicator: PlanetContext + ChannelsContext {
 }
 
 
-pub(crate) trait ExplorerCommunicator: ExplorerContext + ChannelsContext {
-    fn to_explorer(&self, msg: OrchestratorToExplorer) -> Result<(), CommonErrorTypes> {
-        let explorer_id = self.get_explorer_id();
+pub(crate) trait ExplorerCommunicator: ChannelsContext {
+    fn to_explorer(&self, explorer_id: ID, msg: OrchestratorToExplorer) -> Result<(), CommonErrorTypes> {
+
         let sender = {
-            self.get_channels_manager().read().unwrap().get_orch_to_explorer_sender(explorer_id)
+            self.get_channels_manager().get_orch_to_explorer_sender(explorer_id)
         };
 
         if let Some(s) = sender {
@@ -224,15 +214,17 @@ pub(crate) trait ExplorerCommunicator: ExplorerContext + ChannelsContext {
 
 pub(crate) trait UiCommunicator: ChannelsContext {
     fn to_ui(&self, msg: OrchestratorToUiUpdate) -> Result<(), CommonErrorTypes> {
-        let sender = self.get_channels_manager().read().unwrap().get_ui_sender();
+        let sender = self.get_channels_manager().get_ui_sender();
         sender.send(msg).map_err(|_| CommonErrorTypes::MessageToUiFailed)
     }
 }
-//Implement PlanetCommunicator for every type that implements PlanetContext and ChannelsContext using default implementation
-impl <T: PlanetContext + ChannelsContext> PlanetCommunicator for T {}
+//Implement PlanetCommunicator for every type that implements ChannelsContext using default implementation
+impl <T: ChannelsContext> PlanetCommunicator for T {}
 
-//Implement ExplorerCommunicator for every type that implements ExplorerContext and ChannelsContext using default implementation
-impl <T: ExplorerContext + ChannelsContext> ExplorerCommunicator for T {}
+//Implement ExplorerCommunicator for every type that implements ChannelsContext using default implementation
+impl <T: ChannelsContext> ExplorerCommunicator for T {}
+
+impl <T: ChannelsContext> UiCommunicator for T {}
 pub(crate) enum ToPlanetError {
     SendingMessageFailure(ID),
     SenderNotFound(ID),

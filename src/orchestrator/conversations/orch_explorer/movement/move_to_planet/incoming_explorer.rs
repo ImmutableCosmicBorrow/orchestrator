@@ -1,23 +1,20 @@
+use crate::convo_manager::OrchContextRef;
+use crate::globals::TIMEOUT;
+use crate::orchestrator::conversations::orch_explorer::movement::move_to_planet::move_explorer::SendMoveRequest;
+use crate::orchestrator::conversations::orch_explorer::movement::move_to_planet::outgoing_explorer::SendOutgoingRequest;
+use crate::orchestrator::conversations::orch_explorer::movement::move_to_planet::MoveToPlanetConversation;
 use crate::orchestrator::conversations::EntitiesIDTuple;
-use std::time::Duration;
-use crate::orchestrator::conversations::orch_explorer::movement::move_to_planet::{
-    MoveToPlanetConversation,
-};
-use crate::orchestrator::conversations::{ChannelsContext, CommonErrorTypes, Conversation, ErrorState, ErrorType, ExplorerContext, PlanetCommunicator, PlanetContext, PossibleExpectedKinds, PossibleMessage, ToPlanetError};
-use common_explorer::ExplorerBagContent;
+use crate::orchestrator::conversations::PossibleExpectedKinds::PlanetToOrchKind;
+use crate::orchestrator::conversations::{ChannelsContext, CommonErrorTypes, Conversation, ErrorState, PlanetCommunicator, PossibleExpectedKinds, PossibleMessage};
+use crate::orchestrator::ChannelsManagerRef;
+use crate::{create_request_state, create_response_state};
 use common_game::protocols::orchestrator_planet::{
     OrchestratorToPlanet, PlanetToOrchestrator, PlanetToOrchestratorKind,
 };
-use common_game::protocols::planet_explorer::{ExplorerToPlanetKind, PlanetToExplorer};
+use common_game::protocols::planet_explorer::PlanetToExplorer;
 use common_game::utils::ID;
 use crossbeam_channel::Sender;
-use crate::{create_request_state, create_response_state};
-use crate::globals::TIMEOUT;
-use crate::orchestrator::{ChannelsManagerRef, ExplorersLocationRef};
-use crate::orchestrator::conversations::orch_explorer::movement::move_to_planet::manual_move_to_planet::SendManualMoveRequest;
-use crate::orchestrator::conversations::orch_explorer::movement::move_to_planet::move_explorer::SendMoveRequest;
-use crate::orchestrator::conversations::orch_explorer::movement::move_to_planet::outgoing_explorer::SendOutgoingRequest;
-use crate::orchestrator::conversations::PossibleExpectedKinds::PlanetToOrchKind;
+use std::time::Duration;
 
 ///**Move To Planet Conversation - Send Incoming Request**
 ///
@@ -33,11 +30,9 @@ create_request_state!(
     timeout: Some(TIMEOUT),
     expected_msg: None,
     fields: {
-        channels_manager: ChannelsManagerRef,
         explorer_id: ID,
         curr_planet_id: Option<ID>,
         dst_planet_id: ID,
-        explorers_location_ref: ExplorersLocationRef,
     },
     entities_id_fn: |this: &MoveToPlanetConversation<SendIncomingRequest>  | { (Some(this.state.dst_planet_id), Some(this.state.explorer_id)) },
     transition_fn: send_incoming_req_transition,
@@ -46,23 +41,6 @@ create_request_state!(
     },
 );
 
-impl ExplorerContext for SendIncomingRequest {
-    fn get_explorer_id(&self) -> ID {
-        self.explorer_id
-    }
-}
-
-impl PlanetContext for SendIncomingRequest {
-    fn get_planet_id(&self) -> ID {
-        self.dst_planet_id
-    }
-}
-
-impl ChannelsContext for SendIncomingRequest {
-    fn get_channels_manager(&self) -> &ChannelsManagerRef {
-        &self.channels_manager
-    }
-}
 
 /// ### Transition Function: Initiating the Acquisition
 ///
@@ -87,7 +65,7 @@ fn send_incoming_req_transition(this: Box<MoveToPlanetConversation<SendIncomingR
     //Try to get the sender to the explorer to give to the p,anet that will host the explorer
     if let Some(sender) = this.state.get_plan_to_explorer_sender() {
         // Try to initiate the handshake with the destination planet
-        return match this.state.to_planet(
+        return match this.state.to_planet(this.state.dst_planet_id,
             OrchestratorToPlanet::IncomingExplorerRequest {
                 explorer_id: this.state.explorer_id,
                 new_sender: sender,
@@ -95,11 +73,10 @@ fn send_incoming_req_transition(this: Box<MoveToPlanetConversation<SendIncomingR
         ) {
             Ok(()) => {
                 let state_struct = WaitingIncomingResponse::new(
-                    this.state.channels_manager,
+                    this.state.orch_context,
                     this.state.explorer_id,
                     this.state.curr_planet_id,
                     this.state.dst_planet_id,
-                    this.state.explorers_location_ref,
                 );
                 
                 let new_state = MoveToPlanetConversation::<WaitingIncomingResponse>::new(
@@ -130,7 +107,7 @@ fn send_incoming_req_transition(this: Box<MoveToPlanetConversation<SendIncomingR
 
 impl SendIncomingRequest {
     fn get_plan_to_explorer_sender(&self) -> Option<Sender<PlanetToExplorer>> {
-        self.get_channels_manager().read().unwrap().get_planet_to_exp_sender(self.explorer_id)
+        self.get_channels_manager().get_planet_to_exp_sender(self.explorer_id)
     }
 }
 
@@ -143,11 +120,9 @@ create_response_state!(
     timeout: Some(TIMEOUT),
     expected_msg: PlanetToOrchKind(PlanetToOrchestratorKind::IncomingExplorerResponse),
     fields: {
-        channels_manager: ChannelsManagerRef,
         explorer_id: ID,
         curr_planet_id: Option<ID>,
         dst_planet_id: ID,
-        explorers_location_ref: ExplorersLocationRef,
     },
     entities_id_closure: |this: &MoveToPlanetConversation<WaitingIncomingResponse>| { (Some(this.state.dst_planet_id), Some(this.state.explorer_id)) },
     transition: wait_incoming_res_transition,
@@ -156,23 +131,6 @@ create_response_state!(
     },
 );
 
-impl PlanetContext for WaitingIncomingResponse {
-    fn get_planet_id(&self) -> ID {
-        self.dst_planet_id
-    }
-}
-
-impl ChannelsContext for WaitingIncomingResponse {
-    fn get_channels_manager(&self) -> &ChannelsManagerRef {
-        &self.channels_manager
-    }
-}
-
-impl ExplorerContext for WaitingIncomingResponse {
-    fn get_explorer_id(&self) -> ID {
-        self.explorer_id
-    }
-}
 
 
 /// ### Transition Function: Processing Acquisition Results
@@ -202,8 +160,8 @@ impl ExplorerContext for WaitingIncomingResponse {
 fn wait_incoming_res_transition(this: Box<MoveToPlanetConversation<WaitingIncomingResponse>>, msg: Option<PossibleMessage>) -> Option<Box<dyn Conversation + Send + Sync>> {
     if let Some(PossibleMessage::PlanetToOrch(
                     PlanetToOrchestrator::IncomingExplorerResponse {
-                        planet_id,
-                        explorer_id,
+                        planet_id: _planet_id,
+                        explorer_id: _explorer_id,
                         res,
                     },
     )) = msg
@@ -212,13 +170,12 @@ fn wait_incoming_res_transition(this: Box<MoveToPlanetConversation<WaitingIncomi
             //Explorer comes from another planet, transition to SendOutgoingRequest
             if let Some(curr_planet) = this.state.curr_planet_id {
                 let state_struct = SendOutgoingRequest::new(
-                    this.state.channels_manager,
+                    this.state.orch_context,
                     curr_planet,
                     this.state.explorer_id,
                     this.state.dst_planet_id,
-                    this.state.explorers_location_ref,
                 );
-                //transiiton to SendOutgoingRequest
+                //transition to SendOutgoingRequest
                 let next_state =
                     MoveToPlanetConversation::<SendOutgoingRequest>::new(this.id, state_struct);
                 Some(Box::new(next_state))
@@ -226,10 +183,9 @@ fn wait_incoming_res_transition(this: Box<MoveToPlanetConversation<WaitingIncomi
             } else {
 
                 let state = SendMoveRequest::new(
-                    this.state.channels_manager,
+                    this.state.orch_context,
                     this.state.dst_planet_id,
                     this.state.explorer_id,
-                    this.state.explorers_location_ref,
                     true,
                 );
                 //transition to SendMoveRequest
@@ -240,10 +196,9 @@ fn wait_incoming_res_transition(this: Box<MoveToPlanetConversation<WaitingIncomi
         } else { //Incoming Request has failed, transitioning to SendMoveRequest with flag is_explorer_moving to false
 
             let state = SendMoveRequest::new(
-                this.state.channels_manager,
+                this.state.orch_context,
                 this.state.dst_planet_id,
                 this.state.explorer_id,
-                this.state.explorers_location_ref,
                 false,
             );
             //transition to SendMoveRequest

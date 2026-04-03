@@ -1,16 +1,16 @@
+use crate::convo_manager::OrchContextRef;
+use crate::globals::TIMEOUT;
+use crate::logging_utils::{log_internal, LogTarget};
 use crate::orchestrator::conversations::EntitiesIDTuple;
-use crate::orchestrator::Duration;
-use crate::logging_utils::{LogTarget, log_internal};
 use crate::orchestrator::conversations::PossibleExpectedKinds::PlanetToOrchKind;
-use crate::orchestrator::conversations::{ChannelsContext, CommonErrorTypes, Conversation, ErrorState, KillExplorersList, OrchToExplorerSenders, OrchToPlanetSenders, PlanetCommunicator, PlanetContext, PossibleExpectedKinds, PossibleMessage, ToPlanetError};
-use crate::orchestrator::{ChannelsManagerRef, ExplorerBagContent, ExplorersLocationRef};
+use crate::orchestrator::conversations::{ChannelsContext, CommonErrorTypes, Conversation, ErrorState, KillExplorersList, PlanetCommunicator, PossibleExpectedKinds, PossibleMessage};
+use crate::orchestrator::Duration;
+use crate::orchestrator::ChannelsManagerRef;
 use crate::{create_request_state, create_response_state, define_conversation, payload};
 use common_game::logging::Channel;
 use common_game::protocols::orchestrator_planet::PlanetToOrchestratorKind::KillPlanetResult;
-use common_game::protocols::orchestrator_planet::{OrchestratorToPlanet, PlanetToOrchestrator, PlanetToOrchestratorKind};
+use common_game::protocols::orchestrator_planet::{OrchestratorToPlanet, PlanetToOrchestrator};
 use common_game::utils::ID;
-use crate::globals::TIMEOUT;
-use crate::orchestrator::conversations::orch_planet::lifecycle::internal_state_scenario::SendingInternalStateRequest;
 
 ///**Kill Planet Conversation**
 ///
@@ -39,9 +39,7 @@ create_request_state!(
     timeout: Some(TIMEOUT),
     expected_msg: None,
     fields: {
-        channels_manager: ChannelsManagerRef,
         planet_id: ID,
-        explorers_location_ref: ExplorersLocationRef,
     },
     entities_id_fn: |this: &KillPlanetConversation<SendPlanetKill>| { (Some(this.state.planet_id), None) },
     transition_fn: send_kill_planet_transition,
@@ -52,17 +50,6 @@ create_request_state!(
 
 
 
-impl PlanetContext for SendPlanetKill {
-    fn get_planet_id(&self) -> ID {
-        self.planet_id
-    }
-}
-
-impl ChannelsContext for SendPlanetKill {
-    fn get_channels_manager(&self) -> &ChannelsManagerRef {
-        &self.channels_manager
-    }
-}
 /// Transition Function for [`SendPlanetKill`] state:
 ///
 /// Returns:
@@ -73,14 +60,13 @@ impl ChannelsContext for SendPlanetKill {
 fn send_kill_planet_transition(this: Box<KillPlanetConversation<SendPlanetKill>>) -> Option<Box<dyn Conversation + Send + Sync>> {
     match this
         .state
-        .to_planet(OrchestratorToPlanet::KillPlanet)
+        .to_planet(this.state.planet_id, OrchestratorToPlanet::KillPlanet)
     {
         Ok(()) => {
 
             let state_struct = WaitingPlanetKillResult::new(
+                this.state.orch_context,
                 this.state.planet_id,
-                this.state.channels_manager,
-                this.state.explorers_location_ref,
             );
             let next_state =
                 KillPlanetConversation::<WaitingPlanetKillResult>::new(this.id, state_struct);
@@ -104,8 +90,6 @@ create_response_state!(
     expected_msg: PlanetToOrchKind(KillPlanetResult),
     fields: {
         planet_id: ID,
-        channels_manager: ChannelsManagerRef,
-        explorers_location_ref: ExplorersLocationRef,
     },
     entities_id_closure: |this: &KillPlanetConversation<WaitingPlanetKillResult>| { (Some(this.state.planet_id), None) },
     transition: wait_planet_kill_res_transition,
@@ -114,22 +98,16 @@ create_response_state!(
     },
 );
 
-impl PlanetContext for WaitingPlanetKillResult {
-    fn get_planet_id(&self) -> ID {
-        self.planet_id
-    }
-}
 
 impl WaitingPlanetKillResult {
     //Helper function to find all explorers in the planet
     fn get_explorers_in_planet(&self, target_planet: ID) -> Vec<(ID, ID)> {
-        self
-            .explorers_location_ref
-            .lock()
-            .unwrap()
+
+            self.orch_context
+            .explorers_location
             .iter()
-            .filter(|(_, planet_id)| **planet_id == target_planet)
-            .map(|(explorer_id, planet_id)| (*explorer_id, *planet_id))
+            .filter(|r| *r.value() == target_planet) // Access value via the guard
+            .map(|r| (*r.key(), *r.value()))         // Dereference/copy the data
             .collect()
     }
 }

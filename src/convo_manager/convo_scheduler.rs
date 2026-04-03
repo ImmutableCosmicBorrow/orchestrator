@@ -8,6 +8,8 @@ use crate::logging_utils::{log_internal, LogTarget};
 use crate::orchestrator::conversations::{Conversation, PossibleExpectedKinds, PossibleMessage};
 use crate::payload;
 
+//TODO: MIGHT CHANGE THIS IN ALL DASHMAPS
+
 pub struct ConvoScheduler {
     queue: PQueue,
     active_convos: ConversationMap,

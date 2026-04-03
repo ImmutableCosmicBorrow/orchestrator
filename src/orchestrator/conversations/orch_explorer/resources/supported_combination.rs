@@ -1,7 +1,8 @@
+use crate::convo_manager::OrchContextRef;
 use crate::globals::{get_explorer_timeout, TIMEOUT};
 use crate::logging_utils::{log_internal, LogTarget};
 use crate::orchestrator::conversations::PossibleExpectedKinds::ExplorerToOrchKind;
-use crate::orchestrator::conversations::{ChannelsContext, CommonErrorTypes, Conversation, ErrorState, ExplorerCommunicator, ExplorerContext, PossibleExpectedKinds, PossibleMessage};
+use crate::orchestrator::conversations::{ChannelsContext, CommonErrorTypes, Conversation, ErrorState, ExplorerCommunicator, PossibleExpectedKinds, PossibleMessage};
 use crate::orchestrator::conversations::{EntitiesIDTuple, UiCommunicator};
 use crate::orchestrator::ChannelsManagerRef;
 use crate::ui::OrchestratorToUiUpdate;
@@ -38,7 +39,6 @@ create_request_state!(
     timeout: Some(TIMEOUT),
     expected_msg: None,
     fields: {
-        channels_manager: ChannelsManagerRef,
         explorer_id: ID,
     },
     entities_id_fn: |this: &SupportedCombinationConversation<SendingSupportedCombinationRequest>| { (None, Some(this.state.explorer_id)) },
@@ -48,17 +48,6 @@ create_request_state!(
     },
 );
 
-impl ExplorerContext for SendingSupportedCombinationRequest {
-    fn get_explorer_id(&self) -> ID {
-        self.explorer_id
-    }
-}
-
-impl ChannelsContext for SendingSupportedCombinationRequest {
-    fn get_channels_manager(&self) -> &ChannelsManagerRef {
-        &self.channels_manager
-    }
-}
 /// Transition Function for [`SendingSupportedCombinationRequest`] state:
 ///
 /// Returns:
@@ -71,10 +60,10 @@ impl ChannelsContext for SendingSupportedCombinationRequest {
 fn send_supp_comb_req_transition(this: Box<SupportedCombinationConversation<SendingSupportedCombinationRequest>>) -> Option<Box<dyn Conversation + Send + Sync>> {
     match this
         .state
-        .to_explorer(OrchestratorToExplorer::SupportedCombinationRequest)
+        .to_explorer(this.state.explorer_id, OrchestratorToExplorer::SupportedCombinationRequest)
     {
         Ok(()) => {
-            let state_struct = WaitingSupportedCombinationResult::new(this.state.channels_manager, this.state.explorer_id);
+            let state_struct = WaitingSupportedCombinationResult::new(this.state.orch_context,  this.state.explorer_id);
             let next_conv = SupportedCombinationConversation::<
                 WaitingSupportedCombinationResult,
             >::new(
@@ -100,7 +89,6 @@ create_response_state!(
     timeout: Some(get_explorer_timeout().mul(2)),
     expected_msg: ExplorerToOrchKind(ExplorerToOrchestratorKind::SupportedCombinationResult),
     fields: {
-        channels_manager: ChannelsManagerRef,
         explorer_id: ID,
     },
     entities_id_closure: |this: &SupportedCombinationConversation<WaitingSupportedCombinationResult>| { (None, Some(this.state.explorer_id)) },
@@ -110,20 +98,7 @@ create_response_state!(
     },
 );
 
-impl ExplorerContext for WaitingSupportedCombinationResult {
-    fn get_explorer_id(&self) -> ID {
-        self.explorer_id
-    }
-}
 
-impl ChannelsContext for WaitingSupportedCombinationResult {
-    fn get_channels_manager(&self) -> &ChannelsManagerRef {
-        &self.channels_manager
-    }
-}
-
-// Use dafault behavior for sending UI messages
-impl UiCommunicator for WaitingSupportedCombinationResult {}
 
 /// Transition Function for [`WaitingSupportedCombinationResult`] state:
 ///
