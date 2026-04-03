@@ -87,8 +87,8 @@ fn wait_travel_req_transition(
             let next_state = SendIncomingRequest::new(
                 this.state.orch_context,
                 explorer_id,
-                Some(current_planet_id),
                 dst_planet_id,
+                Some(current_planet_id),
             );
             //logging
             log_internal(
@@ -109,7 +109,7 @@ fn wait_travel_req_transition(
 
         // Case 2: Destination unreachable. Transition to send a negative MoveToPlanet to the explorer
         let next_state =
-            SendMoveRequest::new(this.state.orch_context, dst_planet_id, explorer_id, false);
+            SendMoveRequest::new(this.state.orch_context,  explorer_id, dst_planet_id,false);
         let next_conv = MoveToPlanetConversation::<SendMoveRequest>::new(this.id, next_state);
         return Some(Box::new(next_conv));
     }

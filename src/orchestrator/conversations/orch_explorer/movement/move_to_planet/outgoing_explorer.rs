@@ -40,8 +40,8 @@ create_request_state!(
     expected_msg: None,
     fields: {
         explorer_id: ID,
-        curr_planet_id: ID,
         dst_planet_id: ID,
+        curr_planet_id: ID,
     },
     entities_id_fn: |this: &MoveToPlanetConversation<SendOutgoingRequest>  | { (Some(this.state.curr_planet_id), Some(this.state.explorer_id)) },
     transition_fn: send_incoming_req_transition,
@@ -90,8 +90,8 @@ fn send_incoming_req_transition(
             let state_struct = WaitingOutgoingResponse::new(
                 this.state.orch_context,
                 this.state.explorer_id,
-                this.state.curr_planet_id,
                 this.state.dst_planet_id,
+                this.state.curr_planet_id,
             );
             //Transition to WaitingOutgoingResponse
             let new_state =
@@ -129,8 +129,9 @@ create_response_state!(
     expected_msg: PlanetToOrchKind(PlanetToOrchestratorKind::OutgoingExplorerResponse),
     fields: {
         explorer_id: ID,
-        curr_planet_id: ID,
         dst_planet_id: ID,
+        curr_planet_id: ID,
+        
     },
     entities_id_closure: |this: &MoveToPlanetConversation<WaitingOutgoingResponse>| { (Some(this.state.curr_planet_id), Some(this.state.explorer_id)) },
     transition: wait_outgoing_res_transition,
@@ -168,8 +169,8 @@ fn wait_outgoing_res_transition(
         return if res.is_ok() {
             let state = SendMoveRequest::new(
                 this.state.orch_context,
-                this.state.dst_planet_id,
                 this.state.explorer_id,
+                this.state.dst_planet_id,
                 true, // success flag for MoveToPlanet command
             );
             let next_conv = MoveToPlanetConversation::<SendMoveRequest>::new(this.id, state);

@@ -1,5 +1,5 @@
 use crate::globals::{TIMEOUT, get_explorer_timeout};
-use crate::logging_utils::{LogTarget, log_internal};
+use crate::logging::{LogTarget, log_internal};
 use crate::orchestrator::conversations::EntitiesIDTuple;
 use crate::orchestrator::conversations::PossibleExpectedKinds::ExplorerToOrchKind;
 use crate::orchestrator::conversations::orch_planet::galaxy_events::adv_dead_explorer::{

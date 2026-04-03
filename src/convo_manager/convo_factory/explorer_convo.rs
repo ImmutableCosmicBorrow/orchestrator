@@ -54,8 +54,8 @@ impl ConvoManager {
         let state = SendManualMoveRequest::new(
             self.orch_context.clone(),
             explorer_id,
-            current_planet_id,
             dst_planet_id,
+            current_planet_id,
         );
 
         let id = get_id_manager().get_next_conversation_id();

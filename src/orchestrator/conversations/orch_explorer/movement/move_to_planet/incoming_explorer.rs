@@ -31,8 +31,8 @@ create_request_state!(
     expected_msg: None,
     fields: {
         explorer_id: ID,
-        curr_planet_id: Option<ID>,
         dst_planet_id: ID,
+        curr_planet_id: Option<ID>,
     },
     entities_id_fn: |this: &MoveToPlanetConversation<SendIncomingRequest>  | { (Some(this.state.dst_planet_id), Some(this.state.explorer_id)) },
     transition_fn: send_incoming_req_transition,
@@ -76,8 +76,8 @@ fn send_incoming_req_transition(
                 let state_struct = WaitingIncomingResponse::new(
                     this.state.orch_context,
                     this.state.explorer_id,
-                    this.state.curr_planet_id,
                     this.state.dst_planet_id,
+                    this.state.curr_planet_id,
                 );
 
                 let new_state =
@@ -120,8 +120,8 @@ create_response_state!(
     expected_msg: PlanetToOrchKind(PlanetToOrchestratorKind::IncomingExplorerResponse),
     fields: {
         explorer_id: ID,
-        curr_planet_id: Option<ID>,
         dst_planet_id: ID,
+        curr_planet_id: Option<ID>,
     },
     entities_id_closure: |this: &MoveToPlanetConversation<WaitingIncomingResponse>| { (Some(this.state.dst_planet_id), Some(this.state.explorer_id)) },
     transition: wait_incoming_res_transition,
@@ -169,9 +169,9 @@ fn wait_incoming_res_transition(
             if let Some(curr_planet) = this.state.curr_planet_id {
                 let state_struct = SendOutgoingRequest::new(
                     this.state.orch_context,
-                    curr_planet,
                     this.state.explorer_id,
                     this.state.dst_planet_id,
+                    curr_planet,
                 );
                 //transition to SendOutgoingRequest
                 let next_state =
@@ -180,8 +180,8 @@ fn wait_incoming_res_transition(
             } else {
                 let state = SendMoveRequest::new(
                     this.state.orch_context,
-                    this.state.dst_planet_id,
                     this.state.explorer_id,
+                    this.state.dst_planet_id,
                     true,
                 );
                 //transition to SendMoveRequest
@@ -193,8 +193,8 @@ fn wait_incoming_res_transition(
 
             let state = SendMoveRequest::new(
                 this.state.orch_context,
-                this.state.dst_planet_id,
                 this.state.explorer_id,
+                this.state.dst_planet_id,
                 false,
             );
             //transition to SendMoveRequest

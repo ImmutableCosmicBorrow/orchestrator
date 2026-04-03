@@ -28,8 +28,8 @@ create_request_state!(
     expected_msg: None,
     fields: {
         explorer_id: ID,
-        curr_planet_id: Option<ID>,
         dst_planet_id: ID,
+        curr_planet_id: Option<ID>,
     },
     entities_id_fn: |this: &MoveToPlanetConversation<SendManualMoveRequest>  | { (Some(this.state.dst_planet_id), Some(this.state.explorer_id)) },
     transition_fn: send_manual_move_req_transition,
@@ -48,11 +48,12 @@ create_request_state!(
 fn send_manual_move_req_transition(
     this: Box<MoveToPlanetConversation<SendManualMoveRequest>>,
 ) -> Option<Box<dyn Conversation + Send + Sync>> {
+
     let state_struct = SendIncomingRequest::new(
         this.state.orch_context,
         this.state.explorer_id,
-        this.state.curr_planet_id,
         this.state.dst_planet_id,
+        this.state.curr_planet_id,
     );
 
     let next_conv = MoveToPlanetConversation::<SendIncomingRequest>::new(this.id, state_struct);
