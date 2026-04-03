@@ -376,7 +376,7 @@ impl Orchestrator {
         background_events::enable_asteroids();
     }
 
-    fn stop_background_event_senders(&self) {
+    fn stop_background_event_senders() {
         background_events::disable_sunrays();
         background_events::disable_asteroids();
     }
@@ -521,13 +521,25 @@ impl Orchestrator {
                 self.shutdown_requested = true;
             }
             PauseGame => {
-                self.stop_background_event_senders();
+                Orchestrator::stop_background_event_senders();
 
-                for explorer_id in self.channels_manager.get_orch_to_exp_senders_struct().lock().unwrap().keys() {
+                for explorer_id in self
+                    .channels_manager
+                    .get_orch_to_exp_senders_struct()
+                    .lock()
+                    .unwrap()
+                    .keys()
+                {
                     self.routing().stop_explorer_ai(*explorer_id);
                 }
-                
-                for planet_id in self.channels_manager.get_to_planet_senders_struct().lock().unwrap().keys() {
+
+                for planet_id in self
+                    .channels_manager
+                    .get_to_planet_senders_struct()
+                    .lock()
+                    .unwrap()
+                    .keys()
+                {
                     self.routing().stop_planet_ai(*planet_id);
                 }
 
@@ -542,14 +554,26 @@ impl Orchestrator {
             ResumeGame => {
                 self.start_background_event_senders();
 
-                for explorer_id in self.channels_manager.get_orch_to_exp_senders_struct().lock().unwrap().keys() {
+                for explorer_id in self
+                    .channels_manager
+                    .get_orch_to_exp_senders_struct()
+                    .lock()
+                    .unwrap()
+                    .keys()
+                {
                     self.routing().start_explorer_ai(*explorer_id);
                 }
-                
-                for planet_id in self.channels_manager.get_to_planet_senders_struct().lock().unwrap().keys() {
+
+                for planet_id in self
+                    .channels_manager
+                    .get_to_planet_senders_struct()
+                    .lock()
+                    .unwrap()
+                    .keys()
+                {
                     self.routing().start_planet_ai(*planet_id);
                 }
-                
+
                 log_internal(
                     LogTarget::General,
                     Channel::Info,

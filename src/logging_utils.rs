@@ -96,7 +96,12 @@ fn format_log_event_from_string(mut msg: String) -> String {
             msg.replace_range(pos..pos + pat.len(), "");
         }
     }
-    let patterns = ["sender: none", "receiver: none", "sender: None", "receiver: None"];
+    let patterns = [
+        "sender: none",
+        "receiver: none",
+        "sender: None",
+        "receiver: None",
+    ];
     for pat in &patterns {
         while let Some(pos) = msg.find(pat) {
             let mut start = pos;
@@ -308,7 +313,9 @@ pub fn start_logger() {
         .chain(open_log_file(&common_game_dir, &log_filename));
 
     // Shared file: all messages regardless of target
-    let shared = fern::Dispatch::new().format(format).chain(open_log_file(&shared_dir, &log_filename));
+    let shared = fern::Dispatch::new()
+        .format(format)
+        .chain(open_log_file(&shared_dir, &log_filename));
 
     // Terminal output: all orchestrator logs go to stderr as well, with color
     let terminal = fern::Dispatch::new()
