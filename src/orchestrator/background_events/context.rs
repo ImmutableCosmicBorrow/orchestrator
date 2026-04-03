@@ -12,6 +12,7 @@ pub(super) struct WorldCtx {
 }
 
 pub(super) struct DispatchCtx {
+    //TODO: MAYBE DELETE MUTEX
     pub(super) convo_manager: Arc<Mutex<ConvoManager>>,
 }
 

@@ -83,6 +83,7 @@ impl OrchContext {
 }
 
 pub struct Orchestrator {
+    //TODO: MIGHT DELETE THIS
     orch_context_ref: OrchContextRef,
     convo_manager: Arc<ConvoManager>,
     planet_threads: Arc<Mutex<HashMap<ID, JoinHandle<()>>>>,
@@ -646,6 +647,7 @@ impl Orchestrator {
                         }
 
                         //TODO: ASK to the others, planet is already killed by the convos
+                        //TODO: MAYBE ADD THIS TO THE CONVO
                         // Remove the planet from the galaxy and notify the planet thread to stop.
                         if let (Some(planet_id), _) = convo.get_entities_ids() {
                             let planets_senders_clone = orch_context_ref
@@ -660,7 +662,7 @@ impl Orchestrator {
                                 // remove and notify sender
                                 if let Some((_, sender)) = planets_senders_clone.remove(&dead_id) {
                                     let _ = sender.send(
-                                        common_game::protocols::orchestrator_planet::OrchestratorToPlanet::KillPlanet,
+                                        OrchestratorToPlanet::KillPlanet,
                                     );
                                 }
 
