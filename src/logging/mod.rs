@@ -2,6 +2,7 @@
 
 mod format;
 mod init;
+mod routing;
 mod targets;
 
 pub use targets::LogTarget;

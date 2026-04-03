@@ -10,6 +10,12 @@ pub(super) const TARGET_CONVERSATIONS: &str = "orch::conversations";
 pub(super) const TARGET_GENERAL: &str = "orch::general";
 /// Target string for raw channel messages (planet/explorer/UI ↔ orchestrator)
 pub(super) const TARGET_CHANNEL_MESSAGES: &str = "orch::channel_messages";
+/// Target string for planet lifecycle events (creation, errors, node replacement)
+pub(super) const TARGET_PLANET_LIFECYCLE: &str = "orch::planet_lifecycle";
+/// Target string for explorer lifecycle events (spawn, thread end)
+pub(super) const TARGET_EXPLORER_LIFECYCLE: &str = "orch::explorer_lifecycle";
+/// Target string for orchestrator state changes (mode switch, pause/resume, shutdown)
+pub(super) const TARGET_ORCHESTRATOR_LIFECYCLE: &str = "orch::orchestrator_lifecycle";
 
 /// Categories that determine which log file receives a message.
 #[derive(Debug, Clone, Copy)]
@@ -22,6 +28,12 @@ pub enum LogTarget {
     General,
     /// Raw channel messages between orchestrator and planets/explorers/UI
     ChannelMessages,
+    /// Planet creation, errors, node replacement, and external planet crate logs
+    PlanetLifecycle,
+    /// Explorer spawn, thread lifecycle, and external explorer crate logs
+    ExplorerLifecycle,
+    /// Orchestrator mode switches, UI commands (pause/resume/end), shutdown
+    OrchestratorLifecycle,
 }
 
 impl LogTarget {
@@ -31,6 +43,9 @@ impl LogTarget {
             Self::Conversations => TARGET_CONVERSATIONS,
             Self::General => TARGET_GENERAL,
             Self::ChannelMessages => TARGET_CHANNEL_MESSAGES,
+            Self::PlanetLifecycle => TARGET_PLANET_LIFECYCLE,
+            Self::ExplorerLifecycle => TARGET_EXPLORER_LIFECYCLE,
+            Self::OrchestratorLifecycle => TARGET_ORCHESTRATOR_LIFECYCLE,
         }
     }
 }

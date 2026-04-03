@@ -2,13 +2,13 @@ use colored::Colorize;
 use std::collections::HashMap;
 
 use super::format::sanitize_log_message;
+use super::routing::ContentRouter;
 use super::targets::{
-    TARGET_ASTEROIDS_SUNRAYS, TARGET_CHANNEL_MESSAGES, TARGET_CONVERSATIONS, TARGET_GENERAL,
+    TARGET_EXPLORER_LIFECYCLE, TARGET_ORCHESTRATOR_LIFECYCLE, TARGET_PLANET_LIFECYCLE,
 };
 
-/// Load a local `.env` file (if present) and set the variables into the
-/// process environment. This intentionally overrides any existing values so
-/// that `.env` takes precedence over the terminal environment.
+// ── .env loader ──────────────────────────────────────────────────────────
+
 fn read_local_dotenv() -> HashMap<String, String> {
     let mut map = HashMap::new();
     if let Ok(content) = std::fs::read_to_string(".env") {
@@ -36,6 +36,8 @@ fn read_local_dotenv() -> HashMap<String, String> {
     map
 }
 
+// ── File helpers ─────────────────────────────────────────────────────────
+
 fn open_log_file(dir: &str, filename: &str) -> std::fs::File {
     std::fs::create_dir_all(dir)
         .unwrap_or_else(|e| panic!("failed to create log directory {dir}: {e}"));
@@ -47,27 +49,85 @@ fn open_log_file(dir: &str, filename: &str) -> std::fs::File {
         .unwrap_or_else(|e| panic!("failed to open log file {path}: {e}"))
 }
 
-/// Creates the `log/` directory and starts the multi-file logger.
+// ── Format functions ─────────────────────────────────────────────────────
+
+fn file_format(out: fern::FormatCallback, message: &std::fmt::Arguments, record: &log::Record) {
+    let raw = format!("{message}");
+    let cleaned = sanitize_log_message(&raw);
+    out.finish(format_args!(
+        "[{} {} {}] {}",
+        humantime::format_rfc3339_seconds(std::time::SystemTime::now()),
+        record.level(),
+        record.target(),
+        cleaned,
+    ));
+}
+
+fn terminal_format(out: fern::FormatCallback, message: &std::fmt::Arguments, record: &log::Record) {
+    let level_str = match record.level() {
+        log::Level::Error => "ERROR".red().bold().to_string(),
+        log::Level::Warn => "WARN".yellow().bold().to_string(),
+        log::Level::Info => "INFO".green().to_string(),
+        log::Level::Debug => "DEBUG".cyan().to_string(),
+        log::Level::Trace => "TRACE".dimmed().to_string(),
+    };
+    let raw = format!("{message}");
+    let cleaned = sanitize_log_message(&raw);
+    out.finish(format_args!(
+        "[{} {} {}] {}",
+        humantime::format_rfc3339_seconds(std::time::SystemTime::now())
+            .to_string()
+            .dimmed(),
+        level_str,
+        record.target().dimmed(),
+        cleaned,
+    ));
+}
+
+// ── Sub-dispatch builders ────────────────────────────────────────────────
+
+/// Build a file-backed sub-logger. Accepts every level — `ContentRouter` gates by level first.
+fn build_file_log(file: std::fs::File) -> Box<dyn log::Log + Send + Sync> {
+    let (_, log) = fern::Dispatch::new()
+        .level(log::LevelFilter::Trace)
+        .format(file_format)
+        .chain(file)
+        .into_log();
+    log
+}
+
+fn build_terminal_log() -> Box<dyn log::Log + Send + Sync> {
+    let (_, log) = fern::Dispatch::new()
+        .level(log::LevelFilter::Trace)
+        .format(terminal_format)
+        .chain(std::io::stderr())
+        .into_log();
+    log
+}
+
+// ── Public entry point ───────────────────────────────────────────────────
+
+/// Creates the `log/` directory tree and installs the multi-file logger.
 ///
-/// Log routing:
-/// | target prefix             | file                          |
-/// |---------------------------|-------------------------------|
-/// | `orch::asteroids_sunrays` | `log/asteroids_sunrays/<timestamp>.log` |
-/// | `orch::conversations`     | `log/conversations/<timestamp>.log`     |
-/// | `orch::general`           | `log/general/<timestamp>.log`           |
-/// | `orch::channel_messages`  | `log/channel_messages/<timestamp>.log`  |
-/// | anything else             | `log/common_game/<timestamp>.log`       |
-/// | *(all targets)*           | `log/all/<timestamp>.log`               |
+/// Log routing (resolved by [`super::routing::ContentRouter`]):
+/// | source / content                              | file                                    |
+/// |-----------------------------------------------|-----------------------------------------|
+/// | `orch::asteroids_sunrays`                     | `log/asteroids_sunrays/<ts>.log`        |
+/// | `orch::conversations`                         | `log/conversations/<ts>.log`            |
+/// | `orch::channel_messages` + routed messages    | `log/channel_messages/<ts>.log`         |
+/// | planet crates + `InternalPlanetAction`        | `log/planet_lifecycle/<ts>.log`         |
+/// | explorer crates + `InternalExplorerAction`    | `log/explorer_lifecycle/<ts>.log`       |
+/// | orchestrator state changes + UI commands      | `log/orchestrator_lifecycle/<ts>.log`   |
+/// | other external crates                         | `log/common_game/<ts>.log`              |
+/// | remaining `orch::general` messages            | `log/general/<ts>.log`                  |
+/// | *(all targets)*                               | `log/all/<ts>.log`                      |
 ///
 /// All messages are also printed to **stderr** for terminal visibility.
-///
-/// The log level is controlled by the `RUST_LOG` env var (default: `info`).
+/// The log level is controlled by `RUST_LOG` (default: `info`).
 ///
 /// # Panics
-/// Panics if the log directory or any log file cannot be created/opened.
+/// Panics if any log directory or file cannot be created/opened.
 pub(super) fn start_logger() {
-    // Read local `.env` (if present); terminal environment variables take
-    // precedence. Use `.env` only as a fallback for `RUST_LOG` and `LOG_DIR`.
     let dotenv_map = read_local_dotenv();
 
     let log_root = std::env::var("LOG_DIR")
@@ -85,91 +145,26 @@ pub(super) fn start_logger() {
         .and_then(|s| s.parse::<log::LevelFilter>().ok())
         .unwrap_or(log::LevelFilter::Info);
 
-    let format =
-        |out: fern::FormatCallback, message: &std::fmt::Arguments, record: &log::Record| {
-            let raw_message = format!("{message}");
-            let cleaned_message = sanitize_log_message(&raw_message);
-            out.finish(format_args!(
-                "[{} {} {}] {}",
-                humantime::format_rfc3339_seconds(std::time::SystemTime::now()),
-                record.level(),
-                record.target(),
-                cleaned_message,
-            ));
-        };
+    let f = |subdir: &str| open_log_file(&format!("{log_root}/{subdir}"), &log_filename);
 
-    let asteroids_sunrays_dir = format!("{log_root}/asteroids_sunrays");
-    let conversations_dir = format!("{log_root}/conversations");
-    let general_dir = format!("{log_root}/general");
-    let channel_messages_dir = format!("{log_root}/channel_messages");
-    let common_game_dir = format!("{log_root}/common_game");
-    let shared_dir = format!("{log_root}/all");
+    let router = ContentRouter {
+        asteroids_sunrays: build_file_log(f("asteroids_sunrays")),
+        conversations: build_file_log(f("conversations")),
+        general: build_file_log(f("general")),
+        channel_messages: build_file_log(f("channel_messages")),
+        planet_lifecycle: build_file_log(f(TARGET_PLANET_LIFECYCLE.trim_start_matches("orch::"))),
+        explorer_lifecycle: build_file_log(f(
+            TARGET_EXPLORER_LIFECYCLE.trim_start_matches("orch::")
+        )),
+        orchestrator_lifecycle: build_file_log(f(
+            TARGET_ORCHESTRATOR_LIFECYCLE.trim_start_matches("orch::")
+        )),
+        common_game: build_file_log(f("common_game")),
+        shared: build_file_log(f("all")),
+        terminal: build_terminal_log(),
+        level,
+    };
 
-    let asteroids_sunrays = fern::Dispatch::new()
-        .format(format)
-        .filter(|meta| meta.target().starts_with(TARGET_ASTEROIDS_SUNRAYS))
-        .chain(open_log_file(&asteroids_sunrays_dir, &log_filename));
-
-    let conversations = fern::Dispatch::new()
-        .format(format)
-        .filter(|meta| meta.target().starts_with(TARGET_CONVERSATIONS))
-        .chain(open_log_file(&conversations_dir, &log_filename));
-
-    let general = fern::Dispatch::new()
-        .format(format)
-        .filter(|meta| meta.target().starts_with(TARGET_GENERAL))
-        .chain(open_log_file(&general_dir, &log_filename));
-
-    let channel_messages = fern::Dispatch::new()
-        .format(format)
-        .filter(|meta| meta.target().starts_with(TARGET_CHANNEL_MESSAGES))
-        .chain(open_log_file(&channel_messages_dir, &log_filename));
-
-    // Everything that does NOT come from orchestrator targets (e.g. common_game, planet crates, explorer crates)
-    let common_game = fern::Dispatch::new()
-        .format(format)
-        .filter(|meta| !meta.target().starts_with("orch::"))
-        .chain(open_log_file(&common_game_dir, &log_filename));
-
-    // Shared file: all messages regardless of target
-    let shared = fern::Dispatch::new()
-        .format(format)
-        .chain(open_log_file(&shared_dir, &log_filename));
-
-    // Terminal output: all orchestrator logs go to stderr as well, with color
-    let terminal = fern::Dispatch::new()
-        .format(|out, message, record| {
-            let level = record.level();
-            let level_str = match level {
-                log::Level::Error => "ERROR".red().bold().to_string(),
-                log::Level::Warn => "WARN".yellow().bold().to_string(),
-                log::Level::Info => "INFO".green().to_string(),
-                log::Level::Debug => "DEBUG".cyan().to_string(),
-                log::Level::Trace => "TRACE".dimmed().to_string(),
-            };
-            let target = record.target().dimmed();
-            let timestamp = humantime::format_rfc3339_seconds(std::time::SystemTime::now());
-            let raw_message = format!("{message}");
-            let cleaned_message = sanitize_log_message(&raw_message);
-            out.finish(format_args!(
-                "[{} {} {}] {}",
-                timestamp.to_string().dimmed(),
-                level_str,
-                target,
-                cleaned_message,
-            ));
-        })
-        .chain(std::io::stderr());
-
-    fern::Dispatch::new()
-        .level(level)
-        .chain(asteroids_sunrays)
-        .chain(conversations)
-        .chain(general)
-        .chain(channel_messages)
-        .chain(common_game)
-        .chain(shared)
-        .chain(terminal)
-        .apply()
-        .expect("failed to initialize logger");
+    log::set_boxed_logger(Box::new(router)).expect("failed to initialize logger");
+    log::set_max_level(level);
 }
