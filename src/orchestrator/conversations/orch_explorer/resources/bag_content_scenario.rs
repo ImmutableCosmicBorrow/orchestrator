@@ -141,6 +141,17 @@ impl Conversation<ExplorerBagContent> for BagContentConversation<SendingBagConte
     fn get_priority(&self) -> i32 {
         3
     }
+
+    fn on_timeout(self: Box<Self>) {
+        log_internal(
+            LogTarget::Conversations,
+            Channel::Warning,
+            payload!(
+                action : "BagContentConversation timed out while waiting for transition from SendingBagContentRequest",
+                conversation_id : self.id
+            ),
+        );
+    }
 }
 
 impl BagContentConversation<SendingBagContentRequest> {
@@ -151,7 +162,9 @@ impl BagContentConversation<SendingBagContentRequest> {
             expected_message: None,
             state,
         }
+        
     }
+
 }
 
 // WAITING BAG CONTENT RESPONSE IMPLEMENTATION

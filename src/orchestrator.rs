@@ -543,6 +543,8 @@ impl Orchestrator {
                     self.routing().stop_planet_ai(*planet_id);
                 }
 
+                self.convo_scheduler.set_stopped(true);
+
                 log_internal(
                     LogTarget::General,
                     Channel::Info,
@@ -552,6 +554,7 @@ impl Orchestrator {
                 );
             }
             ResumeGame => {
+                self.convo_scheduler.set_stopped(false);
                 self.start_background_event_senders();
 
                 for explorer_id in self

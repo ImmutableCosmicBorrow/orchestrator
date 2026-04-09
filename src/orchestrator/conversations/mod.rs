@@ -58,6 +58,12 @@ pub trait Conversation<T: Debug + Eq + Hash>: Send + Sync {
         Some(TIMEOUT)
     }
 
+    /// Returns the type name of the conversation implementation.
+    fn conversation_type(&self) -> &str {
+        let full_name = std::any::type_name::<Self>();
+        full_name.split("::").last().unwrap_or(full_name)
+    }
+
     /// Called when the conversation times out.
     /// Default behavior is to panic - override this to implement custom timeout handling
     /// (e.g., logging, cleanup, graceful degradation).
@@ -67,15 +73,18 @@ pub trait Conversation<T: Debug + Eq + Hash>: Send + Sync {
             Channel::Error,
             payload!(
                 error : format!(
-                    "Conversation {} timed out waiting for {:?}",
+                    "Conversation type: {}, ID: {} with IDs {:?} timed out waiting for {:?}",
+                    self.conversation_type(),
                     self.get_id(),
+                    self.get_entities_ids(),
                     self.get_expected_kind()
                 ),
                 conversation_id : self.get_id(),
             ),
         );
         panic!(
-            "Conversation {} timed out waiting for {:?}",
+            "Conversation type: {}, ID: {} timed out waiting for {:?}",
+            self.conversation_type(),
             self.get_id(),
             self.get_expected_kind()
         )

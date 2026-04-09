@@ -134,6 +134,21 @@ impl Conversation<ExplorerBagContent> for InternalStateConversation<SendingInter
     fn get_priority(&self) -> i32 {
         3
     }
+
+    /// Called when the conversation times out while sending the internal state request.
+    /// Logs a warning instead of panicking - the conversation is simply terminated.
+    fn on_timeout(self: Box<Self>) {
+        log_internal(
+            LogTarget::Conversations,
+            Channel::Warning,
+            payload!(
+                action : "Internal state conversation timed out while sending request to planet",
+                planet_id : self.state.to_planet_struct.planet_id,
+                conversation_id : self.id,
+            ),
+        );
+        // Conversation ends here - no further action needed for sending request timeout
+    }
 }
 
 impl InternalStateConversation<SendingInternalStateRequest> {
@@ -204,6 +219,21 @@ impl Conversation<ExplorerBagContent> for InternalStateConversation<WaitingInter
 
     fn get_priority(&self) -> i32 {
         3
+    }
+
+    /// Called when the conversation times out waiting for `InternalStateResponse`.
+    /// Logs a warning instead of panicking - the conversation is simply terminated.
+    fn on_timeout(self: Box<Self>) {
+        log_internal(
+            LogTarget::Conversations,
+            Channel::Warning,
+            payload!(
+                action : "Internal state conversation timed out waiting for planet response",
+                planet_id : self.state.planet_id,
+                conversation_id : self.id,
+            ),
+        );
+        // Conversation ends here - no further action needed for internal state timeout
     }
 }
 
