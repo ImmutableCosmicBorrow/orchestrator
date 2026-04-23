@@ -308,12 +308,9 @@ impl<T: Debug + Eq + Hash> ConvoScheduler<T> {
         self.handle_timeouts();
 
         let conversation = self.active_convos.lock().unwrap().remove(&id);
-        let conversation = match conversation {
-            Some(conv) => conv,
-            None => {
-                // Conversation was removed by another thread between the check and removal
-                return None;
-            }
+        let Some(conversation) = conversation else {
+            // Conversation was removed by another thread between the check and removal
+            return None;
         };
 
         let expected_kind = conversation.get_expected_kind();

@@ -12,7 +12,9 @@ use crate::planet::{self, PlanetMap};
 use crate::{get_id_manager, payload};
 
 use crate::channels_manager::ChannelsManager;
+use crate::galaxy_setup::spawn_planet_with_channels;
 use crate::globals::{get_game_step, set_game_step};
+use crate::id::PlanetKind;
 use crate::logging::{LogTarget, log_internal, log_msg_from};
 use crate::orchestrator::conversations::ToExplorerStruct;
 use crate::orchestrator::conversations::ToPlanetStruct;
@@ -89,6 +91,18 @@ impl Orchestrator {
         // galaxy_loader now returns 2 values (galaxy and planet_threads), all channels are distributed inside using
         // channels manager APIs
         let (galaxy, planet_threads) = galaxy_loader(file_path, channels_manager.as_ref());
+
+        // Sync planet ID generator with pre-loaded galaxy IDs to avoid runtime collisions
+        // (e.g., first AddPlanet duplicating an existing ID from file).
+        {
+            let existing_planet_ids: Vec<ID> = galaxy
+                .read()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .keys()
+                .copied()
+                .collect();
+            get_id_manager().sync_planet_counter_with_existing(&existing_planet_ids);
+        }
 
         let mut orchestrator = Self {
             forge: Arc::new(Forge::new().expect("Couldn't create forge!")),
@@ -499,8 +513,55 @@ impl Orchestrator {
                 self.routing().ask_bag_content(explorer_id); //the conversation will send the update to UI
             }
 
-            AddPlanet(planet_id, connected_planets) => {
+            AddPlanet(planet_kind, connected_planets) => {
+                let planet_id = match planet_kind {
+                    PlanetKind::Trip => get_id_manager().get_next_trip_id(),
+                    PlanetKind::Rustrelli => get_id_manager().get_next_rustrelli_id(),
+                    PlanetKind::Luna4 => get_id_manager().get_next_luna4_id(),
+                    PlanetKind::RustyCrab => get_id_manager().get_next_rusty_crab_id(),
+                    PlanetKind::Enterprise => get_id_manager().get_next_enterprise_id(),
+                    PlanetKind::Orbitron => get_id_manager().get_next_orbitron_id(),
+                    PlanetKind::Houston => get_id_manager().get_next_houston_id(),
+                };
+
                 planet::add_planet_with_neighbors(&self.galaxy, planet_id, connected_planets);
+                let already_present = self.channels_manager.to_planet_senders_contains(planet_id);
+
+                if already_present {
+                    log_internal(
+                        LogTarget::General,
+                        Channel::Warning,
+                        payload!(
+                            action : "AddPlanet called for an existing planet: topology updated, skipping start",
+                            planet_id : planet_id,
+                        ),
+                    );
+                } else {
+                    self.planet_threads
+                        .lock()
+                        .unwrap()
+                        .entry(planet_id)
+                        .or_insert_with(|| {
+                            spawn_planet_with_channels(self.channels_manager.as_ref(), planet_id)
+                        });
+
+                    // Send PlanetStart to initialize the newly spawned planet
+                    convo_factory::create_start_planet_conversation(
+                        &self.convo_scheduler,
+                        self.channels_manager.get_to_planet_senders_struct_ref(),
+                        planet_id,
+                    );
+
+                    log_internal(
+                        LogTarget::General,
+                        Channel::Info,
+                        payload!(
+                            action : "Added new planet",
+                            planet_id : planet_id,
+                            planet_kind : format!("{:?}", planet_kind),
+                        ),
+                    );
+                }
             }
 
             AddExplorer(explorer_type, into_planet) => {

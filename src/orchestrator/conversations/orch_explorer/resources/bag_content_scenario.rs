@@ -162,9 +162,7 @@ impl BagContentConversation<SendingBagContentRequest> {
             expected_message: None,
             state,
         }
-        
     }
-
 }
 
 // WAITING BAG CONTENT RESPONSE IMPLEMENTATION
