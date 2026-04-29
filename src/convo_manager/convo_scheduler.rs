@@ -876,7 +876,7 @@ mod tests {
         let scheduler = ConvoScheduler::new();
 
         // Add a conversation with a long timeout
-        let convo = TimeoutMockConversation::new(1, 10, Some(Duration::from_secs(60)));
+        let convo = TimeoutMockConversation::new(1, 10, Some(Duration::from_mins(1)));
         scheduler.add_conversation(Box::new(convo));
 
         // Handle timeouts immediately - should do nothing
@@ -912,7 +912,7 @@ mod tests {
         assert!(!scheduler.is_timed_out(1));
 
         // Set a timeout that hasn't expired
-        scheduler.set_timeout(1, Duration::from_secs(60));
+        scheduler.set_timeout(1, Duration::from_mins(1));
         assert!(!scheduler.is_timed_out(1));
 
         // Set a timeout in the past (already expired)

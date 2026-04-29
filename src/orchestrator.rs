@@ -231,7 +231,7 @@ impl Orchestrator {
         let from_ui_rcv = self.orch_context_ref.channels_manager.get_ui_receiver();
         // Main loop
         loop {
-            let timeout = crossbeam_channel::after(get_game_step() + Duration::from_millis(1000));
+            let timeout = crossbeam_channel::after(get_game_step() + Duration::from_secs(1));
             select! {
                 recv(from_planets_rcv) -> msg => {
                     self.handle_planets_message(msg);
@@ -661,9 +661,7 @@ impl Orchestrator {
                             planet::remove_node_with_stop(&galaxy_clone, planet_id, |dead_id| {
                                 // remove and notify sender
                                 if let Some((_, sender)) = planets_senders_clone.remove(&dead_id) {
-                                    let _ = sender.send(
-                                        OrchestratorToPlanet::KillPlanet,
-                                    );
+                                    let _ = sender.send(OrchestratorToPlanet::KillPlanet);
                                 }
 
                                 // remove and join the planet thread handle if present
