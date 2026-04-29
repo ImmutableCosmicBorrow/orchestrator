@@ -192,7 +192,7 @@ impl Orchestrator {
         let from_ui_rcv = self.channels_manager.get_ui_receiver();
         // Main loop
         loop {
-            let timeout = crossbeam_channel::after(get_game_step() + Duration::from_millis(1000));
+            let timeout = crossbeam_channel::after(get_game_step() + Duration::from_secs(1));
             select! {
                 recv(from_planets_rcv) -> msg => {
                     self.handle_planets_message(msg);
