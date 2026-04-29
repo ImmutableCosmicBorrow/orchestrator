@@ -8,6 +8,75 @@ use super::targets::{
 };
 // (TARGET_* constants used only for directory naming via trim_start_matches("orch::"))
 
+// ── RUST_LOG directive parsing ───────────────────────────────────────────
+
+/// Represents parsed `RUST_LOG` directives for module-level filtering.
+/// Example: "`explorer_rob`=trace,`orchestrator`=debug,info"
+/// Parsed as: {
+///   "`explorer_rob`" -> Trace,
+///   "`orchestrator`" -> Debug,
+/// }
+/// with global fallback: Info
+#[derive(Debug, Clone)]
+pub struct LogDirectives {
+    /// Maps module prefixes to their log levels (e.g., "`explorer_rob`" -> Trace)
+    pub module_levels: HashMap<String, log::LevelFilter>,
+    /// Global fallback level if no module matches
+    pub global_level: log::LevelFilter,
+}
+
+impl LogDirectives {
+    /// Parse `RUST_LOG` directive string into module levels and global fallback.
+    /// Examples:
+    ///   "debug" -> global Debug
+    ///   "`explorer_rob`=trace" -> module-specific Trace, global Info
+    ///   "`explorer_rob`=trace,debug" -> module-specific Trace, global Debug
+    ///   "`orchestrator`=debug,`explorer_rob`=trace,info" -> multiple modules, global Info
+    pub fn parse(input: &str) -> Self {
+        let mut module_levels = HashMap::new();
+        let mut global_level = log::LevelFilter::Info;
+
+        for part in input.split(',') {
+            let part = part.trim();
+            if part.is_empty() {
+                continue;
+            }
+
+            if let Some((module, level_str)) = part.split_once('=') {
+                // Module-specific directive: "module=level"
+                if let Ok(level) = level_str.trim().parse::<log::LevelFilter>() {
+                    module_levels.insert(module.trim().to_string(), level);
+                }
+            } else {
+                // Global level directive (no '=')
+                if let Ok(level) = part.parse::<log::LevelFilter>() {
+                    global_level = level;
+                }
+            }
+        }
+
+        LogDirectives {
+            module_levels,
+            global_level,
+        }
+    }
+
+    /// Check if a record should be logged based on its target (module prefix).
+    pub fn is_enabled(&self, level: log::Level, target: &str) -> bool {
+        // Check for module-specific overrides, trying progressively shorter prefixes
+        let parts: Vec<&str> = target.split("::").collect();
+        for i in (0..parts.len()).rev() {
+            let prefix = parts[0..=i].join("::");
+            if let Some(&level_filter) = self.module_levels.get(&prefix) {
+                return level <= level_filter;
+            }
+        }
+
+        // Fall back to global level
+        level <= self.global_level
+    }
+}
+
 // ── .env loader ──────────────────────────────────────────────────────────
 
 fn read_local_dotenv() -> HashMap<String, String> {
@@ -131,7 +200,15 @@ fn build_terminal_log() -> Box<dyn log::Log + Send + Sync> {
 /// | *(all targets)*                               | `log/all/<ts>.log`                              |
 ///
 /// All messages are also printed to **stderr** for terminal visibility.
-/// The log level is controlled by `RUST_LOG` (default: `info`).
+///
+/// ## `RUST_LOG` Configuration
+/// The log level is controlled by `RUST_LOG` (environment variable or `.env`).
+/// Supports module-level filtering directives:
+///
+/// - `RUST_LOG="debug"` — Global debug level
+/// - `RUST_LOG="explorer_rob=trace,debug"` — Module-specific: `explorer_rob` at Trace, others at Debug
+/// - `RUST_LOG="orchestrator=trace,info"` — Selective: orchestrator at Trace, others at Info
+/// - Default if not set: `info`
 ///
 /// # Panics
 /// Panics if any log directory or file cannot be created/opened.
@@ -147,11 +224,14 @@ pub(super) fn start_logger() {
     let now = chrono::Local::now();
     let log_filename = format!("{}.log", now.format("%Y_%m_%d_%H-%M-%S"));
 
-    let level = std::env::var("RUST_LOG")
+    // Parse RUST_LOG with support for module-level directives
+    let directives = std::env::var("RUST_LOG")
         .ok()
         .or_else(|| dotenv_map.get("RUST_LOG").cloned())
-        .and_then(|s| s.parse::<log::LevelFilter>().ok())
-        .unwrap_or(log::LevelFilter::Info);
+        .map_or_else(
+            || LogDirectives::parse("info"),
+            |s| LogDirectives::parse(&s),
+        );
 
     let f = |subdir: &str| open_log_file(&format!("{log_root}/{subdir}"), &log_filename);
 
@@ -181,9 +261,10 @@ pub(super) fn start_logger() {
         common_game: build_file_log(f("common_game")),
         shared: build_file_log(f("all")),
         terminal: build_terminal_log(),
-        level,
+        directives: directives.clone(),
     };
 
     log::set_boxed_logger(Box::new(router)).expect("failed to initialize logger");
-    log::set_max_level(level);
+    // Set max_level to Trace to allow all levels through; actual filtering happens in ContentRouter
+    log::set_max_level(log::LevelFilter::Trace);
 }

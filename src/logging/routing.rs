@@ -233,12 +233,13 @@ pub(super) struct ContentRouter {
     // always receives every record
     pub(super) shared: Box<dyn log::Log + Send + Sync>,
     pub(super) terminal: Box<dyn log::Log + Send + Sync>,
-    pub(super) level: log::LevelFilter,
+    pub(super) directives: super::init::LogDirectives,
 }
 
 impl log::Log for ContentRouter {
     fn enabled(&self, metadata: &log::Metadata) -> bool {
-        metadata.level() <= self.level
+        self.directives
+            .is_enabled(metadata.level(), metadata.target())
     }
 
     fn log(&self, record: &log::Record) {
