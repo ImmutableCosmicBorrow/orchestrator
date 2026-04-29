@@ -10,6 +10,7 @@ use common_game::logging::Channel;
 use common_game::protocols::orchestrator_planet::PlanetToOrchestratorKind::StartPlanetAIResult;
 use common_game::protocols::orchestrator_planet::{OrchestratorToPlanet, PlanetToOrchestrator};
 use common_game::utils::ID;
+use std::time::Duration;
 
 ///**Start Planet Conversation**
 ///
@@ -119,6 +120,11 @@ impl Conversation<ExplorerBagContent> for StartPlanetConversation<SendingPlanetS
     fn get_priority(&self) -> i32 {
         5
     }
+
+    fn get_timeout(&self) -> Option<Duration> {
+        // Dynamic planet spawn + thread scheduling can take longer than the global default.
+        Some(crate::globals::get_game_step() + Duration::from_secs(2))
+    }
 }
 
 impl StartPlanetConversation<SendingPlanetStart> {
@@ -179,6 +185,11 @@ impl Conversation<ExplorerBagContent> for StartPlanetConversation<WaitingPlanetS
 
     fn get_priority(&self) -> i32 {
         5
+    }
+
+    fn get_timeout(&self) -> Option<Duration> {
+        // Allow planet startup handshake enough time, especially for planets added at runtime.
+        Some(crate::globals::get_game_step() + Duration::from_secs(2))
     }
 }
 

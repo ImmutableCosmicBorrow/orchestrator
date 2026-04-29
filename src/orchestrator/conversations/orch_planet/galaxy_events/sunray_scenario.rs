@@ -136,6 +136,18 @@ impl Conversation<ExplorerBagContent> for SunrayConversation<SendSunray> {
     fn get_priority(&self) -> i32 {
         1
     }
+
+    fn on_timeout(self: Box<Self>) {
+        // No timeout expected in this state, so we can just log a warning if this happens
+        log_internal(
+            LogTarget::AsteroidsSunrays,
+            Channel::Warning,
+            payload!(
+                action : "SunrayConversation in SendSunray state timed out unexpectedly",
+                conversation_id : self.id
+            ),
+        );
+    }
 }
 
 impl SunrayConversation<SendSunray> {

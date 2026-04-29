@@ -1,6 +1,7 @@
 use std::collections::HashSet;
 
 use crate::ExplorerType;
+use crate::id::PlanetKind;
 use crate::orchestrator::ExplorersLocationRef;
 use common_explorer::ExplorerBagContent;
 use common_game::components::planet::DummyPlanetState;
@@ -16,7 +17,7 @@ use crate::planet::PlanetMap;
 pub enum UiToOrchestratorCommand {
     //rendering commands
     GetGalaxy,
-    AddPlanet(ID, Vec<ID>), //new planet id and connected planet ids
+    AddPlanet(PlanetKind, Vec<ID>), //new planet kind and connected planet ids
     GetExplorersPosition,
     GetPlanetSnapshot(ID),
     GetExplorerSnapshot(ID),
