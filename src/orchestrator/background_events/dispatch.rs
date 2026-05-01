@@ -22,6 +22,21 @@ fn dispatch_asteroid(event: PlannedEvent, world: &WorldCtx, dispatch_ctx: &Dispa
         .channels_manager
         .get_orch_to_exp_senders_struct();
 
+    if !dispatch_ctx
+        .channels_manager
+        .to_planet_senders_contains(event.planet_id)
+    {
+        log_internal(
+            LogTarget::AsteroidsSunrays,
+            Channel::Debug,
+            payload!(
+                action: "Skipping asteroid for missing planet sender",
+                planet_id: event.planet_id,
+            ),
+        );
+        return;
+    }
+
     log_internal(
         LogTarget::AsteroidsSunrays,
         Channel::Trace,
@@ -42,6 +57,21 @@ fn dispatch_asteroid(event: PlannedEvent, world: &WorldCtx, dispatch_ctx: &Dispa
 fn dispatch_sunray(event: PlannedEvent, dispatch_ctx: &DispatchCtx) {
     let planets_senders = dispatch_ctx.channels_manager.get_to_planet_senders_struct();
     let ui_sender = dispatch_ctx.channels_manager.get_ui_sender();
+
+    if !dispatch_ctx
+        .channels_manager
+        .to_planet_senders_contains(event.planet_id)
+    {
+        log_internal(
+            LogTarget::AsteroidsSunrays,
+            Channel::Debug,
+            payload!(
+                action: "Skipping sunray for missing planet sender",
+                planet_id: event.planet_id,
+            ),
+        );
+        return;
+    }
 
     log_internal(
         LogTarget::AsteroidsSunrays,

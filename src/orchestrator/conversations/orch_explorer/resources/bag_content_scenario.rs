@@ -243,6 +243,21 @@ impl Conversation<ExplorerBagContent> for BagContentConversation<WaitingBagConte
     fn get_timeout(&self) -> Option<Duration> {
         Some(get_explorer_timeout())
     }
+
+    /// Called when the bag content request times out waiting for the explorer response.
+    /// Logs a warning instead of panicking - the conversation is simply terminated.
+    fn on_timeout(self: Box<Self>) {
+        log_internal(
+            LogTarget::Conversations,
+            Channel::Warning,
+            payload!(
+                action : "BagContentConversation timed out waiting for explorer response",
+                explorer_id : self.state.explorer_id,
+                conversation_id : self.id,
+            ),
+        );
+        // Conversation ends here - no further action needed for timeout
+    }
 }
 
 impl BagContentConversation<WaitingBagContentResponse> {
@@ -386,6 +401,14 @@ mod tests {
             result.get_error_details(),
             Some("Wrong Message Received".to_string())
         );
+    }
+
+    #[test]
+    fn wait_timeout_does_not_panic() {
+        let conv = make_wait_conv();
+
+        // on_timeout should log and return without panicking
+        conv.on_timeout();
     }
 
     /*#[test]

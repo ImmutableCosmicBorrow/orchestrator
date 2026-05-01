@@ -1,4 +1,7 @@
 use super::{ID, Orchestrator, convo_factory};
+use crate::logging::{LogTarget, log_internal};
+use crate::payload;
+use common_game::logging::Channel;
 
 pub(crate) struct ConvoRouter<'a> {
     orch: &'a Orchestrator,
@@ -46,7 +49,23 @@ impl<'a> ConvoRouter<'a> {
     }
 
     /// Create internal state conversation for a planet.
-    pub fn ask_internal_state(&self, planet_id: ID) {
+    pub fn ask_internal_state(&self, planet_id: ID) -> Result<(), String> {
+        if !self
+            .orch
+            .channels_manager
+            .to_planet_senders_contains(planet_id)
+        {
+            log_internal(
+                LogTarget::General,
+                Channel::Warning,
+                payload!(
+                    action: "ask_internal_state called but no planet sender found",
+                    planet_id: planet_id,
+                ),
+            );
+            return Err(format!("no sender for planet {planet_id}"));
+        }
+
         convo_factory::create_internal_state_conversation(
             &self.orch.convo_scheduler,
             self.orch
@@ -55,10 +74,29 @@ impl<'a> ConvoRouter<'a> {
             self.orch.channels_manager.get_ui_sender(),
             planet_id,
         );
+
+        Ok(())
     }
 
     /// Create bag content conversation for an explorer.
-    pub fn ask_bag_content(&self, explorer_id: ID) {
+    pub fn ask_bag_content(&self, explorer_id: ID) -> Result<(), String> {
+        if self
+            .orch
+            .channels_manager
+            .get_orch_to_explorer_sender(explorer_id)
+            .is_none()
+        {
+            log_internal(
+                LogTarget::General,
+                Channel::Warning,
+                payload!(
+                    action: "ask_bag_content called but no explorer sender found",
+                    explorer_id: explorer_id,
+                ),
+            );
+            return Err(format!("no sender for explorer {explorer_id}"));
+        }
+
         convo_factory::create_bag_content_conversation(
             &self.orch.convo_scheduler,
             self.orch
@@ -67,6 +105,8 @@ impl<'a> ConvoRouter<'a> {
             self.orch.channels_manager.get_ui_sender(),
             explorer_id,
         );
+
+        Ok(())
     }
 
     /// Create generate resource conversation.

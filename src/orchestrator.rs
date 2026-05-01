@@ -506,11 +506,11 @@ impl Orchestrator {
                 );
             }
             GetPlanetSnapshot(planet_id) => {
-                self.routing().ask_internal_state(planet_id); //the conversation will send the update to UI
+                let _ = self.routing().ask_internal_state(planet_id); //the conversation will send the update to UI or log a warning
             }
 
             GetExplorerSnapshot(explorer_id) => {
-                self.routing().ask_bag_content(explorer_id); //the conversation will send the update to UI
+                let _ = self.routing().ask_bag_content(explorer_id); //the conversation will send the update to UI or log a warning
             }
 
             AddPlanet(planet_kind, connected_planets) => {
@@ -729,6 +729,7 @@ impl Orchestrator {
         let convo_scheduler = self.convo_scheduler.clone();
         let explorer_senders = self.channels_manager.get_orch_to_exp_senders_struct();
         let planets_senders = self.channels_manager.get_to_planet_senders_struct();
+        let ui_sender = self.channels_manager.get_ui_sender();
         let explorer_locations = self.explorers_location.clone();
         let galaxy = self.galaxy.clone();
         let planet_threads = self.planet_threads.clone();
@@ -792,6 +793,10 @@ impl Orchestrator {
                                 {
                                     let _ = handle.join();
                                 }
+
+                                let _ = ui_sender.send(OrchestratorToUiUpdate::DeadPlanet(dead_id));
+                                let _ = ui_sender
+                                    .send(OrchestratorToUiUpdate::Galaxy(galaxy_clone.clone()));
                             });
                         }
                     }

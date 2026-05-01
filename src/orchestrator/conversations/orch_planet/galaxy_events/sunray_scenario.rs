@@ -137,6 +137,11 @@ impl Conversation<ExplorerBagContent> for SunrayConversation<SendSunray> {
         1
     }
 
+    /// The send step should complete immediately; only the ack-wait state should time out.
+    fn get_timeout(&self) -> Option<Duration> {
+        None
+    }
+
     fn on_timeout(self: Box<Self>) {
         // No timeout expected in this state, so we can just log a warning if this happens
         log_internal(
@@ -361,6 +366,8 @@ mod tests {
         assert_eq!(conv.get_entities_ids(), (Some(PLANET_ID), None));
         // get_expected_kind (should be None in SendSunray state)
         assert_eq!(conv.get_expected_kind(), None);
+        // send state should not be registered with a timeout
+        assert_eq!(conv.get_timeout(), None);
         // get_priority
         assert_eq!(conv.get_priority(), 1);
     }
