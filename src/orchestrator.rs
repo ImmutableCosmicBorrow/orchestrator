@@ -371,6 +371,7 @@ impl Orchestrator {
                 self.routing().stop_explorer_ai(*explorer_id);
             }
             background_events::disable_asteroids();
+            background_events::disable_sunrays();
         } else {
             log_internal(
                 LogTarget::General,
@@ -383,6 +384,7 @@ impl Orchestrator {
                 self.routing().start_explorer_ai(*explorer_id);
             }
             background_events::enable_asteroids();
+            background_events::enable_sunrays();
         }
     }
 
