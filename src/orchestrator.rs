@@ -57,6 +57,7 @@ pub struct Orchestrator {
     message_processor_thread: Option<JoinHandle<()>>,
     message_processor_stop: Arc<AtomicBool>,
     shutdown_requested: bool,
+    background_events_enabled: bool,
     manual_mode: bool,
 }
 
@@ -74,6 +75,7 @@ impl Orchestrator {
     ///
     /// Panics if the forge cannot be created, or if there are no Planets.
     #[must_use]
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         file_path: &std::path::Path,
         game_step: u64,
@@ -82,6 +84,7 @@ impl Orchestrator {
         explorer1: ExplorerType,
         explorer2: Option<ExplorerType>,
         spawn_planet: Option<ID>,
+        background_events_enabled: bool,
     ) -> Self {
         // Set static variable GAME_STEP
         set_game_step(game_step);
@@ -115,6 +118,7 @@ impl Orchestrator {
             message_processor_thread: None,
             message_processor_stop: Arc::new(AtomicBool::new(false)),
             shutdown_requested: false,
+            background_events_enabled,
             manual_mode: false,
         };
 
@@ -198,7 +202,12 @@ impl Orchestrator {
         self.process_messages();
 
         // Start background event senders
-        self.start_background_event_senders();
+        if self.background_events_enabled {
+            self.start_background_event_senders();
+        } else {
+            background_events::disable_asteroids();
+            background_events::disable_sunrays();
+        }
 
         //Get receiving channels
         let from_planets_rcv = self.channels_manager.get_from_planet_rcv();

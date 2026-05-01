@@ -16,3 +16,6 @@ all: fmt lint test
 
 doc:
 	cargo doc
+
+make cli:
+	cargo run -- --game-step 2000 --explorer1 explorer --explorer2 vojager

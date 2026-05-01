@@ -136,6 +136,15 @@ fn build_terminal_log() -> Box<dyn log::Log + Send + Sync> {
 /// # Panics
 /// Panics if any log directory or file cannot be created/opened.
 pub(super) fn start_logger() {
+    start_logger_with_console(true);
+}
+
+/// Same as [`start_logger`], but allows disabling terminal (stderr) output.
+///
+/// When `print_to_stderr` is `false`, logs are still written to files.
+/// # Panics
+/// Panics if the log directory or any log file cannot be created/opened.
+pub fn start_logger_with_console(print_to_stderr: bool) {
     let dotenv_map = read_local_dotenv();
 
     let log_root = std::env::var("LOG_DIR")
@@ -154,6 +163,12 @@ pub(super) fn start_logger() {
         .unwrap_or(log::LevelFilter::Info);
 
     let f = |subdir: &str| open_log_file(&format!("{log_root}/{subdir}"), &log_filename);
+
+    let terminal = if print_to_stderr {
+        Some(build_terminal_log())
+    } else {
+        None
+    };
 
     let router = ContentRouter {
         // asteroids & sunrays — nested under asteroids_sunrays/
@@ -180,7 +195,7 @@ pub(super) fn start_logger() {
         )),
         common_game: build_file_log(f("common_game")),
         shared: build_file_log(f("all")),
-        terminal: build_terminal_log(),
+        terminal,
         level,
     };
 
