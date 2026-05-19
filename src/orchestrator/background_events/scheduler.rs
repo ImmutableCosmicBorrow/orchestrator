@@ -31,7 +31,7 @@ pub(super) fn init_background_event_scheduler(convo_manager: Arc<ConvoManager>) 
 
     control::reset_shutdown_flag();
 
-    let handle = thread::spawn(move || scheduler_loop(convo_manager));
+    let handle = thread::spawn(move || scheduler_loop(&convo_manager));
 
     *handle_guard = Some(handle);
 }
@@ -45,7 +45,7 @@ pub(super) fn join_scheduler_thread() {
     }
 }
 
-fn scheduler_loop(convo_manager: Arc<ConvoManager>) {
+fn scheduler_loop(convo_manager: &Arc<ConvoManager>) {
     let mut state = SchedulerState::new();
 
     let orch_context = &*convo_manager.get_orch_context();
@@ -84,7 +84,7 @@ fn scheduler_loop(convo_manager: Arc<ConvoManager>) {
             break;
         }
 
-        dispatch_due_events(&mut state, Instant::now(), &*convo_manager);
+        dispatch_due_events(&mut state, Instant::now(), convo_manager);
     }
 }
 
