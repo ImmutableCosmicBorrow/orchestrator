@@ -1,3 +1,5 @@
+#![allow(clippy::unnecessary_wraps, clippy::boxed_local, clippy::needless_pass_by_value)]
+
 use crate::logging::{LogTarget, log_internal, log_msg_to};
 use crate::orchestrator::{ChannelsManagerRef, ExplorerBagContent};
 use crate::payload;

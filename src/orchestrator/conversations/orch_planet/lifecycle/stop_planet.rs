@@ -60,9 +60,6 @@ create_request_state!(
 /// [`ErrorState`] with [`CommonErrorTypes::PlanetSenderNotFound`] if the sender to the planet is not in the list
 ///
 /// The next state: [`StopPlanetConversation<WaitingPlanetStopResult>`] if the stop command was sent successfully.
-// TODO: check if we can remove allows
-#[allow(clippy::unnecessary_wraps)]
-#[allow(clippy::boxed_local)]
 fn send_planet_stop_transition(
     this: Box<StopPlanetConversation<SendingPlanetStop>>,
 ) -> Option<Box<dyn Conversation + Send + Sync>> {
@@ -109,9 +106,6 @@ create_response_state!(
 /// [None] if the stop result is successfully received and processed, closing the conversation.
 ///
 /// [`ErrorState`] with [`CommonErrorTypes::WrongMessage`] if the trigger message is different from the expected one [`PlanetToOrchestrator::StopPlanetAIResult`]
-// TODO: check if we can remove allows
-#[allow(clippy::boxed_local)]
-#[allow(clippy::needless_pass_by_value)]
 fn wait_planet_stop_res_transition(
     this: Box<StopPlanetConversation<WaitingPlanetStopResult>>,
     msg: Option<PossibleMessage>,
@@ -173,7 +167,6 @@ mod tests {
         }
     }
 
-    #[allow(clippy::unnecessary_box_returns)]
     fn make_send_conv(senders: PlanetSenders) -> Box<StopPlanetConversation<SendingPlanetStop>> {
         let to_planet = make_to_planet_struct(PLANET_ID, senders);
         let state = SendingPlanetStop::new(to_planet);
@@ -182,7 +175,6 @@ mod tests {
         ))
     }
 
-    #[allow(clippy::unnecessary_box_returns)]
     fn make_wait_conv() -> Box<StopPlanetConversation<WaitingPlanetStopResult>> {
         Box::new(StopPlanetConversation::<WaitingPlanetStopResult>::new(
             CONV_ID, PLANET_ID,

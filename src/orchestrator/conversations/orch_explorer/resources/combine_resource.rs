@@ -193,7 +193,6 @@ mod tests {
 
     // --- Helper functions ---
 
-    #[allow(clippy::unnecessary_box_returns)]
     fn make_send_conv(
         senders: OrchToExplorerSenders,
     ) -> Box<CombineResourceConversation<SendingCombineResourceRequest>> {
@@ -202,7 +201,6 @@ mod tests {
         Box::new(CombineResourceConversation::<SendingCombineResourceRequest>::new(CONV_ID, state))
     }
 
-    #[allow(clippy::unnecessary_box_returns)]
     fn make_wait_conv() -> Box<CombineResourceConversation<WaitingCombineResourceResult>> {
         let state = WaitingCombineResourceResult::new(EXPLORER_ID, AIPartner);
         Box::new(CombineResourceConversation::<WaitingCombineResourceResult>::new(CONV_ID, state))

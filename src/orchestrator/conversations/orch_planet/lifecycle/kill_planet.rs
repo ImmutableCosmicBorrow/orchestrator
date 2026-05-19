@@ -56,9 +56,6 @@ create_request_state!(
 /// [`ErrorState`] if the message to the planet fails or the sender is not found.
 ///
 /// [`KillPlanetConversation<WaitingPlanetKillResult>`] if the kill command was sent successfully.
-// TODO: check if we can remove allows
-#[allow(clippy::unnecessary_wraps)]
-#[allow(clippy::boxed_local)]
 fn send_kill_planet_transition(
     this: Box<KillPlanetConversation<SendPlanetKill>>,
 ) -> Option<Box<dyn Conversation + Send + Sync>> {
@@ -118,9 +115,6 @@ impl WaitingPlanetKillResult {
 /// through the dedicated method of the trait and let the Orchestrator take care of that
 ///
 /// [`ErrorState`] with [`CommonErrorTypes::WrongMessage`] if the trigger message is different then the expected [`PlanetToOrchestrator::KillPlanetResult`]
-// TODO: check if we can remove allows
-#[allow(clippy::boxed_local)]
-#[allow(clippy::needless_pass_by_value)]
 fn wait_planet_kill_res_transition(
     this: Box<KillPlanetConversation<WaitingPlanetKillResult>>,
     msg: Option<PossibleMessage>,
@@ -191,7 +185,6 @@ mod tests {
         )
     }
 
-    #[allow(clippy::unnecessary_box_returns)]
     fn make_send_conv(senders: PlanetSenders) -> Box<KillPlanetConversation<SendPlanetKill>> {
         let to_planet = make_to_planet_struct(PLANET_ID, senders);
         let (explorers_location, explorers_senders) = make_empty_explorer_refs();
@@ -201,7 +194,6 @@ mod tests {
         ))
     }
 
-    #[allow(clippy::unnecessary_box_returns)]
     fn make_wait_conv() -> Box<KillPlanetConversation<WaitingPlanetKillResult>> {
         let (explorers_location, explorers_senders) = make_empty_explorer_refs();
         let planet_senders = make_empty_senders();
@@ -216,7 +208,6 @@ mod tests {
         ))
     }
 
-    #[allow(clippy::unnecessary_box_returns)]
     fn make_wait_conv_with_explorers() -> Box<KillPlanetConversation<WaitingPlanetKillResult>> {
         let explorers_location = Arc::new(Mutex::new(HashMap::from([
             (EXPLORER_ID_1, PLANET_ID),

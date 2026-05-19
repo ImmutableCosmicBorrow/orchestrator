@@ -70,9 +70,6 @@ create_request_state!(
 /// [`ErrorState`] if the request failed to send to the planet or the sender to the planet is not found.
 ///
 /// [`AdvDeadExplorer<WaitingDeadAdvResponse>`] if the request was sent successfully.
-// TODO: check if we can remove allows
-#[allow(clippy::unnecessary_wraps)]
-#[allow(clippy::boxed_local)]
 fn send_dead_exp_adv_transition(
     this: Box<AdvDeadExplorer<SendingDeadExpAdv>>,
 ) -> Option<Box<dyn Conversation + Send + Sync>> {
@@ -118,9 +115,6 @@ create_response_state!(
 /// [None] if the planet confirms the explorer departure, closing the conversation.
 ///
 /// [`ErrorState`] if the planet returns an error response.
-// TODO: check if we can remove allows
-#[allow(clippy::boxed_local)]
-#[allow(clippy::needless_pass_by_value)]
 fn wait_dead_adv_response_transition(
     this: Box<AdvDeadExplorer<WaitingDeadAdvResponse>>,
     msg: Option<PossibleMessage>,
@@ -194,14 +188,12 @@ mod tests {
         }
     }
 
-    #[allow(clippy::unnecessary_box_returns)]
     fn make_send_conv(senders: PlanetSenders) -> Box<AdvDeadExplorer<SendingDeadExpAdv>> {
         let to_planet = make_to_planet_struct(PLANET_ID, senders);
         let state = SendingDeadExpAdv::new(to_planet, EXPLORER_ID);
         Box::new(AdvDeadExplorer::<SendingDeadExpAdv>::new(CONV_ID, state))
     }
 
-    #[allow(clippy::unnecessary_box_returns)]
     fn make_wait_conv() -> Box<AdvDeadExplorer<WaitingDeadAdvResponse>> {
         let state = WaitingDeadAdvResponse::new(PLANET_ID);
         Box::new(AdvDeadExplorer::<WaitingDeadAdvResponse>::new(

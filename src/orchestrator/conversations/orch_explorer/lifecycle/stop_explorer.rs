@@ -147,7 +147,6 @@ mod tests {
     const CONV_ID: ID = 100;
     const EXPLORER_ID: ID = 200;
 
-    #[allow(clippy::unnecessary_box_returns)]
     fn make_send_conv(
         senders: OrchToExplorerSenders,
     ) -> Box<StopExplorerConversation<SendingExplorerStop>> {
@@ -158,7 +157,6 @@ mod tests {
         ))
     }
 
-    #[allow(clippy::unnecessary_box_returns)]
     fn make_wait_conv() -> Box<StopExplorerConversation<WaitingExplorerStopResult>> {
         Box::new(StopExplorerConversation::<WaitingExplorerStopResult>::new(
             CONV_ID,

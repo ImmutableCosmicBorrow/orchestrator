@@ -173,7 +173,6 @@ mod tests {
 
     // --- Helper functions ---
 
-    #[allow(clippy::unnecessary_box_returns)]
     fn make_send_conv(
         senders: OrchToExplorerSenders,
     ) -> Box<BagContentConversation<SendingBagContentRequest>> {
@@ -184,7 +183,6 @@ mod tests {
         ))
     }
 
-    #[allow(clippy::unnecessary_box_returns)]
     fn make_wait_conv() -> Box<BagContentConversation<WaitingBagContentResponse>> {
         Box::new(BagContentConversation::<WaitingBagContentResponse>::new(
             CONV_ID,

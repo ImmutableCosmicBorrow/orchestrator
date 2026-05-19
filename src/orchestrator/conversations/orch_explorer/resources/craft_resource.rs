@@ -192,7 +192,6 @@ mod tests {
 
     // --- Helper functions ---
 
-    #[allow(clippy::unnecessary_box_returns)]
     fn make_send_conv(
         senders: OrchToExplorerSenders,
     ) -> Box<CraftResourceConversation<SendingCraftResourceRequest>> {
@@ -201,7 +200,6 @@ mod tests {
         Box::new(CraftResourceConversation::<SendingCraftResourceRequest>::new(CONV_ID, state))
     }
 
-    #[allow(clippy::unnecessary_box_returns)]
     fn make_wait_conv() -> Box<CraftResourceConversation<WaitingCraftResourceResult>> {
         let state = WaitingCraftResourceResult::new(EXPLORER_ID, Hydrogen);
         Box::new(CraftResourceConversation::<WaitingCraftResourceResult>::new(CONV_ID, state))

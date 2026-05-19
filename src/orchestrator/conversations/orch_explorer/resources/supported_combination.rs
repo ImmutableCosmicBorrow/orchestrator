@@ -186,7 +186,6 @@ mod tests {
 
     // --- Helper functions ---
 
-    #[allow(clippy::unnecessary_box_returns)]
     fn make_send_conv(
         senders: OrchToExplorerSenders,
     ) -> Box<SupportedCombinationConversation<SendingSupportedCombinationRequest>> {
@@ -197,13 +196,12 @@ mod tests {
         >::new(CONV_ID, state))
     }
 
-    /*#[allow(clippy::unnecessary_box_returns)]
     fn make_wait_conv() -> Box<SupportedCombinationConversation<WaitingSupportedCombinationResult>>
     {
         Box::new(SupportedCombinationConversation::<
             WaitingSupportedCombinationResult,
         >::new(CONV_ID, EXPLORER_ID))
-    }*/
+    }
 
     fn make_combination_list() -> HashSet<ComplexResourceType> {
         let mut combination_list = HashSet::new();
