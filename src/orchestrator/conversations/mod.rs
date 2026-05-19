@@ -1,4 +1,9 @@
-#![allow(clippy::unnecessary_wraps, clippy::boxed_local, clippy::needless_pass_by_value)]
+// Allowed attributes since we need to follow macro conventions and some patterns that may trigger clippy warnings but are intentional in this design.
+#![allow(
+    clippy::unnecessary_wraps,
+    clippy::boxed_local,
+    clippy::needless_pass_by_value
+)]
 
 use crate::logging::{LogTarget, log_internal, log_msg_to};
 use crate::orchestrator::{ChannelsManagerRef, ExplorerBagContent};
