@@ -49,9 +49,6 @@ create_request_state!(
 /// [`ErrorState`] with [`CommonErrorTypes::PlanetSenderNotFound`] if the sender to the planet is not in the [`crate::channels_manager::OrchToPlanetSenders`] list in the [`crate::channels_manager::ChannelsManager`]
 ///
 /// [`AsteroidConversation<WaitingAsteroidAck>`] if the asteroid has been correctly sent, going to the next state
-// TODO: check if we can remove allows
-#[allow(clippy::unnecessary_wraps)]
-#[allow(clippy::boxed_local)]
 fn sending_asteroid_transition(
     this: Box<AsteroidConversation<SendingAsteroid>>,
 ) -> Option<Box<dyn Conversation + Send + Sync>> {
@@ -96,9 +93,6 @@ create_response_state!(
 /// [None] if the planet defends itself with a rocket, ending the conversation
 ///
 /// [`KillPlanetConversation<SendPlanetKill>`] if the planet cannot defend himself and has to be killed with a [`KillPlanetConversation`]
-// TODO: check if we can remove allows
-#[allow(clippy::boxed_local)]
-#[allow(clippy::needless_pass_by_value)]
 fn waiting_asteroid_ack_transition(
     this: Box<AsteroidConversation<WaitingAsteroidAck>>,
     msg: Option<PossibleMessage>,
@@ -188,7 +182,6 @@ mod tests {
         )
     }
 
-    #[allow(clippy::unnecessary_box_returns)]
     fn make_send_conv(senders: PlanetSenders) -> Box<AsteroidConversation<SendingAsteroid>> {
         let to_planet = make_to_planet_struct(PLANET_ID, senders);
         let forge = get_test_forge();
@@ -197,7 +190,6 @@ mod tests {
         Box::new(AsteroidConversation::<SendingAsteroid>::new(CONV_ID, state))
     }
 
-    #[allow(clippy::unnecessary_box_returns)]
     fn make_wait_conv() -> Box<AsteroidConversation<WaitingAsteroidAck>> {
         let senders = make_empty_senders();
         let to_planet = make_to_planet_struct(PLANET_ID, senders);

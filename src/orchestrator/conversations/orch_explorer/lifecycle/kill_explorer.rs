@@ -206,7 +206,6 @@ mod tests {
 
     // --- Helper functions ---
 
-    #[allow(clippy::unnecessary_box_returns)]
     fn make_send_conv(
         exp_senders: OrchToExplorerSenders,
         pla_senders: OrchToPlanetSenders,
@@ -226,7 +225,6 @@ mod tests {
         ))
     }
 
-    #[allow(clippy::unnecessary_box_returns)]
     fn make_wait_conv(
         planet_senders: OrchToPlanetSenders,
         handle_outgoing: bool,

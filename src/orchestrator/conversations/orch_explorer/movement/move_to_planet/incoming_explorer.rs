@@ -51,7 +51,7 @@ create_request_state!(
 /// * **Success**: If the sender is found in the registry, the Orchestrator wraps it in
 ///   an `IncomingExplorerRequest` and sends it to the destination planet.
 /// * **Failure**: If the explorer's channel is missing,
-/// it transitions to an [`ErrorState`] with [`CommonErrorTypes::ExplorerSenderNotFound`].
+///   it transitions to an [`ErrorState`] with [`CommonErrorTypes::ExplorerSenderNotFound`].
 ///
 /// #### 2. Handshake Dispatch
 /// * **Success Path**: On a successful message delivery to the destination planet, the
@@ -138,10 +138,10 @@ create_response_state!(
 /// #### 1. Destination Acceptance (`res.is_ok()`)
 /// If the planet accepts the explorer, the transition logic branches based on the
 /// `curr_planet_id` field:
-/// * **curr_planet_id is Some (Standard Move)**: The explorer is currently on a planet. The Orchestrator
+/// * **`curr_planet_id` is Some (Standard Move)**: The explorer is currently on a planet. The Orchestrator
 ///   must now command that planet to release the entity.
 ///   To do so, it transitions to [`SendOutgoingRequest`].
-/// * **curr_planet_id is None (Spawn/Forced)**: The explorer does not have a current planet (or is
+/// * **`curr_planet_id` is None (Spawn/Forced)**: The explorer does not have a current planet (or is
 ///   being moved externally). It skips the source release and transitions directly
 ///   to [`SendMoveRequest`] to notify the explorer of the success.
 ///

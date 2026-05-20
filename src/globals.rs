@@ -2,7 +2,7 @@ use crate::id::IdManager;
 use std::sync::OnceLock;
 use std::time::Duration;
 
-pub(crate) const TIMEOUT: Duration = Duration::from_millis(1000);
+pub(crate) const TIMEOUT: Duration = Duration::from_secs(1);
 static GAME_STEP: OnceLock<Duration> = OnceLock::new();
 static ID_MANAGER: OnceLock<IdManager> = OnceLock::new();
 pub fn get_id_manager() -> &'static IdManager {

@@ -131,7 +131,7 @@ create_response_state!(
         explorer_id: ID,
         dst_planet_id: ID,
         curr_planet_id: ID,
-        
+
     },
     entities_id_closure: |this: &MoveToPlanetConversation<WaitingOutgoingResponse>| { (Some(this.state.curr_planet_id), Some(this.state.explorer_id)) },
     transition: wait_outgoing_res_transition,

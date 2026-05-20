@@ -205,7 +205,6 @@ mod tests {
         }
     }
 
-    #[allow(clippy::unnecessary_box_returns)]
     fn make_wait_conv(
         senders: ExplorerSenders,
         file_path: &str,
@@ -223,7 +222,6 @@ mod tests {
         >::new(CONV_ID, state))
     }
 
-    #[allow(clippy::unnecessary_box_returns)]
     fn make_send_conv(
         senders: ExplorerSenders,
         neighbors: Vec<ID>,

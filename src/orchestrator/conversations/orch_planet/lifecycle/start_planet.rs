@@ -52,9 +52,6 @@ create_request_state!(
     },
 );
 
-// TODO: check if we can remove allows
-#[allow(clippy::unnecessary_wraps)]
-#[allow(clippy::boxed_local)]
 fn send_planet_start_transition(
     this: Box<StartPlanetConversation<SendingPlanetStart>>,
 ) -> Option<Box<dyn Conversation + Send + Sync>> {
@@ -101,9 +98,6 @@ create_response_state!(
 /// [None] if the start result is successfully received, ending the conversation.
 ///
 /// [`ErrorState`] with [`CommonErrorTypes::WrongMessage`] if the trigger message is different from [`PlanetToOrchestrator::StartPlanetAIResult`]
-// TODO: check if we can remove allows
-#[allow(clippy::boxed_local)]
-#[allow(clippy::needless_pass_by_value)]
 fn wait_planet_start_res_transition(
     this: Box<StartPlanetConversation<WaitingPlanetStartResult>>,
     msg: Option<PossibleMessage>,
@@ -164,7 +158,6 @@ mod tests {
         }
     }
 
-    #[allow(clippy::unnecessary_box_returns)]
     fn make_send_conv(senders: PlanetSenders) -> Box<StartPlanetConversation<SendingPlanetStart>> {
         let to_planet = make_to_planet_struct(PLANET_ID, senders);
         let state = SendingPlanetStart::new(to_planet);
@@ -173,7 +166,6 @@ mod tests {
         ))
     }
 
-    #[allow(clippy::unnecessary_box_returns)]
     fn make_wait_conv() -> Box<StartPlanetConversation<WaitingPlanetStartResult>> {
         Box::new(StartPlanetConversation::<WaitingPlanetStartResult>::new(
             CONV_ID, PLANET_ID,

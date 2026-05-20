@@ -55,9 +55,6 @@ create_request_state!(
     },
 );
 
-// TODO: check if we can remove allows
-#[allow(clippy::unnecessary_wraps)]
-#[allow(clippy::boxed_local)]
 fn send_internal_state_req_transition(
     this: Box<InternalStateConversation<SendingInternalStateRequest>>,
 ) -> Option<Box<dyn Conversation + Send + Sync>> {
@@ -105,9 +102,6 @@ create_response_state!(
 ///
 /// [`ErrorState`] with [`CommonErrorTypes::WrongMessage`] if the trigger message is different from the expected one [`PlanetToOrchestrator::InternalStateResponse`]
 /// [`ErrorState`] with [`CommonErrorTypes::MessageToUiFailed`] if the message sending to the UI fails
-// TODO: check if we can remove allows
-#[allow(clippy::boxed_local)]
-#[allow(clippy::needless_pass_by_value)]
 fn wait_internal_state_res_transition(
     this: Box<InternalStateConversation<WaitingInternalStateResponse>>,
     msg: Option<PossibleMessage>,
@@ -182,7 +176,6 @@ mod tests {
         }
     }
 
-    #[allow(clippy::unnecessary_box_returns)]
     fn make_send_conv(
         senders: PlanetSenders,
     ) -> Box<InternalStateConversation<SendingInternalStateRequest>> {
@@ -191,7 +184,6 @@ mod tests {
         Box::new(InternalStateConversation::<SendingInternalStateRequest>::new(CONV_ID, state))
     }
 
-    #[allow(clippy::unnecessary_box_returns)]
     fn make_wait_conv() -> Box<InternalStateConversation<WaitingInternalStateResponse>> {
         Box::new(
             InternalStateConversation::<WaitingInternalStateResponse>::new(

@@ -50,9 +50,9 @@ fn build_planet_weights(
         .map(|&planet_id| (planet_id, DEFAULT_PLANET_WEIGHT))
         .collect();
 
-    for entry in explorers_location.iter() {
+    for entry in explorers_location {
         let planet_id = entry.value();
-        if let Some(weight) = weights.get_mut(&planet_id) {
+        if let Some(weight) = weights.get_mut(planet_id) {
             *weight = weight.saturating_add(EXPLORER_WEIGHT);
         }
     }

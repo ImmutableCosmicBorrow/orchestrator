@@ -146,7 +146,6 @@ mod tests {
 
     // --- Helper functions ---
 
-    #[allow(clippy::unnecessary_box_returns)]
     fn make_send_conv(
         senders: OrchToExplorerSenders,
     ) -> Box<ResetExplorerConversation<SendingExplorerReset>> {
@@ -157,7 +156,6 @@ mod tests {
         ))
     }
 
-    #[allow(clippy::unnecessary_box_returns)]
     fn make_wait_conv() -> Box<ResetExplorerConversation<WaitingExplorerResetResult>> {
         let orch_context = make_orch_context(make_empty_senders());
         let state = WaitingExplorerResetResult::new(orch_context, EXPLORER_ID);

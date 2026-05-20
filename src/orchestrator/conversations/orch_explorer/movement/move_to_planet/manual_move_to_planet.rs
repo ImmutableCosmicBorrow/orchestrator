@@ -48,7 +48,6 @@ create_request_state!(
 fn send_manual_move_req_transition(
     this: Box<MoveToPlanetConversation<SendManualMoveRequest>>,
 ) -> Option<Box<dyn Conversation + Send + Sync>> {
-
     let state_struct = SendIncomingRequest::new(
         this.state.orch_context,
         this.state.explorer_id,
