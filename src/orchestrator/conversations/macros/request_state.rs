@@ -1,4 +1,26 @@
-//Macro for defining request states (don't expect any message)
+//TODO: LOOK IF EXPECETED_MSG CAN BE REMOVED FROM THE STATE STRUCT, SINCE IT'S ALWAYS NONE FOR THIS KIND OF STATES. IF SO, ALSO REMOVE IT FROM THE MACRO PARAMETERS
+
+/// A macro for defining conversation "request" states.
+///
+/// Request states are meant to execute an action (e.g., sending a message) without
+/// waiting for an incoming message. Thus, they usually expect `None` for the message.
+///
+/// This macro generates a struct for the state, implements `ChannelsContext` to
+/// give it access to communication channels, and implements `Conversation` for the
+/// wrapper conversation type `$conv<$state>`.
+///
+/// The macro automatically requires the state to have an `orch_context` field of type `OrchContextRef`, that contains the necessary context for the state to operate.
+///
+/// # Parameters
+/// * `state_name` - The identifier of the state struct to be generated.
+/// * `conv_name` - The wrapper conversation type that will hold this state.
+/// * `priority` - An expression yielding the execution priority (`i32`).
+/// * `timeout` - An expression yielding an `Option<Duration>` for the state's timeout.
+/// * `expected_msg` - Typically `None` since this state is not waiting for a message.
+/// * `fields` - A block defining the specific fields of the generated state struct.
+/// * `entities_id_fn` - A closure mapping `&self` to an `EntitiesIDTuple` returning the IDs of the entities involved in the state.
+/// * `transition_fn` - A transition function taking `Box<Self>` and returning the next state.
+/// * `methods_settings` - key value pairs for specific behaviors that deviate from the default ones specified in the `Conversation` trait.
 #[macro_export]
 macro_rules! create_request_state {
     (
@@ -51,7 +73,7 @@ macro_rules! create_request_state {
             ) -> Option<Box<dyn Conversation + Send + Sync>> {
                 if msg.is_some() {
                     let error_state = ErrorState::new(Box::new(CommonErrorTypes::WrongMessage), self.id);
-                    Some(Box::new(error_state) as Box<dyn Conversation + Send + Sync>);
+                    return Some(Box::new(error_state) as Box<dyn Conversation + Send + Sync>);
                 }
                 ($transition_logic) (self)
             }

@@ -1,3 +1,22 @@
+/// A macro for quickly defining conversation "response" states.
+///
+/// Response states are meant to wait for a specific incoming message from an entity
+/// (e.g., an explorer or a planet) and process it to decide the next transition.
+///
+/// This macro generates a struct for the state, implements `ChannelsContext` to
+/// give it access to communication channels, and implements `Conversation` for the
+/// wrapper conversation type `$conv<$state>`.
+///
+/// # Parameters
+/// * `state` - The identifier of the state struct to be generated.
+/// * `conv` - The wrapper conversation type that will hold this state.
+/// * `priority` - An expression yielding the execution priority (`i32`).
+/// * `timeout` - An expression yielding an `Option<Duration>` for the state's timeout.
+/// * `expected_msg` - An expression yielding a `PossibleExpectedKinds` that this state expects.
+/// * `fields` - A block defining the specific fields of the generated state struct.
+/// * `entities_id_closure` - A closure mapping `&self` to an `EntitiesIDTuple`.
+/// * `transition` - A transition function taking `Box<Self>` and `Option<PossibleMessage>`, returning the next state.
+/// * `methods_settings` - Additional behaviors dispatched to other conversation traits.
 #[macro_export]
 macro_rules! create_response_state {
     (

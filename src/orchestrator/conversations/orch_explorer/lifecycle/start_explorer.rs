@@ -131,20 +131,18 @@ fn wait_exp_start_res_transition(
     Some(Box::new(error_state) as Box<dyn Conversation + Send + Sync>)
 }
 
-/*
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::orchestrator::conversations::orch_explorer::test_utils::{
-        make_empty_senders, make_senders_with, make_to_explorer_struct, MakeSendersResult,
+        make_empty_senders, make_orch_context, make_senders_with, MakeSendersResult,
     };
-    use crate::orchestrator::conversations::OrchToExplorerSenders;
+    use crate::channels_manager::OrchToExplorerSenders;
     use crossbeam_channel::unbounded;
-    use std::collections::HashMap;
-    use std::sync::{Arc, Mutex};
+    use dashmap::DashMap;
 
-    const CONV_ID: u32 = 1;
-    const EXPLORER_ID: u32 = 2;
+    const CONV_ID: ID = 1;
+    const EXPLORER_ID: ID = 2;
 
     // --- Helper functions ---
 
@@ -152,8 +150,8 @@ mod tests {
     fn make_send_conv(
         senders: OrchToExplorerSenders,
     ) -> Box<StartExplorerConversation<SendingExplorerStart>> {
-        let to_explorer = make_to_explorer_struct(EXPLORER_ID, senders);
-        let state = SendingExplorerStart::new(to_explorer);
+        let orch_context = make_orch_context(senders);
+        let state = SendingExplorerStart::new(orch_context, EXPLORER_ID);
         Box::new(StartExplorerConversation::<SendingExplorerStart>::new(
             CONV_ID, state,
         ))
@@ -161,7 +159,9 @@ mod tests {
 
     #[allow(clippy::unnecessary_box_returns)]
     fn make_wait_conv() -> Box<StartExplorerConversation<WaitingExplorerStartResult>> {
-        Box::new(StartExplorerConversation::<WaitingExplorerStartResult>::new(CONV_ID, EXPLORER_ID))
+        let orch_context = make_orch_context(make_empty_senders());
+        let state = WaitingExplorerStartResult::new(orch_context, EXPLORER_ID);
+        Box::new(StartExplorerConversation::<WaitingExplorerStartResult>::new(CONV_ID, state))
     }
 
     // --- Tests ---
@@ -201,7 +201,8 @@ mod tests {
     fn send_message_failure() {
         let (tx, rx) = unbounded::<OrchestratorToExplorer>();
         drop(rx);
-        let senders = Arc::new(Mutex::new(HashMap::from([(EXPLORER_ID, tx)])));
+        let senders = DashMap::new();
+        senders.insert(EXPLORER_ID, tx);
         let conv = make_send_conv(senders);
         let next_conv = conv.transition(None).expect("Should return an ErrorState");
         let error_msg = next_conv
@@ -216,8 +217,8 @@ mod tests {
     #[test]
     fn send_getters() {
         let MakeSendersResult(senders, _rx) = make_senders_with(EXPLORER_ID);
-        let to_explorer = make_to_explorer_struct(EXPLORER_ID, senders);
-        let state = SendingExplorerStart::new(to_explorer);
+        let orch_context = make_orch_context(senders);
+        let state = SendingExplorerStart::new(orch_context, EXPLORER_ID);
         let conv = StartExplorerConversation::<SendingExplorerStart>::new(CONV_ID, state);
         assert_eq!(conv.get_id(), CONV_ID);
         assert_eq!(conv.get_entities_ids(), (None, Some(EXPLORER_ID)));
@@ -257,8 +258,9 @@ mod tests {
 
     #[test]
     fn wait_getters() {
-        let conv =
-            StartExplorerConversation::<WaitingExplorerStartResult>::new(CONV_ID, EXPLORER_ID);
+        let orch_context = make_orch_context(make_empty_senders());
+        let state = WaitingExplorerStartResult::new(orch_context, EXPLORER_ID);
+        let conv = StartExplorerConversation::<WaitingExplorerStartResult>::new(CONV_ID, state);
         assert_eq!(conv.get_id(), CONV_ID);
         assert_eq!(conv.get_entities_ids(), (None, Some(EXPLORER_ID)));
         assert_eq!(
@@ -270,4 +272,3 @@ mod tests {
         assert_eq!(conv.get_priority(), 5);
     }
 }
-*/

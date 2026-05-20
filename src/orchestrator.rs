@@ -45,7 +45,7 @@ pub enum ExplorerType {
 
 pub(crate) struct OrchContext {
     //Read only
-    forge: Forge,
+    forge: Arc<Forge>,
     //Modifiable
     channels_manager: ChannelsManagerRef,
     galaxy: PlanetMap,
@@ -55,7 +55,7 @@ pub(crate) struct OrchContext {
 impl OrchContext {
     pub(crate) fn new(
         channels_manager: ChannelsManagerRef,
-        forge: Forge,
+        forge: Arc<Forge>,
         galaxy: PlanetMap,
         explorers_location: ExplorersLocationRef,
     ) -> Self {
@@ -70,8 +70,8 @@ impl OrchContext {
     pub(crate) fn get_channels_manager(&self) -> ChannelsManagerRef {
         self.channels_manager.clone()
     }
-    pub(crate) fn get_forge(&self) -> &Forge {
-        &self.forge
+    pub(crate) fn get_forge(&self) -> Arc<Forge> {
+        self.forge.clone()
     }
     pub(crate) fn get_galaxy(&self) -> PlanetMap {
         self.galaxy.clone()
@@ -125,7 +125,7 @@ impl Orchestrator {
         // channels manager APIs
         let (galaxy, planet_threads) = galaxy_loader(file_path, &channels_manager_ref);
         let explorers_location = DashMap::new();
-        let forge = Forge::new().expect("Couldn't create forge!");
+        let forge = Arc::new(Forge::new().expect("Couldn't create forge!"));
 
         let orch_context = Arc::new(OrchContext::new(
             channels_manager_ref.clone(),
