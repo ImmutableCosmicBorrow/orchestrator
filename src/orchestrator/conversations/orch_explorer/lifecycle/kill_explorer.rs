@@ -189,53 +189,50 @@ impl WaitingKillExplorerResult {
         );
     }
 }
-/*
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::orchestrator::conversations::orch_explorer::test_utils::{
-        make_empty_senders, make_senders_with, make_to_explorer_struct, make_to_planet_struct,
-        MakeSendersResult,
+        make_empty_senders, make_orch_context, make_senders_with, MakeSendersResult,
     };
-    use crate::orchestrator::conversations::{OrchToExplorerSenders, OrchToPlanetSenders};
+    use crate::channels_manager::OrchToExplorerSenders;
     use crossbeam_channel::unbounded;
-    use std::collections::HashMap;
-    use std::sync::{Arc, Mutex};
-    const CONV_ID: u32 = 1;
-    const EXPLORER_ID: u32 = 2;
+    use dashmap::DashMap;
+
+    const CONV_ID: ID = 1;
+    const EXPLORER_ID: ID = 2;
 
     // --- Helper functions ---
 
+    #[allow(clippy::unnecessary_box_returns)]
     fn make_send_conv(
         exp_senders: OrchToExplorerSenders,
-        pla_senders: OrchToPlanetSenders,
-        _handle_outgoing: bool,
-    ) -> Box<KillExplorerConversation<SendingKillExplorer>> {
-        let to_explorer = make_to_explorer_struct(EXPLORER_ID, exp_senders);
-        let to_planet = make_to_planet_struct(5, pla_senders);
-
-        let state = SendingKillExplorer::new(
-            to_explorer,
-            to_planet,
-            false,
-            Arc::new(Mutex::new(HashMap::new())),
+        handle_outgoing: bool,
+    ) -> Box<KillExplorerConversation<SendingExplorerKill>> {
+        let orch_context = make_orch_context(exp_senders);
+        let state = SendingExplorerKill::new(
+            orch_context,
+            EXPLORER_ID,
+            5, // curr_planet_id
+            handle_outgoing,
         );
-        Box::new(KillExplorerConversation::<SendingKillExplorer>::new(
+        Box::new(KillExplorerConversation::<SendingExplorerKill>::new(
             CONV_ID, state,
         ))
     }
 
+    #[allow(clippy::unnecessary_box_returns)]
     fn make_wait_conv(
-        planet_senders: OrchToPlanetSenders,
         handle_outgoing: bool,
-        explorers_location_ref: ExplorersLocationRef,
     ) -> Box<KillExplorerConversation<WaitingKillExplorerResult>> {
-        let to_planet_struct = make_to_planet_struct(5, planet_senders);
+        let orch_context = make_orch_context(make_empty_senders());
+        orch_context.explorers_location.insert(EXPLORER_ID, 5);
         let state = WaitingKillExplorerResult::new(
+            orch_context,
             EXPLORER_ID,
-            to_planet_struct,
+            5, // curr_planet_id
             handle_outgoing,
-            explorers_location_ref,
         );
         Box::new(KillExplorerConversation::<WaitingKillExplorerResult>::new(
             CONV_ID, state,
@@ -247,8 +244,7 @@ mod tests {
     #[test]
     fn send_success() {
         let MakeSendersResult(senders, _rx) = make_senders_with(EXPLORER_ID);
-        let planet_senders = Arc::new(Mutex::new(HashMap::new()));
-        let conv = make_send_conv(senders, planet_senders, false);
+        let conv = make_send_conv(senders, false);
         let next_conv = conv
             .transition(None)
             .expect("Should transition to next state");
@@ -264,8 +260,7 @@ mod tests {
     #[test]
     fn send_missing_sender() {
         let senders = make_empty_senders();
-        let planet_senders = Arc::new(Mutex::new(HashMap::new()));
-        let conv = make_send_conv(senders, planet_senders, false);
+        let conv = make_send_conv(senders, false);
         let next_conv = conv.transition(None).expect("Should return an ErrorState");
         assert!(next_conv.get_expected_kind().is_none());
         assert_eq!(next_conv.get_id(), CONV_ID);
@@ -279,10 +274,10 @@ mod tests {
     fn send_message_failure() {
         let (tx, rx) = unbounded::<OrchestratorToExplorer>();
         drop(rx);
-        let senders = Arc::new(Mutex::new(HashMap::from([(EXPLORER_ID, tx)])));
-        let planet_senders = Arc::new(Mutex::new(HashMap::new()));
+        let senders = DashMap::new();
+        senders.insert(EXPLORER_ID, tx);
 
-        let conv = make_send_conv(senders, planet_senders, false);
+        let conv = make_send_conv(senders, false);
         let next_conv = conv.transition(None).expect("Should return an ErrorState");
         let error_msg = next_conv
             .get_error_details()
@@ -296,9 +291,7 @@ mod tests {
     #[test]
     fn send_getters() {
         let MakeSendersResult(senders, _rx) = make_senders_with(EXPLORER_ID);
-        let planet_senders = Arc::new(Mutex::new(HashMap::new()));
-
-        let conv = make_send_conv(senders, planet_senders, false);
+        let conv = make_send_conv(senders, false);
 
         assert_eq!(conv.get_id(), CONV_ID);
         assert_eq!(conv.get_entities_ids(), (None, Some(EXPLORER_ID)));
@@ -308,10 +301,8 @@ mod tests {
 
     #[test]
     fn wait_correct_transition_no_outgoing_handling() {
-        let planet_senders = Arc::new(Mutex::new(HashMap::new()));
-        let explorers_locations = HashMap::from([(EXPLORER_ID, 5)]);
-        let exp_loc_ref = Arc::new(Mutex::new(explorers_locations));
-        let conv = make_wait_conv(planet_senders, false, exp_loc_ref.clone());
+        let conv = make_wait_conv(false);
+        let orch_context = conv.state.orch_context.clone();
 
         let msg = PossibleMessage::ExplorerToOrch(ExplorerToOrchestrator::KillExplorerResult {
             explorer_id: EXPLORER_ID,
@@ -323,21 +314,20 @@ mod tests {
             "Conversation should end and return None"
         );
         assert!(
-            exp_loc_ref.lock().unwrap().is_empty(),
+            orch_context.explorers_location.is_empty(),
             "Should have killed the only explorer saved in the map"
         );
     }
 
     #[test]
     fn wait_correct_transition_outgoing_handling() {
-        let planet_senders = Arc::new(Mutex::new(HashMap::new()));
-        let explorers_locations = HashMap::from([(EXPLORER_ID, 5)]);
-        let exp_loc_ref = Arc::new(Mutex::new(explorers_locations));
-        let conv = make_wait_conv(planet_senders, true, exp_loc_ref.clone());
+        let conv = make_wait_conv(true);
+        let orch_context = conv.state.orch_context.clone();
+        
         let msg = PossibleMessage::ExplorerToOrch(ExplorerToOrchestrator::KillExplorerResult {
             explorer_id: EXPLORER_ID,
         });
-        let next_conv = Box::new(conv)
+        let next_conv = conv
             .transition(Some(msg))
             .expect("Should transition to next state");
         assert_eq!(next_conv.get_id(), CONV_ID);
@@ -346,23 +336,20 @@ mod tests {
         assert!(next_conv.get_error_details().is_none());
 
         assert!(
-            exp_loc_ref.lock().unwrap().is_empty(),
+            orch_context.explorers_location.is_empty(),
             "Should have killed the only explorer saved in the map"
         );
     }
 
     #[test]
     fn wait_wrong_message() {
-        let planet_senders = Arc::new(Mutex::new(HashMap::new()));
-        let exp_loc_ref = Arc::new(Mutex::new(HashMap::new()));
-
-        let conv = make_wait_conv(planet_senders, true, exp_loc_ref);
+        let conv = make_wait_conv(true);
         let wrong_msg =
             PossibleMessage::ExplorerToOrch(ExplorerToOrchestrator::StartExplorerAIResult {
                 explorer_id: EXPLORER_ID,
             });
 
-        let next_conv = Box::new(conv)
+        let next_conv = conv
             .transition(Some(wrong_msg))
             .expect("Should transition to next state");
         assert_eq!(next_conv.get_id(), CONV_ID);
@@ -377,10 +364,7 @@ mod tests {
 
     #[test]
     fn wait_getters() {
-        let planet_senders = Arc::new(Mutex::new(HashMap::new()));
-        let exp_loc_ref = Arc::new(Mutex::new(HashMap::new()));
-
-        let conv = make_wait_conv(planet_senders, false, exp_loc_ref);
+        let conv = make_wait_conv(false);
         assert_eq!(conv.get_id(), CONV_ID);
         assert_eq!(conv.get_entities_ids(), (None, Some(EXPLORER_ID)));
         assert_eq!(
@@ -392,4 +376,3 @@ mod tests {
         assert_eq!(conv.get_priority(), 5);
     }
 }
-*/
