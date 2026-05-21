@@ -118,3 +118,98 @@ fn wait_travel_req_transition(
     let error_state = ErrorState::new(Box::new(CommonErrorTypes::WrongMessage), this.id);
     Some(Box::new(error_state) as Box<dyn Conversation + Send + Sync>)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::orchestrator::conversations::orch_explorer::test_utils::make_test_context;
+    use crate::planet::{PlanetMap, add_planet_with_neighbors};
+    use crate::ui::{OrchestratorToUiUpdate, UiToOrchestratorCommand};
+    use crossbeam_channel::unbounded;
+    use std::collections::HashMap;
+    use std::sync::{Arc, RwLock};
+
+    const CONV_ID: ID = 1;
+    const EXPLORER_ID: ID = 2;
+    const CURR_PLANET_ID: ID = 10;
+    const NEIGHBOR_ID: ID = 11;
+    const NON_NEIGHBOR_ID: ID = 12;
+
+    fn make_galaxy() -> PlanetMap {
+        let galaxy: PlanetMap = Arc::new(RwLock::new(HashMap::new()));
+        add_planet_with_neighbors(&galaxy, CURR_PLANET_ID, [NEIGHBOR_ID]);
+        add_planet_with_neighbors(&galaxy, NON_NEIGHBOR_ID, []);
+        galaxy
+    }
+
+    fn make_wait_conv(
+        orch_context: OrchContextRef,
+    ) -> Box<MoveToPlanetConversation<WaitingTravelRequest>> {
+        let state = WaitingTravelRequest::new(orch_context, EXPLORER_ID, CURR_PLANET_ID);
+        Box::new(MoveToPlanetConversation::<WaitingTravelRequest>::new(
+            CONV_ID, state,
+        ))
+    }
+
+    #[test]
+    fn wait_travel_valid_neighbor() {
+        let galaxy = make_galaxy();
+        let (ui_tx, _ui_rx) = unbounded::<OrchestratorToUiUpdate>();
+        let (_ui_cmd_tx, ui_cmd_rx) = unbounded::<UiToOrchestratorCommand>();
+        let test_ctx = make_test_context(Some(galaxy), None, ui_tx, ui_cmd_rx);
+        let conv = make_wait_conv(test_ctx.clone());
+
+        let msg = PossibleMessage::ExplorerToOrch(ExplorerToOrchestrator::TravelToPlanetRequest {
+            explorer_id: EXPLORER_ID,
+            current_planet_id: CURR_PLANET_ID,
+            dst_planet_id: NEIGHBOR_ID,
+        });
+
+        let next_conv = conv
+            .transition(Some(msg))
+            .expect("Should transition to next state");
+        assert_eq!(next_conv.get_id(), CONV_ID);
+        assert_eq!(next_conv.get_expected_kind(), None);
+        assert_eq!(next_conv.get_entities_ids(), (Some(NEIGHBOR_ID), Some(EXPLORER_ID)));
+    }
+
+    #[test]
+    fn wait_travel_invalid_neighbor() {
+        let galaxy = make_galaxy();
+        let (ui_tx, _ui_rx) = unbounded::<OrchestratorToUiUpdate>();
+        let (_ui_cmd_tx, ui_cmd_rx) = unbounded::<UiToOrchestratorCommand>();
+        let test_ctx = make_test_context(Some(galaxy), None, ui_tx, ui_cmd_rx);
+        let conv = make_wait_conv(test_ctx.clone());
+
+        let msg = PossibleMessage::ExplorerToOrch(ExplorerToOrchestrator::TravelToPlanetRequest {
+            explorer_id: EXPLORER_ID,
+            current_planet_id: CURR_PLANET_ID,
+            dst_planet_id: NON_NEIGHBOR_ID,
+        });
+
+        let next_conv = conv
+            .transition(Some(msg))
+            .expect("Should transition to next state");
+        assert_eq!(next_conv.get_id(), CONV_ID);
+        assert_eq!(next_conv.get_expected_kind(), None);
+    }
+
+    #[test]
+    fn wait_wrong_message() {
+        let galaxy = make_galaxy();
+        let (ui_tx, _ui_rx) = unbounded::<OrchestratorToUiUpdate>();
+        let (_ui_cmd_tx, ui_cmd_rx) = unbounded::<UiToOrchestratorCommand>();
+        let test_ctx = make_test_context(Some(galaxy), None, ui_tx, ui_cmd_rx);
+        let conv = make_wait_conv(test_ctx.clone());
+
+        let wrong_msg = PossibleMessage::ExplorerToOrch(ExplorerToOrchestrator::StopExplorerAIResult { explorer_id: (EXPLORER_ID) });
+
+        let result = conv
+            .transition(Some(wrong_msg))
+            .expect("Should return an ErrorState");
+        assert_eq!(
+            result.get_error_details(),
+            Some("Wrong Message Received".to_string())
+        );
+    }
+}

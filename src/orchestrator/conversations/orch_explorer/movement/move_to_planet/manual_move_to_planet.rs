@@ -58,3 +58,35 @@ fn send_manual_move_req_transition(
     let next_conv = MoveToPlanetConversation::<SendIncomingRequest>::new(this.id, state_struct);
     Some(Box::new(next_conv))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::orchestrator::conversations::orch_explorer::test_utils::make_test_context;
+    use crate::ui::{OrchestratorToUiUpdate, UiToOrchestratorCommand};
+    use crossbeam_channel::unbounded;
+
+    const CONV_ID: ID = 1;
+    const EXPLORER_ID: ID = 2;
+    const DST_PLANET_ID: ID = 10;
+    const CURR_PLANET_ID: ID = 20;
+
+    fn make_send_conv(
+        orch_context: OrchContextRef,
+    ) -> Box<MoveToPlanetConversation<SendManualMoveRequest>> {
+        let state = SendManualMoveRequest::new(orch_context, EXPLORER_ID, DST_PLANET_ID, Some(CURR_PLANET_ID));
+        Box::new(MoveToPlanetConversation::<SendManualMoveRequest>::new(CONV_ID, state))
+    }
+
+    #[test]
+    fn send_manual_move_transition() {
+        let (ui_tx, _ui_rx) = unbounded::<OrchestratorToUiUpdate>();
+        let (_ui_cmd_tx, ui_cmd_rx) = unbounded::<UiToOrchestratorCommand>();
+        let test_ctx = make_test_context(None, None, ui_tx, ui_cmd_rx);
+        let conv = make_send_conv(test_ctx.clone());
+
+        let next_conv = conv.transition(None).expect("Should transition");
+        assert_eq!(next_conv.get_id(), CONV_ID);
+        assert_eq!(next_conv.get_expected_kind(), None);
+    }
+}

@@ -191,3 +191,129 @@ fn wait_outgoing_res_transition(
     let error_state = ErrorState::new(Box::new(CommonErrorTypes::WrongMessage), this.id);
     Some(Box::new(error_state) as Box<dyn Conversation + Send + Sync>)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::orchestrator::conversations::orch_explorer::test_utils::make_test_context;
+    use crate::orchestrator::conversations::orch_planet::test_utils::{
+        add_broken_planet_sender, add_working_planet_sender,
+    };
+    use crate::ui::{OrchestratorToUiUpdate, UiToOrchestratorCommand};
+    use crossbeam_channel::unbounded;
+
+    const CONV_ID: ID = 1;
+    const EXPLORER_ID: ID = 2;
+    const DST_PLANET_ID: ID = 10;
+    const CURR_PLANET_ID: ID = 20;
+
+    fn make_send_conv(
+        orch_context: OrchContextRef,
+    ) -> Box<MoveToPlanetConversation<SendOutgoingRequest>> {
+        let state = SendOutgoingRequest::new(orch_context, EXPLORER_ID, DST_PLANET_ID, CURR_PLANET_ID);
+        Box::new(MoveToPlanetConversation::<SendOutgoingRequest>::new(CONV_ID, state))
+    }
+
+    fn make_wait_conv(
+        orch_context: OrchContextRef,
+    ) -> Box<MoveToPlanetConversation<WaitingOutgoingResponse>> {
+        let state = WaitingOutgoingResponse::new(orch_context, EXPLORER_ID, DST_PLANET_ID, CURR_PLANET_ID);
+        Box::new(MoveToPlanetConversation::<WaitingOutgoingResponse>::new(CONV_ID, state))
+    }
+
+    #[test]
+    fn send_outgoing_success() {
+        let (ui_tx, _ui_rx) = unbounded::<OrchestratorToUiUpdate>();
+        let (_ui_cmd_tx, ui_cmd_rx) = unbounded::<UiToOrchestratorCommand>();
+        let test_ctx = make_test_context(None, None, ui_tx, ui_cmd_rx);
+        let _rx = add_working_planet_sender(test_ctx.channels_manager.as_ref(), CURR_PLANET_ID);
+        let conv = make_send_conv(test_ctx.clone());
+
+        let next_conv = conv.transition(None).expect("Should transition");
+        assert_eq!(next_conv.get_id(), CONV_ID);
+    }
+
+    #[test]
+    fn send_outgoing_missing_sender() {
+        let (ui_tx, _ui_rx) = unbounded::<OrchestratorToUiUpdate>();
+        let (_ui_cmd_tx, ui_cmd_rx) = unbounded::<UiToOrchestratorCommand>();
+        let test_ctx = make_test_context(None, None, ui_tx, ui_cmd_rx);
+        let conv = make_send_conv(test_ctx.clone());
+
+        let next_conv = conv.transition(None).expect("Should return ErrorState");
+        assert_eq!(
+            next_conv.get_error_details(),
+            Some(format!("sender to planet {CURR_PLANET_ID} not found"))
+        );
+    }
+
+    #[test]
+    fn send_outgoing_failure() {
+        let (ui_tx, _ui_rx) = unbounded::<OrchestratorToUiUpdate>();
+        let (_ui_cmd_tx, ui_cmd_rx) = unbounded::<UiToOrchestratorCommand>();
+        let test_ctx = make_test_context(None, None, ui_tx, ui_cmd_rx);
+        add_broken_planet_sender(test_ctx.channels_manager.as_ref(), CURR_PLANET_ID);
+        let conv = make_send_conv(test_ctx.clone());
+
+        let next_conv = conv.transition(None).expect("Should return ErrorState");
+        assert_eq!(
+            next_conv.get_error_details(),
+            Some(format!("failed to send message to planet {CURR_PLANET_ID}"))
+        );
+    }
+
+    #[test]
+    fn wait_outgoing_success() {
+        let (ui_tx, _ui_rx) = unbounded::<OrchestratorToUiUpdate>();
+        let (_ui_cmd_tx, ui_cmd_rx) = unbounded::<UiToOrchestratorCommand>();
+        let test_ctx = make_test_context(None, None, ui_tx, ui_cmd_rx);
+        let conv = make_wait_conv(test_ctx.clone());
+
+        let msg = PossibleMessage::PlanetToOrch(PlanetToOrchestrator::OutgoingExplorerResponse {
+            planet_id: CURR_PLANET_ID,
+            explorer_id: EXPLORER_ID,
+            res: Ok(()),
+        });
+
+        let next_conv = conv.transition(Some(msg)).expect("Should transition");
+        assert_eq!(next_conv.get_id(), CONV_ID);
+    }
+
+    #[test]
+    fn wait_outgoing_failure() {
+        let (ui_tx, _ui_rx) = unbounded::<OrchestratorToUiUpdate>();
+        let (_ui_cmd_tx, ui_cmd_rx) = unbounded::<UiToOrchestratorCommand>();
+        let test_ctx = make_test_context(None, None, ui_tx, ui_cmd_rx);
+        let conv = make_wait_conv(test_ctx.clone());
+
+        let msg = PossibleMessage::PlanetToOrch(PlanetToOrchestrator::OutgoingExplorerResponse {
+            planet_id: CURR_PLANET_ID,
+            explorer_id: EXPLORER_ID,
+            res: Err("Cannot leave".into()),
+        });
+
+        let next_conv = conv.transition(Some(msg)).expect("Should transition to ErrorState");
+        assert_eq!(
+            next_conv.get_error_details(),
+            Some(format!("Current planet {CURR_PLANET_ID} failed to let go of outgoing explorer {EXPLORER_ID}"))
+        );
+    }
+
+    #[test]
+    fn wait_outgoing_wrong_message() {
+        let (ui_tx, _ui_rx) = unbounded::<OrchestratorToUiUpdate>();
+        let (_ui_cmd_tx, ui_cmd_rx) = unbounded::<UiToOrchestratorCommand>();
+        let test_ctx = make_test_context(None, None, ui_tx, ui_cmd_rx);
+        let conv = make_wait_conv(test_ctx.clone());
+
+        let wrong_msg = PossibleMessage::PlanetToOrch(PlanetToOrchestrator::KillPlanetResult {
+            planet_id: CURR_PLANET_ID,
+        });
+
+        let next_conv = conv.transition(Some(wrong_msg)).expect("Should return ErrorState");
+        assert_eq!(
+            next_conv.get_error_details(),
+            Some("Wrong Message Received".to_string())
+        );
+    }
+}

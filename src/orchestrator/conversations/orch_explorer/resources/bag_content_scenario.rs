@@ -154,49 +154,45 @@ fn wait_bag_content_res_transition(
     Some(Box::new(error_state) as Box<dyn Conversation + Send + Sync>)
 }
 
-/*
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::orchestrator::conversations::OrchToExplorerSenders;
     use crate::orchestrator::conversations::orch_explorer::test_utils::{
-        MakeSendersResult, make_empty_senders, make_senders_with, make_to_explorer_struct,
+        add_broken_explorer_sender, add_working_explorer_sender, make_test_context,
     };
-    use crossbeam_channel::unbounded;
     use std::collections::HashMap;
-    use std::sync::{Arc, Mutex};
+    use crossbeam_channel::{unbounded};
+    use crate::ui::UiToOrchestratorCommand;
 
-    const CONV_ID: u32 = 1;
-    const EXPLORER_ID: u32 = 2;
-
-    struct DummyExplorerBagContent;
-
-    // --- Helper functions ---
+    const CONV_ID: ID = 1;
+    const EXPLORER_ID: ID = 2;
 
     fn make_send_conv(
-        senders: OrchToExplorerSenders,
+        orch_context: OrchContextRef,
     ) -> Box<BagContentConversation<SendingBagContentRequest>> {
-        let to_explorer = make_to_explorer_struct(EXPLORER_ID, senders);
-        let state = SendingBagContentRequest::new(to_explorer, None);
+        let state = SendingBagContentRequest::new(orch_context, EXPLORER_ID);
         Box::new(BagContentConversation::<SendingBagContentRequest>::new(
             CONV_ID, state,
         ))
     }
 
-    fn make_wait_conv() -> Box<BagContentConversation<WaitingBagContentResponse>> {
+    fn make_wait_conv(
+        orch_context: OrchContextRef,
+    ) -> Box<BagContentConversation<WaitingBagContentResponse>> {
+        let state = WaitingBagContentResponse::new(orch_context, EXPLORER_ID);
         Box::new(BagContentConversation::<WaitingBagContentResponse>::new(
-            CONV_ID,
-            EXPLORER_ID,
-            None,
+            CONV_ID, state,
         ))
     }
 
     // --- Tests ---
-
     #[test]
     fn send_success() {
-        let MakeSendersResult(senders, _rx) = make_senders_with(EXPLORER_ID);
-        let conv = make_send_conv(senders);
+        let (ui_tx, _ui_rx) = unbounded::<OrchestratorToUiUpdate>();
+        let (_ui_cmd_tx, ui_cmd_rx) = unbounded::<UiToOrchestratorCommand>();
+        let test_ctx = make_test_context(None, None, ui_tx, ui_cmd_rx);
+        let _rx = add_working_explorer_sender(test_ctx.channels_manager.as_ref(), EXPLORER_ID);
+        let conv = make_send_conv(test_ctx.clone());
         let next_conv = conv
             .transition(None)
             .expect("Should transition to next state");
@@ -211,8 +207,13 @@ mod tests {
 
     #[test]
     fn send_missing_sender() {
-        let senders = make_empty_senders();
-        let conv = make_send_conv(senders);
+        
+        let (ui_tx, _ui_rx) = unbounded::<OrchestratorToUiUpdate>();
+        let (_ui_cmd_tx, ui_cmd_rx) = unbounded::<UiToOrchestratorCommand>();
+
+        let test_ctx = make_test_context(None, None, ui_tx, ui_cmd_rx);
+        let conv = make_send_conv(test_ctx.clone());
+        
         let next_conv = conv.transition(None).expect("Should return an ErrorState");
         assert!(next_conv.get_expected_kind().is_none());
         assert_eq!(next_conv.get_id(), CONV_ID);
@@ -224,10 +225,13 @@ mod tests {
 
     #[test]
     fn send_message_failure() {
-        let (tx, rx) = unbounded::<OrchestratorToExplorer>();
-        drop(rx);
-        let senders = Arc::new(Mutex::new(HashMap::from([(EXPLORER_ID, tx)])));
-        let conv = make_send_conv(senders);
+        let (ui_tx, _ui_rx) = unbounded::<OrchestratorToUiUpdate>();
+        let (_ui_cmd_tx, ui_cmd_rx) = unbounded::<UiToOrchestratorCommand>();
+        
+        let test_ctx = make_test_context(None, None, ui_tx, ui_cmd_rx);
+        add_broken_explorer_sender(test_ctx.channels_manager.as_ref(), EXPLORER_ID);
+        
+        let conv = make_send_conv(test_ctx.clone());
         let next_conv = conv.transition(None).expect("Should return an ErrorState");
         let error_msg = next_conv
             .get_error_details()
@@ -240,10 +244,13 @@ mod tests {
 
     #[test]
     fn send_getters() {
-        let MakeSendersResult(senders, _rx) = make_senders_with(EXPLORER_ID);
-        let to_explorer = make_to_explorer_struct(EXPLORER_ID, senders);
-        let state = SendingBagContentRequest::new(to_explorer, None);
-        let conv = BagContentConversation::<SendingBagContentRequest>::new(CONV_ID, state);
+        let (ui_tx, _ui_rx) = unbounded::<OrchestratorToUiUpdate>();
+        let (_ui_cmd_tx, ui_cmd_rx) = unbounded::<UiToOrchestratorCommand>();
+
+        let test_ctx = make_test_context(None, None, ui_tx, ui_cmd_rx);
+        let _rx = add_working_explorer_sender(test_ctx.channels_manager.as_ref(), EXPLORER_ID);
+        
+        let conv = make_send_conv(test_ctx.clone());
         assert_eq!(conv.get_id(), CONV_ID);
         assert_eq!(conv.get_entities_ids(), (None, Some(EXPLORER_ID)));
         assert_eq!(conv.get_expected_kind(), None);
@@ -252,13 +259,20 @@ mod tests {
 
     #[test]
     fn wait_correct_transition() {
-        let conv = make_wait_conv();
+        let (ui_tx, _ui_rx) = unbounded::<OrchestratorToUiUpdate>();
+        let (_ui_cmd_tx, ui_cmd_rx) = unbounded::<UiToOrchestratorCommand>();
+        
+        let test_ctx = make_test_context(None, None, ui_tx, ui_cmd_rx);
+        let conv = make_wait_conv(test_ctx.clone());
+        
         let msg = PossibleMessage::ExplorerToOrch(ExplorerToOrchestrator::BagContentResponse {
             explorer_id: EXPLORER_ID,
             bag_content: common_explorer::ExplorerBagContent {
                 resources_amounts: HashMap::default(),
             },
         });
+
+
         let result = conv.transition(Some(msg));
         assert!(
             result.is_none(),
@@ -268,7 +282,11 @@ mod tests {
 
     #[test]
     fn wait_wrong_message() {
-        let conv = make_wait_conv();
+        let (ui_tx, _ui_rx) = unbounded::<OrchestratorToUiUpdate>();
+        let (_ui_cmd_tx, ui_cmd_rx) = unbounded::<UiToOrchestratorCommand>();
+        
+        let test_ctx = make_test_context(None, None, ui_tx, ui_cmd_rx);
+        let conv = make_wait_conv(test_ctx.clone());
         let wrong_msg =
             PossibleMessage::ExplorerToOrch(ExplorerToOrchestrator::StartExplorerAIResult {
                 explorer_id: EXPLORER_ID,
@@ -283,9 +301,13 @@ mod tests {
         );
     }
 
-    /*#[test]
+    #[test]
     fn wait_getters() {
-        let conv = BagContentConversation::<WaitingBagContentResponse>::new(CONV_ID, EXPLORER_ID);
+        let (ui_tx, _ui_rx) = unbounded::<OrchestratorToUiUpdate>();
+        let (_ui_cmd_tx, ui_cmd_rx) = unbounded::<UiToOrchestratorCommand>();
+        let test_ctx = make_test_context(None, None, ui_tx, ui_cmd_rx);
+        let state = WaitingBagContentResponse::new(test_ctx, EXPLORER_ID);
+        let conv = BagContentConversation::<WaitingBagContentResponse>::new(CONV_ID, state);
         assert_eq!(conv.get_id(), CONV_ID);
         assert_eq!(conv.get_entities_ids(), (None, Some(EXPLORER_ID)));
         assert_eq!(
@@ -295,6 +317,5 @@ mod tests {
             ))
         );
         assert_eq!(conv.get_priority(), 3);
-    }*/
+    }
 }
-*/

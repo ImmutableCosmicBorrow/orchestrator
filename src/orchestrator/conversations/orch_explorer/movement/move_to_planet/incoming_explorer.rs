@@ -206,3 +206,117 @@ fn wait_incoming_res_transition(
     let error_state = ErrorState::new(Box::new(CommonErrorTypes::WrongMessage), this.id);
     Some(Box::new(error_state) as Box<dyn Conversation + Send + Sync>)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::orchestrator::conversations::orch_explorer::test_utils::make_test_context;
+    use crate::ui::{OrchestratorToUiUpdate, UiToOrchestratorCommand};
+    use crossbeam_channel::unbounded;
+
+    const CONV_ID: ID = 1;
+    const EXPLORER_ID: ID = 2;
+    const DST_PLANET_ID: ID = 10;
+    const CURR_PLANET_ID: ID = 20;
+
+    fn make_send_conv(
+        orch_context: OrchContextRef,
+    ) -> Box<MoveToPlanetConversation<SendIncomingRequest>> {
+        let state = SendIncomingRequest::new(orch_context, EXPLORER_ID, DST_PLANET_ID, Some(CURR_PLANET_ID));
+        Box::new(MoveToPlanetConversation::<SendIncomingRequest>::new(CONV_ID, state))
+    }
+
+    fn make_wait_conv(
+        orch_context: OrchContextRef,
+        curr_planet: Option<ID>,
+    ) -> Box<MoveToPlanetConversation<WaitingIncomingResponse>> {
+        let state = WaitingIncomingResponse::new(orch_context, EXPLORER_ID, DST_PLANET_ID, curr_planet);
+        Box::new(MoveToPlanetConversation::<WaitingIncomingResponse>::new(CONV_ID, state))
+    }
+
+    #[test]
+    fn send_incoming_missing_explorer_sender() {
+        let (ui_tx, _ui_rx) = unbounded::<OrchestratorToUiUpdate>();
+        let (_ui_cmd_tx, ui_cmd_rx) = unbounded::<UiToOrchestratorCommand>();
+        let test_ctx = make_test_context(None, None, ui_tx, ui_cmd_rx);
+        let conv = make_send_conv(test_ctx.clone());
+
+        let next_conv = conv.transition(None).expect("Should return an ErrorState");
+        assert_eq!(
+            next_conv.get_error_details(),
+            Some(format!("sender to explorer {EXPLORER_ID} not found"))
+        );
+    }
+
+    #[test]
+    fn wait_incoming_success_with_curr_planet() {
+        let (ui_tx, _ui_rx) = unbounded::<OrchestratorToUiUpdate>();
+        let (_ui_cmd_tx, ui_cmd_rx) = unbounded::<UiToOrchestratorCommand>();
+        let test_ctx = make_test_context(None, None, ui_tx, ui_cmd_rx);
+        let conv = make_wait_conv(test_ctx.clone(), Some(CURR_PLANET_ID));
+
+        let msg = PossibleMessage::PlanetToOrch(PlanetToOrchestrator::IncomingExplorerResponse {
+            planet_id: DST_PLANET_ID,
+            explorer_id: EXPLORER_ID,
+            res: Ok(()),
+        });
+
+        let next_conv = conv.transition(Some(msg)).expect("Should transition");
+        assert_eq!(next_conv.get_id(), CONV_ID);
+        assert_eq!(next_conv.get_expected_kind(), None); // SendOutgoingRequest expects no message at first
+    }
+
+    #[test]
+    fn wait_incoming_success_without_curr_planet() {
+        let (ui_tx, _ui_rx) = unbounded::<OrchestratorToUiUpdate>();
+        let (_ui_cmd_tx, ui_cmd_rx) = unbounded::<UiToOrchestratorCommand>();
+        let test_ctx = make_test_context(None, None, ui_tx, ui_cmd_rx);
+        let conv = make_wait_conv(test_ctx.clone(), None);
+
+        let msg = PossibleMessage::PlanetToOrch(PlanetToOrchestrator::IncomingExplorerResponse {
+            planet_id: DST_PLANET_ID,
+            explorer_id: EXPLORER_ID,
+            res: Ok(()),
+        });
+
+        let next_conv = conv.transition(Some(msg)).expect("Should transition");
+        assert_eq!(next_conv.get_id(), CONV_ID);
+        assert_eq!(next_conv.get_expected_kind(), None); // SendMoveRequest expects no message at first
+    }
+
+    #[test]
+    fn wait_incoming_rejection() {
+        let (ui_tx, _ui_rx) = unbounded::<OrchestratorToUiUpdate>();
+        let (_ui_cmd_tx, ui_cmd_rx) = unbounded::<UiToOrchestratorCommand>();
+        let test_ctx = make_test_context(None, None, ui_tx, ui_cmd_rx);
+        let conv = make_wait_conv(test_ctx.clone(), Some(CURR_PLANET_ID));
+
+        let msg = PossibleMessage::PlanetToOrch(PlanetToOrchestrator::IncomingExplorerResponse {
+            planet_id: DST_PLANET_ID,
+            explorer_id: EXPLORER_ID,
+            res: Err("No space".into()),
+        });
+
+        let next_conv = conv.transition(Some(msg)).expect("Should transition");
+        assert_eq!(next_conv.get_id(), CONV_ID);
+        assert_eq!(next_conv.get_expected_kind(), None); // SendMoveRequest expects no message at first
+    }
+
+    #[test]
+    fn wait_incoming_wrong_message() {
+        let (ui_tx, _ui_rx) = unbounded::<OrchestratorToUiUpdate>();
+        let (_ui_cmd_tx, ui_cmd_rx) = unbounded::<UiToOrchestratorCommand>();
+        let test_ctx = make_test_context(None, None, ui_tx, ui_cmd_rx);
+        let conv = make_wait_conv(test_ctx.clone(), Some(CURR_PLANET_ID));
+
+        let msg = PossibleMessage::PlanetToOrch(PlanetToOrchestrator::KillPlanetResult {
+            planet_id: DST_PLANET_ID,
+        });
+
+        let result = conv.transition(Some(msg)).expect("Should return ErrorState");
+        assert_eq!(
+            result.get_error_details(),
+            Some("Wrong Message Received".to_string())
+        );
+    }
+}

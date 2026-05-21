@@ -137,64 +137,29 @@ fn waiting_asteroid_ack_transition(
     Some(Box::new(error_state) as Box<dyn Conversation + Send + Sync>)
 }
 
-/*
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::globals::TIMEOUT;
-    use crate::orchestrator::conversations::util::get_test_forge;
+    use crate::orchestrator::conversations::orch_planet::test_utils::{
+        add_broken_planet_sender, add_working_planet_sender, make_test_context,
+    };
+    use crate::ui::{OrchestratorToUiUpdate, UiToOrchestratorCommand};
     use common_game::protocols::orchestrator_planet::PlanetToOrchestratorKind;
     use crossbeam_channel::unbounded;
-    use std::collections::HashMap;
-    use std::sync::{Arc, Mutex};
 
     const CONV_ID: ID = 1;
     const PLANET_ID: ID = 2;
 
-    type PlanetSenders = Arc<Mutex<HashMap<ID, crossbeam_channel::Sender<OrchestratorToPlanet>>>>;
-
-    struct MakeSendersResult(
-        PlanetSenders,
-        crossbeam_channel::Receiver<OrchestratorToPlanet>,
-    );
-
     // --- Helper functions ---
-    fn make_senders_with(planet_id: ID) -> MakeSendersResult {
-        let (tx, rx) = unbounded::<OrchestratorToPlanet>();
-        MakeSendersResult(Arc::new(Mutex::new(HashMap::from([(planet_id, tx)]))), rx)
-    }
 
-    fn make_empty_senders() -> PlanetSenders {
-        Arc::new(Mutex::new(HashMap::new()))
-    }
-
-    fn make_to_planet_struct(planet_id: ID, senders: PlanetSenders) -> ToPlanetStruct {
-        ToPlanetStruct {
-            planet_id,
-            planets_senders: senders,
-        }
-    }
-
-    fn make_empty_explorer_refs() -> (ExplorersLocationRef, OrchToExplorerSenders) {
-        (
-            Arc::new(Mutex::new(HashMap::new())),
-            Arc::new(Mutex::new(HashMap::new())),
-        )
-    }
-
-    fn make_send_conv(senders: PlanetSenders) -> Box<AsteroidConversation<SendingAsteroid>> {
-        let to_planet = make_to_planet_struct(PLANET_ID, senders);
-        let forge = get_test_forge();
-        let (explorers_location, explorers_senders) = make_empty_explorer_refs();
-        let state = SendingAsteroid::new(to_planet, forge, explorers_location, explorers_senders);
+    fn make_send_conv(orch_context: OrchContextRef) -> Box<AsteroidConversation<SendingAsteroid>> {
+        let state = SendingAsteroid::new(orch_context, PLANET_ID);
         Box::new(AsteroidConversation::<SendingAsteroid>::new(CONV_ID, state))
     }
 
-    fn make_wait_conv() -> Box<AsteroidConversation<WaitingAsteroidAck>> {
-        let senders = make_empty_senders();
-        let to_planet = make_to_planet_struct(PLANET_ID, senders);
-        let (explorers_location, explorers_senders) = make_empty_explorer_refs();
-        let state = WaitingAsteroidAck::new(to_planet, explorers_senders, explorers_location);
+    fn make_wait_conv(orch_context: OrchContextRef) -> Box<AsteroidConversation<WaitingAsteroidAck>> {
+        let state = WaitingAsteroidAck::new(orch_context, PLANET_ID);
         Box::new(AsteroidConversation::<WaitingAsteroidAck>::new(
             CONV_ID, state,
         ))
@@ -204,8 +169,11 @@ mod tests {
 
     #[test]
     fn send_success() {
-        let MakeSendersResult(senders, _rx) = make_senders_with(PLANET_ID);
-        let conv = make_send_conv(senders);
+        let (ui_tx, _ui_rx) = unbounded::<OrchestratorToUiUpdate>();
+        let (_ui_cmd_tx, ui_cmd_rx) = unbounded::<UiToOrchestratorCommand>();
+        let test_ctx = make_test_context(None, None, ui_tx, ui_cmd_rx);
+        let _rx = add_working_planet_sender(test_ctx.channels_manager.as_ref(), PLANET_ID);
+        let conv = make_send_conv(test_ctx.clone());
         let next_conv = conv
             .transition(None)
             .expect("Should transition to next state");
@@ -221,8 +189,10 @@ mod tests {
 
     #[test]
     fn send_missing_sender() {
-        let senders = make_empty_senders();
-        let conv = make_send_conv(senders);
+        let (ui_tx, _ui_rx) = unbounded::<OrchestratorToUiUpdate>();
+        let (_ui_cmd_tx, ui_cmd_rx) = unbounded::<UiToOrchestratorCommand>();
+        let test_ctx = make_test_context(None, None, ui_tx, ui_cmd_rx);
+        let conv = make_send_conv(test_ctx.clone());
         let next_conv = conv
             .transition(None)
             .expect("Should transition to error state");
@@ -236,10 +206,11 @@ mod tests {
 
     #[test]
     fn send_message_failure() {
-        let (tx, rx) = unbounded::<OrchestratorToPlanet>();
-        drop(rx);
-        let senders = Arc::new(Mutex::new(HashMap::from([(PLANET_ID, tx)])));
-        let conv = make_send_conv(senders);
+        let (ui_tx, _ui_rx) = unbounded::<OrchestratorToUiUpdate>();
+        let (_ui_cmd_tx, ui_cmd_rx) = unbounded::<UiToOrchestratorCommand>();
+        let test_ctx = make_test_context(None, None, ui_tx, ui_cmd_rx);
+        add_broken_planet_sender(test_ctx.channels_manager.as_ref(), PLANET_ID);
+        let conv = make_send_conv(test_ctx.clone());
         let next_conv = conv.transition(None).expect("Should return an ErrorState");
         let error_msg = next_conv
             .get_error_details()
@@ -253,12 +224,10 @@ mod tests {
 
     #[test]
     fn send_getters() {
-        let MakeSendersResult(senders, _rx) = make_senders_with(PLANET_ID);
-        let to_planet = make_to_planet_struct(PLANET_ID, senders);
-        let forge = get_test_forge();
-        let (explorers_location, explorers_senders) = make_empty_explorer_refs();
-        let state = SendingAsteroid::new(to_planet, forge, explorers_location, explorers_senders);
-        let conv = AsteroidConversation::<SendingAsteroid>::new(CONV_ID, state);
+        let (ui_tx, _ui_rx) = unbounded::<OrchestratorToUiUpdate>();
+        let (_ui_cmd_tx, ui_cmd_rx) = unbounded::<UiToOrchestratorCommand>();
+        let test_ctx = make_test_context(None, None, ui_tx, ui_cmd_rx);
+        let conv = make_send_conv(test_ctx.clone());
         assert_eq!(conv.get_id(), CONV_ID);
         assert_eq!(conv.get_entities_ids(), (Some(PLANET_ID), None));
         assert_eq!(conv.get_expected_kind(), None);
@@ -267,7 +236,10 @@ mod tests {
 
     #[test]
     fn wait_correct_no_rocket() {
-        let conv = make_wait_conv();
+        let (ui_tx, _ui_rx) = unbounded::<OrchestratorToUiUpdate>();
+        let (_ui_cmd_tx, ui_cmd_rx) = unbounded::<UiToOrchestratorCommand>();
+        let test_ctx = make_test_context(None, None, ui_tx, ui_cmd_rx);
+        let conv = make_wait_conv(test_ctx.clone());
         let msg = PossibleMessage::PlanetToOrch(PlanetToOrchestrator::AsteroidAck {
             planet_id: PLANET_ID,
             rocket: None,
@@ -280,7 +252,10 @@ mod tests {
 
     #[test]
     fn wait_wrong_message() {
-        let conv = make_wait_conv();
+        let (ui_tx, _ui_rx) = unbounded::<OrchestratorToUiUpdate>();
+        let (_ui_cmd_tx, ui_cmd_rx) = unbounded::<UiToOrchestratorCommand>();
+        let test_ctx = make_test_context(None, None, ui_tx, ui_cmd_rx);
+        let conv = make_wait_conv(test_ctx.clone());
         let wrong_msg = PossibleMessage::PlanetToOrch(PlanetToOrchestrator::StartPlanetAIResult {
             planet_id: PLANET_ID,
         });
@@ -296,11 +271,10 @@ mod tests {
 
     #[test]
     fn wait_getters() {
-        let senders = make_empty_senders();
-        let to_planet = make_to_planet_struct(PLANET_ID, senders);
-        let (explorers_location, explorers_senders) = make_empty_explorer_refs();
-        let state = WaitingAsteroidAck::new(to_planet, explorers_senders, explorers_location);
-        let conv = AsteroidConversation::<WaitingAsteroidAck>::new(CONV_ID, state);
+        let (ui_tx, _ui_rx) = unbounded::<OrchestratorToUiUpdate>();
+        let (_ui_cmd_tx, ui_cmd_rx) = unbounded::<UiToOrchestratorCommand>();
+        let test_ctx = make_test_context(None, None, ui_tx, ui_cmd_rx);
+        let conv = make_wait_conv(test_ctx.clone());
         assert_eq!(conv.get_id(), CONV_ID);
         assert_eq!(conv.get_entities_ids(), (Some(PLANET_ID), None));
         assert_eq!(
@@ -314,7 +288,10 @@ mod tests {
 
     #[test]
     fn wait_defends_with_rocket() {
-        let conv = make_wait_conv();
+        let (ui_tx, _ui_rx) = unbounded::<OrchestratorToUiUpdate>();
+        let (_ui_cmd_tx, ui_cmd_rx) = unbounded::<UiToOrchestratorCommand>();
+        let test_ctx = make_test_context(None, None, ui_tx, ui_cmd_rx);
+        let conv = make_wait_conv(test_ctx.clone());
         // Create a dummy Rocket value for testing using unsafe since Rocket::new is pub(crate)
         // SAFETY: Rocket only contains a private unit field `_private: ()`, which is a ZST (zero-sized type)
         let dummy_rocket: common_game::components::rocket::Rocket = unsafe { std::mem::zeroed() };
@@ -333,7 +310,10 @@ mod tests {
 
     #[test]
     fn waiting_asteroid_has_timeout_config() {
-        let conv = make_wait_conv();
+        let (ui_tx, _ui_rx) = unbounded::<OrchestratorToUiUpdate>();
+        let (_ui_cmd_tx, ui_cmd_rx) = unbounded::<UiToOrchestratorCommand>();
+        let test_ctx = make_test_context(None, None, ui_tx, ui_cmd_rx);
+        let conv = make_wait_conv(test_ctx.clone());
 
         // Verify timeout is configured
         assert!(conv.get_timeout().is_some());
@@ -345,7 +325,10 @@ mod tests {
         expected = "Conversation 1 timed out waiting for Some(PlanetToOrchKind(AsteroidAck))"
     )]
     fn waiting_asteroid_timeout_logs_and_terminates() {
-        let conv = make_wait_conv();
+        let (ui_tx, _ui_rx) = unbounded::<OrchestratorToUiUpdate>();
+        let (_ui_cmd_tx, ui_cmd_rx) = unbounded::<UiToOrchestratorCommand>();
+        let test_ctx = make_test_context(None, None, ui_tx, ui_cmd_rx);
+        let conv = make_wait_conv(test_ctx.clone());
 
         // on_timeout should panic
         // This test verifies it does
@@ -354,11 +337,12 @@ mod tests {
 
     #[test]
     fn sending_asteroid_has_default_timeout() {
-        let MakeSendersResult(senders, _rx) = make_senders_with(PLANET_ID);
-        let conv = make_send_conv(senders);
+        let (ui_tx, _ui_rx) = unbounded::<OrchestratorToUiUpdate>();
+        let (_ui_cmd_tx, ui_cmd_rx) = unbounded::<UiToOrchestratorCommand>();
+        let test_ctx = make_test_context(None, None, ui_tx, ui_cmd_rx);
+        let conv = make_send_conv(test_ctx.clone());
 
         // Sending states should not have timeout - they're not waiting for messages
         assert_eq!(conv.get_timeout(), Some(TIMEOUT));
     }
 }
-*/

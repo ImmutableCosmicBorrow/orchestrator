@@ -9,15 +9,15 @@ use crate::planet::PlanetMap;
 #[cfg(test)]
 use crate::ui::{OrchestratorToUiUpdate, UiToOrchestratorCommand};
 #[cfg(test)]
-use common_game::protocols::orchestrator_explorer::OrchestratorToExplorer;
+use common_game::protocols::orchestrator_planet::OrchestratorToPlanet;
 #[cfg(test)]
 use common_game::utils::ID;
+#[cfg(test)]
+use crossbeam_channel::{unbounded, Receiver, Sender};
 #[cfg(test)]
 use std::collections::HashMap;
 #[cfg(test)]
 use std::sync::{Arc, RwLock};
-#[cfg(test)]
-use crossbeam_channel::{Receiver, Sender, unbounded};
 
 #[cfg(test)]
 pub(crate) fn make_test_context(
@@ -30,33 +30,32 @@ pub(crate) fn make_test_context(
     let forge = get_test_forge();
     let galaxy = galaxy.unwrap_or_else(|| Arc::new(RwLock::new(HashMap::new())));
     let explorers_location = explorers_location.unwrap_or_default();
-    let orch_context = Arc::new(OrchContext::new(
-        channels_manager.clone(),
+
+    Arc::new(OrchContext::new(
+        channels_manager,
         forge,
         galaxy,
         explorers_location,
-    ));
-
-    orch_context
+    ))
 }
 
 #[cfg(test)]
-pub(crate) fn add_working_explorer_sender(
+pub(crate) fn add_working_planet_sender(
     channels_manager: &ChannelsManager,
-    explorer_id: ID,
-) -> Receiver<OrchestratorToExplorer> {
-    let (tx, rx) = unbounded::<OrchestratorToExplorer>();
+    planet_id: ID,
+) -> Receiver<OrchestratorToPlanet> {
+    let (tx, rx) = unbounded::<OrchestratorToPlanet>();
     channels_manager
-        .get_orch_to_exp_senders_struct_ref()
-        .insert(explorer_id, tx);
+        .get_to_planet_senders_struct_ref()
+        .insert(planet_id, tx);
     rx
 }
 
 #[cfg(test)]
-pub(crate) fn add_broken_explorer_sender(channels_manager: &ChannelsManager, explorer_id: ID) {
-    let (tx, rx) = unbounded::<OrchestratorToExplorer>();
+pub(crate) fn add_broken_planet_sender(channels_manager: &ChannelsManager, planet_id: ID) {
+    let (tx, rx) = unbounded::<OrchestratorToPlanet>();
     drop(rx);
     channels_manager
-        .get_orch_to_exp_senders_struct_ref()
-        .insert(explorer_id, tx);
+        .get_to_planet_senders_struct_ref()
+        .insert(planet_id, tx);
 }

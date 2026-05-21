@@ -131,53 +131,36 @@ fn wait_planet_stop_res_transition(
     Some(Box::new(error_state) as Box<dyn Conversation + Send + Sync>)
 }
 
-/*
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::orchestrator::conversations::orch_planet::test_utils::{
+        add_broken_planet_sender, add_working_planet_sender, make_test_context,
+    };
+    use crate::ui::{OrchestratorToUiUpdate, UiToOrchestratorCommand};
     use common_game::protocols::orchestrator_planet::PlanetToOrchestratorKind;
     use crossbeam_channel::unbounded;
-    use std::collections::HashMap;
-    use std::sync::{Arc, Mutex};
 
     const CONV_ID: ID = 100;
     const PLANET_ID: ID = 200;
 
-    type PlanetSenders = Arc<Mutex<HashMap<ID, crossbeam_channel::Sender<OrchestratorToPlanet>>>>;
-
-    struct MakeSendersResult(
-        PlanetSenders,
-        crossbeam_channel::Receiver<OrchestratorToPlanet>,
-    );
-
     // --- Helper functions ---
-    fn make_senders_with(planet_id: ID) -> MakeSendersResult {
-        let (tx, rx) = unbounded::<OrchestratorToPlanet>();
-        MakeSendersResult(Arc::new(Mutex::new(HashMap::from([(planet_id, tx)]))), rx)
-    }
 
-    fn make_empty_senders() -> PlanetSenders {
-        Arc::new(Mutex::new(HashMap::new()))
-    }
-
-    fn make_to_planet_struct(planet_id: ID, senders: PlanetSenders) -> ToPlanetStruct {
-        ToPlanetStruct {
-            planet_id,
-            planets_senders: senders,
-        }
-    }
-
-    fn make_send_conv(senders: PlanetSenders) -> Box<StopPlanetConversation<SendingPlanetStop>> {
-        let to_planet = make_to_planet_struct(PLANET_ID, senders);
-        let state = SendingPlanetStop::new(to_planet);
+    fn make_send_conv(
+        orch_context: OrchContextRef,
+    ) -> Box<StopPlanetConversation<SendingPlanetStop>> {
+        let state = SendingPlanetStop::new(orch_context, PLANET_ID);
         Box::new(StopPlanetConversation::<SendingPlanetStop>::new(
             CONV_ID, state,
         ))
     }
 
-    fn make_wait_conv() -> Box<StopPlanetConversation<WaitingPlanetStopResult>> {
+    fn make_wait_conv(
+        orch_context: OrchContextRef,
+    ) -> Box<StopPlanetConversation<WaitingPlanetStopResult>> {
+        let state = WaitingPlanetStopResult::new(orch_context, PLANET_ID);
         Box::new(StopPlanetConversation::<WaitingPlanetStopResult>::new(
-            CONV_ID, PLANET_ID,
+            CONV_ID, state,
         ))
     }
 
@@ -185,8 +168,11 @@ mod tests {
 
     #[test]
     fn send_success() {
-        let MakeSendersResult(senders, _rx) = make_senders_with(PLANET_ID);
-        let conv = make_send_conv(senders);
+        let (ui_tx, _ui_rx) = unbounded::<OrchestratorToUiUpdate>();
+        let (_ui_cmd_tx, ui_cmd_rx) = unbounded::<UiToOrchestratorCommand>();
+        let test_ctx = make_test_context(None, None, ui_tx, ui_cmd_rx);
+        let _rx = add_working_planet_sender(test_ctx.channels_manager.as_ref(), PLANET_ID);
+        let conv = make_send_conv(test_ctx.clone());
         let next_conv = conv
             .transition(None)
             .expect("Should transition to WaitingPlanetStopResult");
@@ -202,8 +188,10 @@ mod tests {
 
     #[test]
     fn send_missing_sender() {
-        let senders = make_empty_senders();
-        let conv = make_send_conv(senders);
+        let (ui_tx, _ui_rx) = unbounded::<OrchestratorToUiUpdate>();
+        let (_ui_cmd_tx, ui_cmd_rx) = unbounded::<UiToOrchestratorCommand>();
+        let test_ctx = make_test_context(None, None, ui_tx, ui_cmd_rx);
+        let conv = make_send_conv(test_ctx.clone());
         let next_conv = conv.transition(None).expect("Should return an ErrorState");
         assert!(next_conv.get_expected_kind().is_none());
         assert_eq!(
@@ -214,10 +202,11 @@ mod tests {
 
     #[test]
     fn send_message_failure() {
-        let (tx, rx) = unbounded::<OrchestratorToPlanet>();
-        drop(rx);
-        let senders = Arc::new(Mutex::new(HashMap::from([(PLANET_ID, tx)])));
-        let conv = make_send_conv(senders);
+        let (ui_tx, _ui_rx) = unbounded::<OrchestratorToUiUpdate>();
+        let (_ui_cmd_tx, ui_cmd_rx) = unbounded::<UiToOrchestratorCommand>();
+        let test_ctx = make_test_context(None, None, ui_tx, ui_cmd_rx);
+        add_broken_planet_sender(test_ctx.channels_manager.as_ref(), PLANET_ID);
+        let conv = make_send_conv(test_ctx.clone());
         let next_conv = conv.transition(None).expect("Should return an ErrorState");
         let error_msg = next_conv
             .get_error_details()
@@ -230,10 +219,10 @@ mod tests {
 
     #[test]
     fn send_getters() {
-        let MakeSendersResult(senders, _rx) = make_senders_with(PLANET_ID);
-        let to_planet = make_to_planet_struct(PLANET_ID, senders);
-        let state = SendingPlanetStop::new(to_planet);
-        let conv = StopPlanetConversation::<SendingPlanetStop>::new(CONV_ID, state);
+        let (ui_tx, _ui_rx) = unbounded::<OrchestratorToUiUpdate>();
+        let (_ui_cmd_tx, ui_cmd_rx) = unbounded::<UiToOrchestratorCommand>();
+        let test_ctx = make_test_context(None, None, ui_tx, ui_cmd_rx);
+        let conv = make_send_conv(test_ctx.clone());
         assert_eq!(conv.get_id(), CONV_ID);
         assert_eq!(conv.get_entities_ids(), (Some(PLANET_ID), None));
         assert_eq!(conv.get_expected_kind(), None);
@@ -242,7 +231,10 @@ mod tests {
 
     #[test]
     fn wait_correct_message() {
-        let conv = make_wait_conv();
+        let (ui_tx, _ui_rx) = unbounded::<OrchestratorToUiUpdate>();
+        let (_ui_cmd_tx, ui_cmd_rx) = unbounded::<UiToOrchestratorCommand>();
+        let test_ctx = make_test_context(None, None, ui_tx, ui_cmd_rx);
+        let conv = make_wait_conv(test_ctx.clone());
         let msg = PossibleMessage::PlanetToOrch(PlanetToOrchestrator::StopPlanetAIResult {
             planet_id: PLANET_ID,
         });
@@ -255,7 +247,10 @@ mod tests {
 
     #[test]
     fn wait_wrong_message() {
-        let conv = make_wait_conv();
+        let (ui_tx, _ui_rx) = unbounded::<OrchestratorToUiUpdate>();
+        let (_ui_cmd_tx, ui_cmd_rx) = unbounded::<UiToOrchestratorCommand>();
+        let test_ctx = make_test_context(None, None, ui_tx, ui_cmd_rx);
+        let conv = make_wait_conv(test_ctx.clone());
         let wrong_msg = PossibleMessage::PlanetToOrch(PlanetToOrchestrator::StartPlanetAIResult {
             planet_id: PLANET_ID,
         });
@@ -271,7 +266,10 @@ mod tests {
 
     #[test]
     fn wait_getters() {
-        let conv = StopPlanetConversation::<WaitingPlanetStopResult>::new(CONV_ID, PLANET_ID);
+        let (ui_tx, _ui_rx) = unbounded::<OrchestratorToUiUpdate>();
+        let (_ui_cmd_tx, ui_cmd_rx) = unbounded::<UiToOrchestratorCommand>();
+        let test_ctx = make_test_context(None, None, ui_tx, ui_cmd_rx);
+        let conv = make_wait_conv(test_ctx.clone());
         assert_eq!(conv.get_id(), CONV_ID);
         assert_eq!(conv.get_entities_ids(), (Some(PLANET_ID), None));
         assert_eq!(
@@ -283,5 +281,3 @@ mod tests {
         assert_eq!(conv.get_priority(), 5);
     }
 }
-
-*/

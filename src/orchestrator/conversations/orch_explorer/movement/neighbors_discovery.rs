@@ -165,93 +165,82 @@ fn wait_neighbors_req_transition(
     Some(Box::new(error_state) as Box<dyn Conversation + Send + Sync>)
 }
 
-/*
 #[cfg(test)]
 mod tests {
-    use crate::galaxy_setup::galaxy_loader;
-
     use super::*;
-    use crate::ui::{OrchestratorToUiUpdate, UiToOrchestratorCommand};
-    use crossbeam_channel::unbounded;
+    use crate::orchestrator::conversations::orch_explorer::test_utils::{
+        add_broken_explorer_sender, add_working_explorer_sender, make_test_context,
+    };
+    use crate::planet::{PlanetMap, add_planet_with_neighbors};
     use std::collections::HashMap;
-    use std::sync::{Arc, Mutex};
+    use std::sync::{Arc, RwLock};
 
-    const CONV_ID: u32 = 1;
-    const EXPLORER_ID: u32 = 2;
-    const INIT_PATH: &str = "test_galaxy.txt";
+    use crossbeam_channel::{unbounded};
+    use crate::ui::{OrchestratorToUiUpdate, UiToOrchestratorCommand};
+    
 
-    type ExplorerSenders =
-        Arc<Mutex<HashMap<ID, crossbeam_channel::Sender<OrchestratorToExplorer>>>>;
+    const CONV_ID: ID = 1;
+    const EXPLORER_ID: ID = 2;
+    const PLANET_ID: ID = 10;
+    const NEIGHBOR_ID: ID = 11;
 
-    struct MakeSendersResult(
-        ExplorerSenders,
-        crossbeam_channel::Receiver<OrchestratorToExplorer>,
-    );
-
-    // --- Helper functions ---
-    fn make_senders_with(explorer_id: ID) -> MakeSendersResult {
-        let (tx, rx) = unbounded::<OrchestratorToExplorer>();
-        MakeSendersResult(Arc::new(Mutex::new(HashMap::from([(explorer_id, tx)]))), rx)
-    }
-
-    fn make_empty_senders() -> ExplorerSenders {
-        Arc::new(Mutex::new(HashMap::new()))
-    }
-
-    fn make_to_explorer_struct(explorer_id: ID, senders: ExplorerSenders) -> ToExplorerStruct {
-        ToExplorerStruct {
-            explorer_id,
-            explorers_senders: senders,
-        }
+    fn make_galaxy() -> PlanetMap {
+        let galaxy: PlanetMap = Arc::new(RwLock::new(HashMap::new()));
+        add_planet_with_neighbors(&galaxy, PLANET_ID, [NEIGHBOR_ID]);
+        galaxy
     }
 
     fn make_wait_conv(
-        senders: ExplorerSenders,
-        file_path: &str,
-    ) -> Box<NeighborsDiscoveryConversation<WaitingExplorerNeighborsRequest>> {
-        let to_explorer_struct = make_to_explorer_struct(EXPLORER_ID, senders);
-        let (to_ui_tx, _to_ui_rx) = unbounded::<OrchestratorToUiUpdate>();
-        let (_from_ui_tx, from_ui_rx) = unbounded::<UiToOrchestratorCommand>();
-        let (galaxy, _join_handles) = galaxy_loader(
-            std::path::Path::new(file_path),
-            &crate::orchestrator::ChannelsManager::new(to_ui_tx, from_ui_rx),
-        );
-        let state = WaitingExplorerNeighborsRequest::new(to_explorer_struct, galaxy);
-        Box::new(NeighborsDiscoveryConversation::<
-            WaitingExplorerNeighborsRequest,
-        >::new(CONV_ID, state))
+        orch_context: OrchContextRef,
+    ) -> Box<NeighborsDiscoveryConversation<WaitingNeighborsRequest>> {
+        let state = WaitingNeighborsRequest::new(orch_context, EXPLORER_ID);
+        Box::new(NeighborsDiscoveryConversation::<WaitingNeighborsRequest>::new(CONV_ID, state))
     }
 
     fn make_send_conv(
-        senders: ExplorerSenders,
+        orch_context: OrchContextRef,
         neighbors: Vec<ID>,
-    ) -> Box<NeighborsDiscoveryConversation<SendingNeighborsResponse>> {
-        let to_explorer_struct = make_to_explorer_struct(EXPLORER_ID, senders);
-        let state = SendingNeighborsResponse::new(to_explorer_struct, neighbors);
-        Box::new(NeighborsDiscoveryConversation::<SendingNeighborsResponse>::new(CONV_ID, state))
+    ) -> Box<NeighborsDiscoveryConversation<SendingNeighbors>> {
+        let state = SendingNeighbors::new(orch_context, EXPLORER_ID, neighbors);
+        Box::new(NeighborsDiscoveryConversation::<SendingNeighbors>::new(
+            CONV_ID, state,
+        ))
     }
 
     // --- Tests ---
 
     #[test]
     fn wait_correct_transition() {
-        let MakeSendersResult(senders, _rx) = make_senders_with(EXPLORER_ID);
-        let conv = make_wait_conv(senders, INIT_PATH);
+        let galaxy = make_galaxy();
+        
+        let (ui_tx, _ui_rx) = unbounded::<OrchestratorToUiUpdate>();
+        let (_ui_cmd_tx, ui_cmd_rx) = unbounded::<UiToOrchestratorCommand>();
+        
+        let test_ctx = make_test_context(Some(galaxy), None, ui_tx, ui_cmd_rx);
+        
+        let conv = make_wait_conv(test_ctx.clone());
         let msg = PossibleMessage::ExplorerToOrch(ExplorerToOrchestrator::NeighborsRequest {
             explorer_id: EXPLORER_ID,
-            current_planet_id: 49_153, // Valid planet ID from galaxy.json
+            current_planet_id: PLANET_ID,
         });
+        
         let next_conv = conv
             .transition(Some(msg))
-            .expect("Should transition to SendingNeighborsResponse state");
+            .expect("Should transition to SendingNeighbors state");
         assert_eq!(next_conv.get_expected_kind(), None);
         assert_eq!(next_conv.get_id(), CONV_ID);
     }
 
     #[test]
     fn wait_wrong_message() {
-        let explorer_senders = make_empty_senders();
-        let conv = make_wait_conv(explorer_senders, INIT_PATH);
+        
+        let galaxy = make_galaxy();
+        
+        let (ui_tx, _ui_rx) = unbounded::<OrchestratorToUiUpdate>();
+        let (_ui_cmd_tx, ui_cmd_rx) = unbounded::<UiToOrchestratorCommand>();
+        let test_ctx = make_test_context(Some(galaxy), None, ui_tx, ui_cmd_rx);
+        
+        let conv = make_wait_conv(test_ctx.clone());
         let wrong_msg =
             PossibleMessage::ExplorerToOrch(ExplorerToOrchestrator::StartExplorerAIResult {
                 explorer_id: EXPLORER_ID,
@@ -268,8 +257,11 @@ mod tests {
 
     #[test]
     fn wait_getters() {
-        let explorer_senders = make_empty_senders();
-        let conv = make_wait_conv(explorer_senders, INIT_PATH);
+        let galaxy = make_galaxy();
+        let (ui_tx, _ui_rx) = unbounded::<OrchestratorToUiUpdate>();
+        let (_ui_cmd_tx, ui_cmd_rx) = unbounded::<UiToOrchestratorCommand>();
+        let test_ctx = make_test_context(Some(galaxy), None, ui_tx, ui_cmd_rx);
+        let conv = make_wait_conv(test_ctx.clone());
         assert_eq!(conv.get_id(), CONV_ID);
         assert_eq!(conv.get_entities_ids(), (None, Some(EXPLORER_ID)));
         assert_eq!(
@@ -283,9 +275,12 @@ mod tests {
 
     #[test]
     fn wait_planet_not_found_error() {
-        let MakeSendersResult(senders, _rx) = make_senders_with(EXPLORER_ID);
-        let conv = make_wait_conv(senders, INIT_PATH);
-        // Use a planet ID that does not exist in galaxy.txt
+        let galaxy = make_galaxy();
+        let (ui_tx, _ui_rx) = unbounded::<OrchestratorToUiUpdate>();
+        let (_ui_cmd_tx, ui_cmd_rx) = unbounded::<UiToOrchestratorCommand>();
+        let test_ctx = make_test_context(Some(galaxy), None, ui_tx, ui_cmd_rx);
+        let conv = make_wait_conv(test_ctx.clone());
+        // Use a planet ID that does not exist in our test galaxy
         let invalid_planet_id = 9_999_999;
         let msg = PossibleMessage::ExplorerToOrch(ExplorerToOrchestrator::NeighborsRequest {
             explorer_id: EXPLORER_ID,
@@ -305,8 +300,11 @@ mod tests {
 
     #[test]
     fn send_success() {
-        let MakeSendersResult(senders, _rx) = make_senders_with(EXPLORER_ID);
-        let conv = make_send_conv(senders, vec![10, 20, 30]);
+        let (ui_tx, _ui_rx) = unbounded::<OrchestratorToUiUpdate>();
+        let (_ui_cmd_tx, ui_cmd_rx) = unbounded::<UiToOrchestratorCommand>();
+        let test_ctx = make_test_context(None, None, ui_tx, ui_cmd_rx);
+        let _rx = add_working_explorer_sender(test_ctx.channels_manager.as_ref(), EXPLORER_ID);
+        let conv = make_send_conv(test_ctx.clone(), vec![10, 20, 30]);
         let result = conv.transition(None);
         assert!(
             result.is_none(),
@@ -316,8 +314,10 @@ mod tests {
 
     #[test]
     fn send_missing_sender() {
-        let senders = make_empty_senders();
-        let conv = make_send_conv(senders, vec![10, 20, 30]);
+        let (ui_tx, _ui_rx) = unbounded::<OrchestratorToUiUpdate>();
+        let (_ui_cmd_tx, ui_cmd_rx) = unbounded::<UiToOrchestratorCommand>();
+        let test_ctx = make_test_context(None, None, ui_tx, ui_cmd_rx);
+        let conv = make_send_conv(test_ctx.clone(), vec![10, 20, 30]);
         let next_conv = conv.transition(None).expect("Should return an ErrorState");
         assert!(next_conv.get_expected_kind().is_none());
         assert_eq!(next_conv.get_id(), CONV_ID);
@@ -329,10 +329,11 @@ mod tests {
 
     #[test]
     fn send_message_failure() {
-        let (tx, rx) = unbounded::<OrchestratorToExplorer>();
-        drop(rx);
-        let senders = Arc::new(Mutex::new(HashMap::from([(EXPLORER_ID, tx)])));
-        let conv = make_send_conv(senders, vec![10, 20, 30]);
+        let (ui_tx, _ui_rx) = unbounded::<OrchestratorToUiUpdate>();
+        let (_ui_cmd_tx, ui_cmd_rx) = unbounded::<UiToOrchestratorCommand>();
+        let test_ctx = make_test_context(None, None, ui_tx, ui_cmd_rx);
+        add_broken_explorer_sender(test_ctx.channels_manager.as_ref(), EXPLORER_ID);
+        let conv = make_send_conv(test_ctx.clone(), vec![10, 20, 30]);
         let next_conv = conv.transition(None).expect("Should return an ErrorState");
         let error_msg = next_conv
             .get_error_details()
@@ -345,14 +346,14 @@ mod tests {
 
     #[test]
     fn send_getters() {
-        let MakeSendersResult(senders, _rx) = make_senders_with(EXPLORER_ID);
-        let to_explorer = make_to_explorer_struct(EXPLORER_ID, senders);
-        let state = SendingNeighborsResponse::new(to_explorer, vec![10, 20, 30]);
-        let conv = NeighborsDiscoveryConversation::<SendingNeighborsResponse>::new(CONV_ID, state);
+        let (ui_tx, _ui_rx) = unbounded::<OrchestratorToUiUpdate>();
+        let (_ui_cmd_tx, ui_cmd_rx) = unbounded::<UiToOrchestratorCommand>();
+        let test_ctx = make_test_context(None, None, ui_tx, ui_cmd_rx);
+        let _rx = add_working_explorer_sender(test_ctx.channels_manager.as_ref(), EXPLORER_ID);
+        let conv = make_send_conv(test_ctx.clone(), vec![10, 20, 30]);
         assert_eq!(conv.get_id(), CONV_ID);
         assert_eq!(conv.get_entities_ids(), (None, Some(EXPLORER_ID)));
         assert_eq!(conv.get_expected_kind(), None);
         assert_eq!(conv.get_priority(), 3);
     }
 }
-*/

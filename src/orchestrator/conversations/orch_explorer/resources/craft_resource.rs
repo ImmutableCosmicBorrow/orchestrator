@@ -173,35 +173,32 @@ fn wait_craft_resource_res_transition(
     Some(Box::new(error_state) as Box<dyn Conversation + Send + Sync>)
 }
 
-/*
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::orchestrator::conversations::OrchToExplorerSenders;
     use crate::orchestrator::conversations::orch_explorer::test_utils::{
-        MakeSendersResult, make_empty_senders, make_senders_with, make_to_explorer_struct,
+        add_broken_explorer_sender, add_working_explorer_sender, make_test_context,
     };
     use common_game::components::resource::BasicResourceType::Hydrogen;
+    use crate::ui::{OrchestratorToUiUpdate, UiToOrchestratorCommand};
     use crossbeam_channel::unbounded;
-    use std::collections::HashMap;
-    use std::sync::{Arc, Mutex};
 
-    const CONV_ID: u32 = 1;
-    const EXPLORER_ID: u32 = 2;
+    const CONV_ID: ID = 1;
+    const EXPLORER_ID: ID = 2;
 
     // --- Helper functions ---
 
     fn make_send_conv(
-        senders: OrchToExplorerSenders,
+        orch_context: OrchContextRef,
     ) -> Box<CraftResourceConversation<SendingCraftResourceRequest>> {
-        let to_explorer = make_to_explorer_struct(EXPLORER_ID, senders);
-        let state = SendingCraftResourceRequest::new(to_explorer, Hydrogen);
+        let state = SendingCraftResourceRequest::new(orch_context, EXPLORER_ID, Hydrogen);
         Box::new(CraftResourceConversation::<SendingCraftResourceRequest>::new(CONV_ID, state))
     }
 
-    fn make_wait_conv() -> Box<CraftResourceConversation<WaitingCraftResourceResult>> {
-        let state = WaitingCraftResourceResult::new(EXPLORER_ID, Hydrogen);
+    fn make_wait_conv(
+        orch_context: OrchContextRef,
+    ) -> Box<CraftResourceConversation<WaitingCraftResourceResult>> {
+        let state = WaitingCraftResourceResult::new(orch_context, EXPLORER_ID, Hydrogen);
         Box::new(CraftResourceConversation::<WaitingCraftResourceResult>::new(CONV_ID, state))
     }
 
@@ -209,8 +206,11 @@ mod tests {
 
     #[test]
     fn send_success() {
-        let MakeSendersResult(senders, _rx) = make_senders_with(EXPLORER_ID);
-        let conv = make_send_conv(senders);
+        let (ui_tx, _ui_rx) = unbounded::<OrchestratorToUiUpdate>();
+        let (_ui_cmd_tx, ui_cmd_rx) = unbounded::<UiToOrchestratorCommand>();
+        let test_ctx = make_test_context(None, None, ui_tx, ui_cmd_rx);
+        let _rx = add_working_explorer_sender(test_ctx.channels_manager.as_ref(), EXPLORER_ID);
+        let conv = make_send_conv(test_ctx.clone());
         let next_conv = conv
             .transition(None)
             .expect("Should transition to next state");
@@ -225,8 +225,10 @@ mod tests {
 
     #[test]
     fn send_missing_sender() {
-        let senders = make_empty_senders();
-        let conv = make_send_conv(senders);
+        let (ui_tx, _ui_rx) = unbounded::<OrchestratorToUiUpdate>();
+        let (_ui_cmd_tx, ui_cmd_rx) = unbounded::<UiToOrchestratorCommand>();
+        let test_ctx = make_test_context(None, None, ui_tx, ui_cmd_rx);
+        let conv = make_send_conv(test_ctx.clone());
         let next_conv = conv.transition(None).expect("Should return an ErrorState");
         assert!(next_conv.get_expected_kind().is_none());
         assert_eq!(next_conv.get_id(), CONV_ID);
@@ -238,10 +240,11 @@ mod tests {
 
     #[test]
     fn send_message_failure() {
-        let (tx, rx) = unbounded::<OrchestratorToExplorer>();
-        drop(rx);
-        let senders = Arc::new(Mutex::new(HashMap::from([(EXPLORER_ID, tx)])));
-        let conv = make_send_conv(senders);
+        let (ui_tx, _ui_rx) = unbounded::<OrchestratorToUiUpdate>();
+        let (_ui_cmd_tx, ui_cmd_rx) = unbounded::<UiToOrchestratorCommand>();
+        let test_ctx = make_test_context(None, None, ui_tx, ui_cmd_rx);
+        add_broken_explorer_sender(test_ctx.channels_manager.as_ref(), EXPLORER_ID);
+        let conv = make_send_conv(test_ctx.clone());
         let next_conv = conv.transition(None).expect("Should return an ErrorState");
         let error_msg = next_conv
             .get_error_details()
@@ -254,10 +257,11 @@ mod tests {
 
     #[test]
     fn send_getters() {
-        let MakeSendersResult(senders, _rx) = make_senders_with(EXPLORER_ID);
-        let to_explorer = make_to_explorer_struct(EXPLORER_ID, senders);
-        let state = SendingCraftResourceRequest::new(to_explorer, Hydrogen);
-        let conv = CraftResourceConversation::<SendingCraftResourceRequest>::new(CONV_ID, state);
+        let (ui_tx, _ui_rx) = unbounded::<OrchestratorToUiUpdate>();
+        let (_ui_cmd_tx, ui_cmd_rx) = unbounded::<UiToOrchestratorCommand>();
+        let test_ctx = make_test_context(None, None, ui_tx, ui_cmd_rx);
+        let _rx = add_working_explorer_sender(test_ctx.channels_manager.as_ref(), EXPLORER_ID);
+        let conv = make_send_conv(test_ctx.clone());
         assert_eq!(conv.get_id(), CONV_ID);
         assert_eq!(conv.get_entities_ids(), (None, Some(EXPLORER_ID)));
         assert_eq!(conv.get_expected_kind(), None);
@@ -266,7 +270,10 @@ mod tests {
 
     #[test]
     fn wait_correct_transition_generation_done() {
-        let conv = make_wait_conv();
+        let (ui_tx, _ui_rx) = unbounded::<OrchestratorToUiUpdate>();
+        let (_ui_cmd_tx, ui_cmd_rx) = unbounded::<UiToOrchestratorCommand>();
+        let test_ctx = make_test_context(None, None, ui_tx, ui_cmd_rx);
+        let conv = make_wait_conv(test_ctx.clone());
         let msg =
             PossibleMessage::ExplorerToOrch(ExplorerToOrchestrator::GenerateResourceResponse {
                 explorer_id: EXPLORER_ID,
@@ -277,7 +284,10 @@ mod tests {
     }
     #[test]
     fn wait_correct_transition_generation_failed() {
-        let conv = make_wait_conv();
+        let (ui_tx, _ui_rx) = unbounded::<OrchestratorToUiUpdate>();
+        let (_ui_cmd_tx, ui_cmd_rx) = unbounded::<UiToOrchestratorCommand>();
+        let test_ctx = make_test_context(None, None, ui_tx, ui_cmd_rx);
+        let conv = make_wait_conv(test_ctx.clone());
         let msg =
             PossibleMessage::ExplorerToOrch(ExplorerToOrchestrator::CombineResourceResponse {
                 explorer_id: EXPLORER_ID,
@@ -292,7 +302,10 @@ mod tests {
 
     #[test]
     fn wait_wrong_message() {
-        let conv = make_wait_conv();
+        let (ui_tx, _ui_rx) = unbounded::<OrchestratorToUiUpdate>();
+        let (_ui_cmd_tx, ui_cmd_rx) = unbounded::<UiToOrchestratorCommand>();
+        let test_ctx = make_test_context(None, None, ui_tx, ui_cmd_rx);
+        let conv = make_wait_conv(test_ctx.clone());
         let wrong_msg =
             PossibleMessage::ExplorerToOrch(ExplorerToOrchestrator::StartExplorerAIResult {
                 explorer_id: EXPLORER_ID,
@@ -309,7 +322,11 @@ mod tests {
 
     #[test]
     fn wait_getters() {
-        let state = WaitingCraftResourceResult::new(EXPLORER_ID, Hydrogen);
+        let (ui_tx, _ui_rx) = unbounded::<OrchestratorToUiUpdate>();
+        let (_ui_cmd_tx, ui_cmd_rx) = unbounded::<UiToOrchestratorCommand>();
+        let test_ctx = make_test_context(None, None, ui_tx, ui_cmd_rx);
+        let state =
+            WaitingCraftResourceResult::new(test_ctx.clone(), EXPLORER_ID, Hydrogen);
         let conv = CraftResourceConversation::<WaitingCraftResourceResult>::new(CONV_ID, state);
         assert_eq!(conv.get_id(), CONV_ID);
         assert_eq!(conv.get_entities_ids(), (None, Some(EXPLORER_ID)));
@@ -324,8 +341,11 @@ mod tests {
 
     #[test]
     fn crafting_failed() {
+        let (ui_tx, _ui_rx) = unbounded::<OrchestratorToUiUpdate>();
+        let (_ui_cmd_tx, ui_cmd_rx) = unbounded::<UiToOrchestratorCommand>();
+        let test_ctx = make_test_context(None, None, ui_tx, ui_cmd_rx);
         // Setup a WaitingCraftResourceResult conversation
-        let state = WaitingCraftResourceResult::new(42, Hydrogen);
+        let state = WaitingCraftResourceResult::new(test_ctx.clone(), 42, Hydrogen);
         let conv = CraftResourceConversation::<WaitingCraftResourceResult>::new(CONV_ID, state);
         // Simulate a GenerateResourceResponse with an error
         let msg =
@@ -340,4 +360,3 @@ mod tests {
         assert_eq!(result.get_error_details().unwrap(), expected);
     }
 }
-*/

@@ -189,51 +189,36 @@ impl WaitingKillExplorerResult {
         );
     }
 }
-
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::orchestrator::conversations::orch_explorer::test_utils::{
-        make_empty_senders, make_orch_context, make_senders_with, MakeSendersResult,
+        add_broken_explorer_sender, add_working_explorer_sender, make_test_context,
     };
-    use crate::channels_manager::OrchToExplorerSenders;
+    use crate::ui::{OrchestratorToUiUpdate, UiToOrchestratorCommand};
     use crossbeam_channel::unbounded;
     use dashmap::DashMap;
 
     const CONV_ID: ID = 1;
     const EXPLORER_ID: ID = 2;
+    const PLANET_ID: ID = 5;
 
-    // --- Helper functions ---
-
-    #[allow(clippy::unnecessary_box_returns)]
     fn make_send_conv(
-        exp_senders: OrchToExplorerSenders,
+        orch_context: OrchContextRef,
         handle_outgoing: bool,
     ) -> Box<KillExplorerConversation<SendingExplorerKill>> {
-        let orch_context = make_orch_context(exp_senders);
-        let state = SendingExplorerKill::new(
-            orch_context,
-            EXPLORER_ID,
-            5, // curr_planet_id
-            handle_outgoing,
-        );
+        let state = SendingExplorerKill::new(orch_context, EXPLORER_ID, PLANET_ID, handle_outgoing);
         Box::new(KillExplorerConversation::<SendingExplorerKill>::new(
             CONV_ID, state,
         ))
     }
 
-    #[allow(clippy::unnecessary_box_returns)]
     fn make_wait_conv(
+        orch_context: OrchContextRef,
         handle_outgoing: bool,
     ) -> Box<KillExplorerConversation<WaitingKillExplorerResult>> {
-        let orch_context = make_orch_context(make_empty_senders());
-        orch_context.explorers_location.insert(EXPLORER_ID, 5);
-        let state = WaitingKillExplorerResult::new(
-            orch_context,
-            EXPLORER_ID,
-            5, // curr_planet_id
-            handle_outgoing,
-        );
+        let state =
+            WaitingKillExplorerResult::new(orch_context, EXPLORER_ID, PLANET_ID, handle_outgoing);
         Box::new(KillExplorerConversation::<WaitingKillExplorerResult>::new(
             CONV_ID, state,
         ))
@@ -243,8 +228,11 @@ mod tests {
 
     #[test]
     fn send_success() {
-        let MakeSendersResult(senders, _rx) = make_senders_with(EXPLORER_ID);
-        let conv = make_send_conv(senders, false);
+        let (ui_tx, _ui_rx) = unbounded::<OrchestratorToUiUpdate>();
+        let (_ui_cmd_tx, ui_cmd_rx) = unbounded::<UiToOrchestratorCommand>();
+        let test_ctx = make_test_context(None, None, ui_tx, ui_cmd_rx);
+        let _rx = add_working_explorer_sender(test_ctx.channels_manager.as_ref(), EXPLORER_ID);
+        let conv = make_send_conv(test_ctx.clone(), false);
         let next_conv = conv
             .transition(None)
             .expect("Should transition to next state");
@@ -259,8 +247,10 @@ mod tests {
 
     #[test]
     fn send_missing_sender() {
-        let senders = make_empty_senders();
-        let conv = make_send_conv(senders, false);
+        let (ui_tx, _ui_rx) = unbounded::<OrchestratorToUiUpdate>();
+        let (_ui_cmd_tx, ui_cmd_rx) = unbounded::<UiToOrchestratorCommand>();
+        let test_ctx = make_test_context(None, None, ui_tx, ui_cmd_rx);
+        let conv = make_send_conv(test_ctx.clone(), false);
         let next_conv = conv.transition(None).expect("Should return an ErrorState");
         assert!(next_conv.get_expected_kind().is_none());
         assert_eq!(next_conv.get_id(), CONV_ID);
@@ -272,12 +262,11 @@ mod tests {
 
     #[test]
     fn send_message_failure() {
-        let (tx, rx) = unbounded::<OrchestratorToExplorer>();
-        drop(rx);
-        let senders = DashMap::new();
-        senders.insert(EXPLORER_ID, tx);
-
-        let conv = make_send_conv(senders, false);
+        let (ui_tx, _ui_rx) = unbounded::<OrchestratorToUiUpdate>();
+        let (_ui_cmd_tx, ui_cmd_rx) = unbounded::<UiToOrchestratorCommand>();
+        let test_ctx = make_test_context(None, None, ui_tx, ui_cmd_rx);
+        add_broken_explorer_sender(test_ctx.channels_manager.as_ref(), EXPLORER_ID);
+        let conv = make_send_conv(test_ctx.clone(), false);
         let next_conv = conv.transition(None).expect("Should return an ErrorState");
         let error_msg = next_conv
             .get_error_details()
@@ -290,9 +279,11 @@ mod tests {
 
     #[test]
     fn send_getters() {
-        let MakeSendersResult(senders, _rx) = make_senders_with(EXPLORER_ID);
-        let conv = make_send_conv(senders, false);
-
+        let (ui_tx, _ui_rx) = unbounded::<OrchestratorToUiUpdate>();
+        let (_ui_cmd_tx, ui_cmd_rx) = unbounded::<UiToOrchestratorCommand>();
+        let test_ctx = make_test_context(None, None, ui_tx, ui_cmd_rx);
+        let _rx = add_working_explorer_sender(test_ctx.channels_manager.as_ref(), EXPLORER_ID);
+        let conv = make_send_conv(test_ctx.clone(), false);
         assert_eq!(conv.get_id(), CONV_ID);
         assert_eq!(conv.get_entities_ids(), (None, Some(EXPLORER_ID)));
         assert_eq!(conv.get_expected_kind(), None);
@@ -301,8 +292,15 @@ mod tests {
 
     #[test]
     fn wait_correct_transition_no_outgoing_handling() {
-        let conv = make_wait_conv(false);
-        let orch_context = conv.state.orch_context.clone();
+        
+        let explorers_location = DashMap::new();
+        
+        explorers_location.insert(EXPLORER_ID, PLANET_ID);
+        
+        let (ui_tx, _ui_rx) = unbounded::<OrchestratorToUiUpdate>();
+        let (_ui_cmd_tx, ui_cmd_rx) = unbounded::<UiToOrchestratorCommand>();
+        let test_ctx = make_test_context(None, Some(explorers_location.clone()), ui_tx, ui_cmd_rx);
+        let conv = make_wait_conv(test_ctx.clone(), false);
 
         let msg = PossibleMessage::ExplorerToOrch(ExplorerToOrchestrator::KillExplorerResult {
             explorer_id: EXPLORER_ID,
@@ -314,20 +312,26 @@ mod tests {
             "Conversation should end and return None"
         );
         assert!(
-            orch_context.explorers_location.is_empty(),
+            test_ctx.explorers_location.is_empty(),
             "Should have killed the only explorer saved in the map"
         );
     }
 
     #[test]
     fn wait_correct_transition_outgoing_handling() {
-        let conv = make_wait_conv(true);
-        let orch_context = conv.state.orch_context.clone();
+        let explorers_location = DashMap::new();
+        explorers_location.insert(EXPLORER_ID, PLANET_ID);
+
+        let (ui_tx, _ui_rx) = unbounded::<OrchestratorToUiUpdate>();
+        let (_ui_cmd_tx, ui_cmd_rx) = unbounded::<UiToOrchestratorCommand>();
+        let test_ctx = make_test_context(None, Some(explorers_location.clone()), ui_tx, ui_cmd_rx);
+        let conv = make_wait_conv(test_ctx.clone(), true);
+        let orch_context = test_ctx.clone();
         
         let msg = PossibleMessage::ExplorerToOrch(ExplorerToOrchestrator::KillExplorerResult {
             explorer_id: EXPLORER_ID,
         });
-        let next_conv = conv
+        let next_conv = Box::new(conv)
             .transition(Some(msg))
             .expect("Should transition to next state");
         assert_eq!(next_conv.get_id(), CONV_ID);
@@ -343,13 +347,16 @@ mod tests {
 
     #[test]
     fn wait_wrong_message() {
-        let conv = make_wait_conv(true);
+        let (ui_tx, _ui_rx) = unbounded::<OrchestratorToUiUpdate>();
+        let (_ui_cmd_tx, ui_cmd_rx) = unbounded::<UiToOrchestratorCommand>();
+        let test_ctx = make_test_context(None, None, ui_tx, ui_cmd_rx);
+        let conv = make_wait_conv(test_ctx.clone(), true);
         let wrong_msg =
             PossibleMessage::ExplorerToOrch(ExplorerToOrchestrator::StartExplorerAIResult {
                 explorer_id: EXPLORER_ID,
             });
 
-        let next_conv = conv
+        let next_conv = Box::new(conv)
             .transition(Some(wrong_msg))
             .expect("Should transition to next state");
         assert_eq!(next_conv.get_id(), CONV_ID);
@@ -364,7 +371,10 @@ mod tests {
 
     #[test]
     fn wait_getters() {
-        let conv = make_wait_conv(false);
+        let (ui_tx, _ui_rx) = unbounded::<OrchestratorToUiUpdate>();
+        let (_ui_cmd_tx, ui_cmd_rx) = unbounded::<UiToOrchestratorCommand>();
+        let test_ctx = make_test_context(None, None, ui_tx, ui_cmd_rx);
+        let conv = make_wait_conv(test_ctx.clone(), false);
         assert_eq!(conv.get_id(), CONV_ID);
         assert_eq!(conv.get_entities_ids(), (None, Some(EXPLORER_ID)));
         assert_eq!(
