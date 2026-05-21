@@ -179,8 +179,8 @@ mod tests {
     use crate::orchestrator::conversations::orch_explorer::test_utils::{
         add_broken_explorer_sender, add_working_explorer_sender, make_test_context,
     };
-    use common_game::components::resource::BasicResourceType::Hydrogen;
     use crate::ui::{OrchestratorToUiUpdate, UiToOrchestratorCommand};
+    use common_game::components::resource::BasicResourceType::Hydrogen;
     use crossbeam_channel::unbounded;
 
     const CONV_ID: ID = 1;
@@ -325,8 +325,7 @@ mod tests {
         let (ui_tx, _ui_rx) = unbounded::<OrchestratorToUiUpdate>();
         let (_ui_cmd_tx, ui_cmd_rx) = unbounded::<UiToOrchestratorCommand>();
         let test_ctx = make_test_context(None, None, ui_tx, ui_cmd_rx);
-        let state =
-            WaitingCraftResourceResult::new(test_ctx.clone(), EXPLORER_ID, Hydrogen);
+        let state = WaitingCraftResourceResult::new(test_ctx.clone(), EXPLORER_ID, Hydrogen);
         let conv = CraftResourceConversation::<WaitingCraftResourceResult>::new(CONV_ID, state);
         assert_eq!(conv.get_id(), CONV_ID);
         assert_eq!(conv.get_entities_ids(), (None, Some(EXPLORER_ID)));

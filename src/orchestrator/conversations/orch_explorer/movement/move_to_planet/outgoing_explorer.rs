@@ -210,15 +210,21 @@ mod tests {
     fn make_send_conv(
         orch_context: OrchContextRef,
     ) -> Box<MoveToPlanetConversation<SendOutgoingRequest>> {
-        let state = SendOutgoingRequest::new(orch_context, EXPLORER_ID, DST_PLANET_ID, CURR_PLANET_ID);
-        Box::new(MoveToPlanetConversation::<SendOutgoingRequest>::new(CONV_ID, state))
+        let state =
+            SendOutgoingRequest::new(orch_context, EXPLORER_ID, DST_PLANET_ID, CURR_PLANET_ID);
+        Box::new(MoveToPlanetConversation::<SendOutgoingRequest>::new(
+            CONV_ID, state,
+        ))
     }
 
     fn make_wait_conv(
         orch_context: OrchContextRef,
     ) -> Box<MoveToPlanetConversation<WaitingOutgoingResponse>> {
-        let state = WaitingOutgoingResponse::new(orch_context, EXPLORER_ID, DST_PLANET_ID, CURR_PLANET_ID);
-        Box::new(MoveToPlanetConversation::<WaitingOutgoingResponse>::new(CONV_ID, state))
+        let state =
+            WaitingOutgoingResponse::new(orch_context, EXPLORER_ID, DST_PLANET_ID, CURR_PLANET_ID);
+        Box::new(MoveToPlanetConversation::<WaitingOutgoingResponse>::new(
+            CONV_ID, state,
+        ))
     }
 
     #[test]
@@ -292,10 +298,14 @@ mod tests {
             res: Err("Cannot leave".into()),
         });
 
-        let next_conv = conv.transition(Some(msg)).expect("Should transition to ErrorState");
+        let next_conv = conv
+            .transition(Some(msg))
+            .expect("Should transition to ErrorState");
         assert_eq!(
             next_conv.get_error_details(),
-            Some(format!("Current planet {CURR_PLANET_ID} failed to let go of outgoing explorer {EXPLORER_ID}"))
+            Some(format!(
+                "Current planet {CURR_PLANET_ID} failed to let go of outgoing explorer {EXPLORER_ID}"
+            ))
         );
     }
 
@@ -310,7 +320,9 @@ mod tests {
             planet_id: CURR_PLANET_ID,
         });
 
-        let next_conv = conv.transition(Some(wrong_msg)).expect("Should return ErrorState");
+        let next_conv = conv
+            .transition(Some(wrong_msg))
+            .expect("Should return ErrorState");
         assert_eq!(
             next_conv.get_error_details(),
             Some("Wrong Message Received".to_string())

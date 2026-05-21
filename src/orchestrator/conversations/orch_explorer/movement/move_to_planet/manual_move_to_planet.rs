@@ -74,8 +74,15 @@ mod tests {
     fn make_send_conv(
         orch_context: OrchContextRef,
     ) -> Box<MoveToPlanetConversation<SendManualMoveRequest>> {
-        let state = SendManualMoveRequest::new(orch_context, EXPLORER_ID, DST_PLANET_ID, Some(CURR_PLANET_ID));
-        Box::new(MoveToPlanetConversation::<SendManualMoveRequest>::new(CONV_ID, state))
+        let state = SendManualMoveRequest::new(
+            orch_context,
+            EXPLORER_ID,
+            DST_PLANET_ID,
+            Some(CURR_PLANET_ID),
+        );
+        Box::new(MoveToPlanetConversation::<SendManualMoveRequest>::new(
+            CONV_ID, state,
+        ))
     }
 
     #[test]

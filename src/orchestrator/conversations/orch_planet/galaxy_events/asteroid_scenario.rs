@@ -158,7 +158,9 @@ mod tests {
         Box::new(AsteroidConversation::<SendingAsteroid>::new(CONV_ID, state))
     }
 
-    fn make_wait_conv(orch_context: OrchContextRef) -> Box<AsteroidConversation<WaitingAsteroidAck>> {
+    fn make_wait_conv(
+        orch_context: OrchContextRef,
+    ) -> Box<AsteroidConversation<WaitingAsteroidAck>> {
         let state = WaitingAsteroidAck::new(orch_context, PLANET_ID);
         Box::new(AsteroidConversation::<WaitingAsteroidAck>::new(
             CONV_ID, state,

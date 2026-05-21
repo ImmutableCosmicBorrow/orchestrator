@@ -173,8 +173,8 @@ mod tests {
     use crate::orchestrator::conversations::orch_explorer::test_utils::{
         add_broken_explorer_sender, add_working_explorer_sender, make_test_context,
     };
-    use common_game::components::resource::ComplexResourceType;
     use crate::ui::{OrchestratorToUiUpdate, UiToOrchestratorCommand};
+    use common_game::components::resource::ComplexResourceType;
     use crossbeam_channel::unbounded;
     use std::collections::HashSet;
 
@@ -315,8 +315,7 @@ mod tests {
         let (ui_tx, _ui_rx) = unbounded::<OrchestratorToUiUpdate>();
         let (_ui_cmd_tx, ui_cmd_rx) = unbounded::<UiToOrchestratorCommand>();
         let test_ctx = make_test_context(None, None, ui_tx, ui_cmd_rx);
-        let state =
-            WaitingSupportedCombinationResult::new(test_ctx.clone(), EXPLORER_ID);
+        let state = WaitingSupportedCombinationResult::new(test_ctx.clone(), EXPLORER_ID);
         let conv = SupportedCombinationConversation::<WaitingSupportedCombinationResult>::new(
             CONV_ID, state,
         );

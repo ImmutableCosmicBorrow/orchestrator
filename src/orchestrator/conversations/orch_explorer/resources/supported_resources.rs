@@ -168,10 +168,11 @@ fn wait_supp_resources_res_transition(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::orchestrator::conversations::orch_explorer::test_utils::{ make_test_context, add_broken_explorer_sender, add_working_explorer_sender
+    use crate::orchestrator::conversations::orch_explorer::test_utils::{
+        add_broken_explorer_sender, add_working_explorer_sender, make_test_context,
     };
-    use common_game::components::resource::BasicResourceType;
     use crate::ui::{OrchestratorToUiUpdate, UiToOrchestratorCommand};
+    use common_game::components::resource::BasicResourceType;
     use crossbeam_channel::unbounded;
     use std::collections::HashSet;
 
@@ -306,8 +307,7 @@ mod tests {
         let (ui_tx, _ui_rx) = unbounded::<OrchestratorToUiUpdate>();
         let (_ui_cmd_tx, ui_cmd_rx) = unbounded::<UiToOrchestratorCommand>();
         let test_ctx = make_test_context(None, None, ui_tx, ui_cmd_rx);
-        let state =
-            WaitingSupportedResourcesResult::new(test_ctx.clone(), EXPLORER_ID);
+        let state = WaitingSupportedResourcesResult::new(test_ctx.clone(), EXPLORER_ID);
         let conv =
             SupportedResourcesConversation::<WaitingSupportedResourcesResult>::new(CONV_ID, state);
         assert_eq!(conv.get_id(), CONV_ID);

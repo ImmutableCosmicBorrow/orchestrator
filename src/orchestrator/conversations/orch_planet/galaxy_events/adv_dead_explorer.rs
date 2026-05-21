@@ -172,7 +172,9 @@ mod tests {
         Box::new(AdvDeadExplorer::<SendingDeadExpAdv>::new(CONV_ID, state))
     }
 
-    fn make_wait_conv(orch_context: OrchContextRef) -> Box<AdvDeadExplorer<WaitingDeadAdvResponse>> {
+    fn make_wait_conv(
+        orch_context: OrchContextRef,
+    ) -> Box<AdvDeadExplorer<WaitingDeadAdvResponse>> {
         let state = WaitingDeadAdvResponse::new(orch_context, PLANET_ID);
         Box::new(AdvDeadExplorer::<WaitingDeadAdvResponse>::new(
             CONV_ID, state,

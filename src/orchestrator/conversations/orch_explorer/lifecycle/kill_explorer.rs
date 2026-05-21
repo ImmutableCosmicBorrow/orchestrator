@@ -292,11 +292,10 @@ mod tests {
 
     #[test]
     fn wait_correct_transition_no_outgoing_handling() {
-        
         let explorers_location = DashMap::new();
-        
+
         explorers_location.insert(EXPLORER_ID, PLANET_ID);
-        
+
         let (ui_tx, _ui_rx) = unbounded::<OrchestratorToUiUpdate>();
         let (_ui_cmd_tx, ui_cmd_rx) = unbounded::<UiToOrchestratorCommand>();
         let test_ctx = make_test_context(None, Some(explorers_location.clone()), ui_tx, ui_cmd_rx);
@@ -327,7 +326,7 @@ mod tests {
         let test_ctx = make_test_context(None, Some(explorers_location.clone()), ui_tx, ui_cmd_rx);
         let conv = make_wait_conv(test_ctx.clone(), true);
         let orch_context = test_ctx.clone();
-        
+
         let msg = PossibleMessage::ExplorerToOrch(ExplorerToOrchestrator::KillExplorerResult {
             explorer_id: EXPLORER_ID,
         });

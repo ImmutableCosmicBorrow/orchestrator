@@ -222,16 +222,26 @@ mod tests {
     fn make_send_conv(
         orch_context: OrchContextRef,
     ) -> Box<MoveToPlanetConversation<SendIncomingRequest>> {
-        let state = SendIncomingRequest::new(orch_context, EXPLORER_ID, DST_PLANET_ID, Some(CURR_PLANET_ID));
-        Box::new(MoveToPlanetConversation::<SendIncomingRequest>::new(CONV_ID, state))
+        let state = SendIncomingRequest::new(
+            orch_context,
+            EXPLORER_ID,
+            DST_PLANET_ID,
+            Some(CURR_PLANET_ID),
+        );
+        Box::new(MoveToPlanetConversation::<SendIncomingRequest>::new(
+            CONV_ID, state,
+        ))
     }
 
     fn make_wait_conv(
         orch_context: OrchContextRef,
         curr_planet: Option<ID>,
     ) -> Box<MoveToPlanetConversation<WaitingIncomingResponse>> {
-        let state = WaitingIncomingResponse::new(orch_context, EXPLORER_ID, DST_PLANET_ID, curr_planet);
-        Box::new(MoveToPlanetConversation::<WaitingIncomingResponse>::new(CONV_ID, state))
+        let state =
+            WaitingIncomingResponse::new(orch_context, EXPLORER_ID, DST_PLANET_ID, curr_planet);
+        Box::new(MoveToPlanetConversation::<WaitingIncomingResponse>::new(
+            CONV_ID, state,
+        ))
     }
 
     #[test]
@@ -313,7 +323,9 @@ mod tests {
             planet_id: DST_PLANET_ID,
         });
 
-        let result = conv.transition(Some(msg)).expect("Should return ErrorState");
+        let result = conv
+            .transition(Some(msg))
+            .expect("Should return ErrorState");
         assert_eq!(
             result.get_error_details(),
             Some("Wrong Message Received".to_string())

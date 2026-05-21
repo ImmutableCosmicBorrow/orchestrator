@@ -2,7 +2,8 @@
 #![allow(
     clippy::unnecessary_wraps,
     clippy::boxed_local,
-    clippy::needless_pass_by_value
+    clippy::needless_pass_by_value,
+    clippy::unnecessary_box_returns
 )]
 
 use crate::logging::{LogTarget, log_internal, log_msg_to};

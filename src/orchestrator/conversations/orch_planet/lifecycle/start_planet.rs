@@ -130,9 +130,8 @@ mod tests {
         add_broken_planet_sender, add_working_planet_sender, make_test_context,
     };
     use crate::ui::{OrchestratorToUiUpdate, UiToOrchestratorCommand};
-    use crossbeam_channel::unbounded;
     use common_game::protocols::orchestrator_planet::PlanetToOrchestratorKind::StartPlanetAIResult;
-
+    use crossbeam_channel::unbounded;
 
     const CONV_ID: ID = 1;
     const PLANET_ID: ID = 2;

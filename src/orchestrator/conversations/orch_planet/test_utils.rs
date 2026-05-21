@@ -13,7 +13,7 @@ use common_game::protocols::orchestrator_planet::OrchestratorToPlanet;
 #[cfg(test)]
 use common_game::utils::ID;
 #[cfg(test)]
-use crossbeam_channel::{unbounded, Receiver, Sender};
+use crossbeam_channel::{Receiver, Sender, unbounded};
 #[cfg(test)]
 use std::collections::HashMap;
 #[cfg(test)]

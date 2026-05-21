@@ -175,9 +175,8 @@ mod tests {
     use std::collections::HashMap;
     use std::sync::{Arc, RwLock};
 
-    use crossbeam_channel::{unbounded};
     use crate::ui::{OrchestratorToUiUpdate, UiToOrchestratorCommand};
-    
+    use crossbeam_channel::unbounded;
 
     const CONV_ID: ID = 1;
     const EXPLORER_ID: ID = 2;
@@ -212,18 +211,18 @@ mod tests {
     #[test]
     fn wait_correct_transition() {
         let galaxy = make_galaxy();
-        
+
         let (ui_tx, _ui_rx) = unbounded::<OrchestratorToUiUpdate>();
         let (_ui_cmd_tx, ui_cmd_rx) = unbounded::<UiToOrchestratorCommand>();
-        
+
         let test_ctx = make_test_context(Some(galaxy), None, ui_tx, ui_cmd_rx);
-        
+
         let conv = make_wait_conv(test_ctx.clone());
         let msg = PossibleMessage::ExplorerToOrch(ExplorerToOrchestrator::NeighborsRequest {
             explorer_id: EXPLORER_ID,
             current_planet_id: PLANET_ID,
         });
-        
+
         let next_conv = conv
             .transition(Some(msg))
             .expect("Should transition to SendingNeighbors state");
@@ -233,13 +232,12 @@ mod tests {
 
     #[test]
     fn wait_wrong_message() {
-        
         let galaxy = make_galaxy();
-        
+
         let (ui_tx, _ui_rx) = unbounded::<OrchestratorToUiUpdate>();
         let (_ui_cmd_tx, ui_cmd_rx) = unbounded::<UiToOrchestratorCommand>();
         let test_ctx = make_test_context(Some(galaxy), None, ui_tx, ui_cmd_rx);
-        
+
         let conv = make_wait_conv(test_ctx.clone());
         let wrong_msg =
             PossibleMessage::ExplorerToOrch(ExplorerToOrchestrator::StartExplorerAIResult {

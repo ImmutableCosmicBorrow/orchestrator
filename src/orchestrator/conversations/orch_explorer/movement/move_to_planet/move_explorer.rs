@@ -229,7 +229,7 @@ impl WaitMoveToPlanetResponse {
 mod tests {
     use super::*;
     use crate::orchestrator::conversations::orch_explorer::test_utils::{
-        add_working_explorer_sender, add_broken_explorer_sender, make_test_context,
+        add_broken_explorer_sender, add_working_explorer_sender, make_test_context,
     };
     use crate::ui::{OrchestratorToUiUpdate, UiToOrchestratorCommand};
     use crossbeam_channel::unbounded;
@@ -243,15 +243,20 @@ mod tests {
         is_moving: bool,
     ) -> Box<MoveToPlanetConversation<SendMoveRequest>> {
         let state = SendMoveRequest::new(orch_context, EXPLORER_ID, DST_PLANET_ID, is_moving);
-        Box::new(MoveToPlanetConversation::<SendMoveRequest>::new(CONV_ID, state))
+        Box::new(MoveToPlanetConversation::<SendMoveRequest>::new(
+            CONV_ID, state,
+        ))
     }
 
     fn make_wait_conv(
         orch_context: OrchContextRef,
         is_moving: bool,
     ) -> Box<MoveToPlanetConversation<WaitMoveToPlanetResponse>> {
-        let state = WaitMoveToPlanetResponse::new(orch_context, EXPLORER_ID, DST_PLANET_ID, is_moving);
-        Box::new(MoveToPlanetConversation::<WaitMoveToPlanetResponse>::new(CONV_ID, state))
+        let state =
+            WaitMoveToPlanetResponse::new(orch_context, EXPLORER_ID, DST_PLANET_ID, is_moving);
+        Box::new(MoveToPlanetConversation::<WaitMoveToPlanetResponse>::new(
+            CONV_ID, state,
+        ))
     }
 
     #[test]
@@ -260,7 +265,7 @@ mod tests {
         let (_ui_cmd_tx, ui_cmd_rx) = unbounded::<UiToOrchestratorCommand>();
         let test_ctx = make_test_context(None, None, ui_tx, ui_cmd_rx);
         let _rx = add_working_explorer_sender(test_ctx.channels_manager.as_ref(), EXPLORER_ID);
-        
+
         let conv = make_send_conv(test_ctx.clone(), false);
         let next_conv = conv.transition(None).expect("Should transition");
         assert_eq!(next_conv.get_id(), CONV_ID);
@@ -272,13 +277,15 @@ mod tests {
         let (_ui_cmd_tx, ui_cmd_rx) = unbounded::<UiToOrchestratorCommand>();
         let test_ctx = make_test_context(None, None, ui_tx, ui_cmd_rx);
         let _rx = add_working_explorer_sender(test_ctx.channels_manager.as_ref(), EXPLORER_ID);
-        
+
         // is_moving = true, but we haven't added the exp_to_planet sender
         let conv = make_send_conv(test_ctx.clone(), true);
         let next_conv = conv.transition(None).expect("Should return ErrorState");
         assert_eq!(
             next_conv.get_error_details(),
-            Some(format!("sender to dest planet {DST_PLANET_ID} not found, planets already changed explorer channels but explorer did not"))
+            Some(format!(
+                "sender to dest planet {DST_PLANET_ID} not found, planets already changed explorer channels but explorer did not"
+            ))
         );
     }
 
@@ -288,7 +295,7 @@ mod tests {
         let (_ui_cmd_tx, ui_cmd_rx) = unbounded::<UiToOrchestratorCommand>();
         let test_ctx = make_test_context(None, None, ui_tx, ui_cmd_rx);
         add_broken_explorer_sender(test_ctx.channels_manager.as_ref(), EXPLORER_ID);
-        
+
         let conv = make_send_conv(test_ctx.clone(), false);
         let next_conv = conv.transition(None).expect("Should return ErrorState");
         assert_eq!(
@@ -311,7 +318,10 @@ mod tests {
 
         let next_conv = conv.transition(Some(msg));
         assert!(next_conv.is_none());
-        assert_eq!(*test_ctx.explorers_location.get(&EXPLORER_ID).unwrap(), DST_PLANET_ID);
+        assert_eq!(
+            *test_ctx.explorers_location.get(&EXPLORER_ID).unwrap(),
+            DST_PLANET_ID
+        );
     }
 
     #[test]
@@ -338,9 +348,14 @@ mod tests {
         let test_ctx = make_test_context(None, None, ui_tx, ui_cmd_rx);
         let conv = make_wait_conv(test_ctx.clone(), true);
 
-        let wrong_msg = PossibleMessage::ExplorerToOrch(ExplorerToOrchestrator::StartExplorerAIResult { explorer_id: (EXPLORER_ID) });
+        let wrong_msg =
+            PossibleMessage::ExplorerToOrch(ExplorerToOrchestrator::StartExplorerAIResult {
+                explorer_id: (EXPLORER_ID),
+            });
 
-        let next_conv = conv.transition(Some(wrong_msg)).expect("Should return ErrorState");
+        let next_conv = conv
+            .transition(Some(wrong_msg))
+            .expect("Should return ErrorState");
         assert_eq!(
             next_conv.get_error_details(),
             Some("Wrong Message Received".to_string())

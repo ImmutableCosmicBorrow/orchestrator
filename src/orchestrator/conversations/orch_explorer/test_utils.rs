@@ -13,11 +13,11 @@ use common_game::protocols::orchestrator_explorer::OrchestratorToExplorer;
 #[cfg(test)]
 use common_game::utils::ID;
 #[cfg(test)]
+use crossbeam_channel::{Receiver, Sender, unbounded};
+#[cfg(test)]
 use std::collections::HashMap;
 #[cfg(test)]
 use std::sync::{Arc, RwLock};
-#[cfg(test)]
-use crossbeam_channel::{Receiver, Sender, unbounded};
 
 #[cfg(test)]
 pub(crate) fn make_test_context(
@@ -30,14 +30,13 @@ pub(crate) fn make_test_context(
     let forge = get_test_forge();
     let galaxy = galaxy.unwrap_or_else(|| Arc::new(RwLock::new(HashMap::new())));
     let explorers_location = explorers_location.unwrap_or_default();
-    let orch_context = Arc::new(OrchContext::new(
+
+    Arc::new(OrchContext::new(
         channels_manager.clone(),
         forge,
         galaxy,
         explorers_location,
-    ));
-
-    orch_context
+    ))
 }
 
 #[cfg(test)]

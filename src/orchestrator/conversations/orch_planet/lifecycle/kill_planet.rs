@@ -157,9 +157,7 @@ mod tests {
 
     // --- Helper functions ---
 
-    fn make_send_conv(
-        orch_context: OrchContextRef,
-    ) -> Box<KillPlanetConversation<SendPlanetKill>> {
+    fn make_send_conv(orch_context: OrchContextRef) -> Box<KillPlanetConversation<SendPlanetKill>> {
         let state = SendPlanetKill::new(orch_context, PLANET_ID);
         Box::new(KillPlanetConversation::<SendPlanetKill>::new(
             CONV_ID, state,
@@ -178,10 +176,14 @@ mod tests {
     fn make_wait_conv_with_explorers(
         orch_context: OrchContextRef,
     ) -> Box<KillPlanetConversation<WaitingPlanetKillResult>> {
-        orch_context.explorers_location.insert(EXPLORER_ID_1, PLANET_ID);
-        orch_context.explorers_location.insert(EXPLORER_ID_2, PLANET_ID);
+        orch_context
+            .explorers_location
+            .insert(EXPLORER_ID_1, PLANET_ID);
+        orch_context
+            .explorers_location
+            .insert(EXPLORER_ID_2, PLANET_ID);
         orch_context.explorers_location.insert(999, 888); // Explorer on a different planet (should be ignored)
-        
+
         let state = WaitingPlanetKillResult::new(orch_context, PLANET_ID);
         Box::new(KillPlanetConversation::<WaitingPlanetKillResult>::new(
             CONV_ID, state,
@@ -260,12 +262,12 @@ mod tests {
         let (_ui_cmd_tx, ui_cmd_rx) = unbounded::<UiToOrchestratorCommand>();
         let test_ctx = make_test_context(None, None, ui_tx, ui_cmd_rx);
         let conv = make_wait_conv_with_explorers(test_ctx.clone());
-        
+
         let explorers = conv.get_kill_explorers_vec();
         assert!(explorers.is_some());
         let (explorers_list, _) = explorers.unwrap();
         assert_eq!(explorers_list.len(), 2);
-        
+
         let msg = PossibleMessage::PlanetToOrch(PlanetToOrchestrator::KillPlanetResult {
             planet_id: PLANET_ID,
         });

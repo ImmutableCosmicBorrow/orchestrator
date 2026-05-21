@@ -170,7 +170,10 @@ mod tests {
             .expect("Should transition to next state");
         assert_eq!(next_conv.get_id(), CONV_ID);
         assert_eq!(next_conv.get_expected_kind(), None);
-        assert_eq!(next_conv.get_entities_ids(), (Some(NEIGHBOR_ID), Some(EXPLORER_ID)));
+        assert_eq!(
+            next_conv.get_entities_ids(),
+            (Some(NEIGHBOR_ID), Some(EXPLORER_ID))
+        );
     }
 
     #[test]
@@ -202,7 +205,10 @@ mod tests {
         let test_ctx = make_test_context(Some(galaxy), None, ui_tx, ui_cmd_rx);
         let conv = make_wait_conv(test_ctx.clone());
 
-        let wrong_msg = PossibleMessage::ExplorerToOrch(ExplorerToOrchestrator::StopExplorerAIResult { explorer_id: (EXPLORER_ID) });
+        let wrong_msg =
+            PossibleMessage::ExplorerToOrch(ExplorerToOrchestrator::StopExplorerAIResult {
+                explorer_id: (EXPLORER_ID),
+            });
 
         let result = conv
             .transition(Some(wrong_msg))

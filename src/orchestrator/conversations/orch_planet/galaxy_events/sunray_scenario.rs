@@ -164,9 +164,7 @@ mod tests {
         orch_context: OrchContextRef,
     ) -> Box<SunrayConversation<WaitingSunrayAck>> {
         let state = WaitingSunrayAck::new(orch_context, PLANET_ID);
-        Box::new(SunrayConversation::<WaitingSunrayAck>::new(
-            CONV_ID, state,
-        ))
+        Box::new(SunrayConversation::<WaitingSunrayAck>::new(CONV_ID, state))
     }
 
     // --- Tests ---

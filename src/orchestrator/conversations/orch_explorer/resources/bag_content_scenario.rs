@@ -160,9 +160,9 @@ mod tests {
     use crate::orchestrator::conversations::orch_explorer::test_utils::{
         add_broken_explorer_sender, add_working_explorer_sender, make_test_context,
     };
-    use std::collections::HashMap;
-    use crossbeam_channel::{unbounded};
     use crate::ui::UiToOrchestratorCommand;
+    use crossbeam_channel::unbounded;
+    use std::collections::HashMap;
 
     const CONV_ID: ID = 1;
     const EXPLORER_ID: ID = 2;
@@ -207,13 +207,12 @@ mod tests {
 
     #[test]
     fn send_missing_sender() {
-        
         let (ui_tx, _ui_rx) = unbounded::<OrchestratorToUiUpdate>();
         let (_ui_cmd_tx, ui_cmd_rx) = unbounded::<UiToOrchestratorCommand>();
 
         let test_ctx = make_test_context(None, None, ui_tx, ui_cmd_rx);
         let conv = make_send_conv(test_ctx.clone());
-        
+
         let next_conv = conv.transition(None).expect("Should return an ErrorState");
         assert!(next_conv.get_expected_kind().is_none());
         assert_eq!(next_conv.get_id(), CONV_ID);
@@ -227,10 +226,10 @@ mod tests {
     fn send_message_failure() {
         let (ui_tx, _ui_rx) = unbounded::<OrchestratorToUiUpdate>();
         let (_ui_cmd_tx, ui_cmd_rx) = unbounded::<UiToOrchestratorCommand>();
-        
+
         let test_ctx = make_test_context(None, None, ui_tx, ui_cmd_rx);
         add_broken_explorer_sender(test_ctx.channels_manager.as_ref(), EXPLORER_ID);
-        
+
         let conv = make_send_conv(test_ctx.clone());
         let next_conv = conv.transition(None).expect("Should return an ErrorState");
         let error_msg = next_conv
@@ -249,7 +248,7 @@ mod tests {
 
         let test_ctx = make_test_context(None, None, ui_tx, ui_cmd_rx);
         let _rx = add_working_explorer_sender(test_ctx.channels_manager.as_ref(), EXPLORER_ID);
-        
+
         let conv = make_send_conv(test_ctx.clone());
         assert_eq!(conv.get_id(), CONV_ID);
         assert_eq!(conv.get_entities_ids(), (None, Some(EXPLORER_ID)));
@@ -261,17 +260,16 @@ mod tests {
     fn wait_correct_transition() {
         let (ui_tx, _ui_rx) = unbounded::<OrchestratorToUiUpdate>();
         let (_ui_cmd_tx, ui_cmd_rx) = unbounded::<UiToOrchestratorCommand>();
-        
+
         let test_ctx = make_test_context(None, None, ui_tx, ui_cmd_rx);
         let conv = make_wait_conv(test_ctx.clone());
-        
+
         let msg = PossibleMessage::ExplorerToOrch(ExplorerToOrchestrator::BagContentResponse {
             explorer_id: EXPLORER_ID,
             bag_content: common_explorer::ExplorerBagContent {
                 resources_amounts: HashMap::default(),
             },
         });
-
 
         let result = conv.transition(Some(msg));
         assert!(
@@ -284,7 +282,7 @@ mod tests {
     fn wait_wrong_message() {
         let (ui_tx, _ui_rx) = unbounded::<OrchestratorToUiUpdate>();
         let (_ui_cmd_tx, ui_cmd_rx) = unbounded::<UiToOrchestratorCommand>();
-        
+
         let test_ctx = make_test_context(None, None, ui_tx, ui_cmd_rx);
         let conv = make_wait_conv(test_ctx.clone());
         let wrong_msg =
