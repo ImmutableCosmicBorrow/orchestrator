@@ -1,8 +1,10 @@
-use crate::orchestrator::conversations::Conversation;
 use common_game::utils::ID;
 use priority_queue::PriorityQueue;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
+use std::time::{Duration, Instant};
+
+use crate::orchestrator::conversations::Conversation;
 pub(crate) struct PQueue {
     queue: Arc<Mutex<PriorityQueue<ID, i32>>>,
 }
@@ -39,3 +41,4 @@ impl Clone for PQueue {
 }
 
 pub type ConversationMap = Arc<Mutex<HashMap<ID, Box<dyn Conversation + Send + Sync>>>>;
+pub type TimeoutsMap = Arc<Mutex<HashMap<ID, (Instant, Duration, Duration)>>>;

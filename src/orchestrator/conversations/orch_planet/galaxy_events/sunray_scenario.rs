@@ -234,8 +234,8 @@ mod tests {
         assert_eq!(conv.get_entities_ids(), (Some(PLANET_ID), None));
         // get_expected_kind (should be None in SendSunray state)
         assert_eq!(conv.get_expected_kind(), None);
-        // send state should not be registered with a timeout
-        assert_eq!(conv.get_timeout(), None);
+        // send state should have a timeout configured
+        assert_eq!(conv.get_timeout(), Some(TIMEOUT));
         // get_priority
         assert_eq!(conv.get_priority(), 1);
     }

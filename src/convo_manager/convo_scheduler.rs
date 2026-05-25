@@ -1,49 +1,12 @@
-use crate::convo_manager::queue::{ConversationMap};
+use crate::convo_manager::queue::{ConversationMap, PQueue, TimeoutsMap};
 use crate::logging::{LogTarget, log_internal};
 use crate::orchestrator::conversations::{Conversation, PossibleExpectedKinds, PossibleMessage};
 use crate::payload;
 use common_game::logging::Channel;
 use common_game::utils::ID;
-use priority_queue::PriorityQueue;
 use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
-pub(crate) struct PQueue {
-    queue: Arc<Mutex<PriorityQueue<ID, i32>>>,
-}
-
-impl PQueue {
-    pub fn new() -> Self {
-        Self {
-            queue: Arc::new(Mutex::new(PriorityQueue::new())),
-        }
-    }
-
-    pub fn push(&self, id: ID, priority: i32) {
-        let mut queue = self.queue.lock().unwrap();
-        queue.push(id, priority);
-    }
-
-    pub fn pop(&self) -> Option<(ID, i32)> {
-        let mut queue = self.queue.lock().unwrap();
-        queue.pop()
-    }
-
-    pub fn is_empty(&self) -> bool {
-        let queue = self.queue.lock().unwrap();
-        queue.is_empty()
-    }
-}
-
-impl Clone for PQueue {
-    fn clone(&self) -> Self {
-        Self {
-            queue: Arc::clone(&self.queue),
-        }
-    }
-}
-
-pub type TimeoutsMap = Arc<Mutex<HashMap<ID, (Instant, Duration, Duration)>>>;
 
 //TODO: MIGHT CHANGE THIS IN ALL DASHMAPS
 pub struct ConvoScheduler {
@@ -174,6 +137,7 @@ impl ConvoScheduler {
     /// Check if a specific conversation has timed out.
     /// When stopped, always returns false (timeouts are frozen).
     /// Only subtracts pause duration that occurred after the conversation started.
+    #[allow(dead_code)]
     pub fn is_timed_out(&self, convo_id: ID) -> bool {
         if self.is_stopped() {
             return false;

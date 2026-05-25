@@ -53,18 +53,17 @@ pub fn print_ui_update(update: OrchestratorToUiUpdate) {
             }
         }
         OrchestratorToUiUpdate::ExplorersPosition(loc) => {
-            let map = loc
-                .lock()
-                .unwrap_or_else(std::sync::PoisonError::into_inner);
-
-            if map.is_empty() {
+            // `loc` is a DashMap of explorer_id -> planet_id. Iterate its entries.
+            if loc.is_empty() {
                 println!("Explorers by planet: none");
                 return;
             }
 
             let mut by_planet: BTreeMap<ID, Vec<ID>> = BTreeMap::new();
-            for (explorer_id, planet_id) in map.iter() {
-                by_planet.entry(*planet_id).or_default().push(*explorer_id);
+            for entry in &loc {
+                let explorer_id = *entry.key();
+                let planet_id = *entry.value();
+                by_planet.entry(planet_id).or_default().push(explorer_id);
             }
 
             let mut chunks = Vec::new();

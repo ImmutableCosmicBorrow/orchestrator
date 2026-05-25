@@ -213,7 +213,7 @@ fn build_terminal_log() -> Box<dyn log::Log + Send + Sync> {
 /// # Panics
 /// Panics if any log directory or file cannot be created/opened.
 pub(super) fn start_logger() {
-        start_logger_with_console(true);
+    start_logger_with_console(true);
 }
 
 /// Same as [`start_logger`], but allows disabling terminal (stderr) output.

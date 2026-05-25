@@ -2,9 +2,6 @@
 
 mod background_events;
 pub(crate) mod conversations;
-pub mod convo_factory;
-mod convo_router;
-mod queue;
 use crate::galaxy_setup::galaxy_loader;
 use crate::orchestrator::conversations::PossibleMessage;
 use crate::planet::{self, PlanetMap};
@@ -14,11 +11,8 @@ use crate::channels_manager::ChannelsManager;
 use crate::convo_manager::ConvoManager;
 use crate::galaxy_setup::spawn_planet_with_channels;
 use crate::globals::{get_game_step, set_game_step};
-use crate::logging::{LogTarget, log_internal, log_msg_from};
 use crate::id::PlanetKind;
 use crate::logging::{LogTarget, log_internal, log_msg_from};
-use crate::orchestrator::conversations::ToExplorerStruct;
-use crate::orchestrator::conversations::ToPlanetStruct;
 use crate::ui::{OrchestratorToUiUpdate, UiToOrchestratorCommand};
 use common_explorer::ExplorerAI;
 pub(crate) use common_explorer::ExplorerBagContent;
@@ -447,11 +441,6 @@ impl Orchestrator {
         background_events::disable_asteroids();
     }
 
-    fn stop_background_event_senders() {
-        background_events::disable_sunrays();
-        background_events::disable_asteroids();
-    }
-
     /// Handles UI commands from the UI layer and creates appropriate conversations or performs direct actions.
     ///
     /// # Panics
@@ -510,7 +499,10 @@ impl Orchestrator {
                     planet_id,
                     connected_planets,
                 );
-                let already_present = self.channels_manager.to_planet_senders_contains(planet_id);
+                let already_present = self
+                    .orch_context_ref
+                    .channels_manager
+                    .to_planet_senders_contains(planet_id);
 
                 if already_present {
                     log_internal(
@@ -527,15 +519,15 @@ impl Orchestrator {
                         .unwrap()
                         .entry(planet_id)
                         .or_insert_with(|| {
-                            spawn_planet_with_channels(self.channels_manager.as_ref(), planet_id)
+                            spawn_planet_with_channels(
+                                self.orch_context_ref.channels_manager.as_ref(),
+                                planet_id,
+                            )
                         });
 
                     // Send PlanetStart to initialize the newly spawned planet
-                    convo_factory::create_start_planet_conversation(
-                        &self.convo_scheduler,
-                        self.channels_manager.get_to_planet_senders_struct_ref(),
-                        planet_id,
-                    );
+                    self.convo_manager
+                        .create_start_planet_conversation(planet_id);
 
                     log_internal(
                         LogTarget::General,
@@ -579,7 +571,7 @@ impl Orchestrator {
                         .create_stop_planet_conversation(planet_id);
                 }
 
-                self.convo_scheduler.set_stopped(true);
+                self.convo_manager.convo_scheduler.set_stopped(true);
 
                 log_internal(
                     LogTarget::General,
@@ -703,6 +695,11 @@ impl Orchestrator {
     fn process_messages(&mut self) {
         let convo_manager = self.convo_manager.clone();
         let orch_context_ref = self.orch_context_ref.clone();
+        let ui_sender = self
+            .orch_context_ref
+            .channels_manager
+            .get_ui_sender()
+            .clone();
         let planet_threads = self.planet_threads.clone();
         let stop = self.message_processor_stop.clone();
 
