@@ -69,12 +69,6 @@ pub trait Conversation: Send + Sync {
         full_name.split("::").last().unwrap_or(full_name)
     }
 
-    /// Returns the type name of the conversation implementation.
-    fn conversation_type(&self) -> &str {
-        let full_name = std::any::type_name::<Self>();
-        full_name.split("::").last().unwrap_or(full_name)
-    }
-
     /// Called when the conversation times out.
     /// Default behavior is to panic - override this to implement custom timeout handling
     /// (e.g., logging, cleanup, graceful degradation).

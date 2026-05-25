@@ -422,7 +422,7 @@ where
 /// - Creates/replaces neighbor nodes if missing or dead
 /// - Adds undirected edges using the centralized connection store (no one-sided edges possible)
 ///
-/// Returns the Arc<PlanetNode> for `id`.
+/// Returns the `Arc<PlanetNode>` for `id`.
 pub fn add_planet_with_neighbors<I>(map: &PlanetMap, id: ID, neighbors: I) -> Arc<PlanetNode>
 where
     I: IntoIterator<Item = ID>,
