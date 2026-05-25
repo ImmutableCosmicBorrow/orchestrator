@@ -15,6 +15,22 @@ pub(super) fn dispatch(event: PlannedEvent, dispatch_ctx: &ConvoManager) {
 }
 
 fn dispatch_asteroid(event: PlannedEvent, dispatch_ctx: &ConvoManager) {
+    if !dispatch_ctx
+        .get_orch_context()
+        .channels_manager
+        .to_planet_senders_contains(event.planet_id)
+    {
+        log_internal(
+            LogTarget::AsteroidsSunrays,
+            Channel::Debug,
+            payload!(
+                action: "Skipping asteroid for missing planet sender",
+                planet_id: event.planet_id,
+            ),
+        );
+        return;
+    }
+
     log_internal(
         LogTarget::AsteroidsSunrays,
         Channel::Trace,
@@ -25,6 +41,22 @@ fn dispatch_asteroid(event: PlannedEvent, dispatch_ctx: &ConvoManager) {
 }
 
 fn dispatch_sunray(event: PlannedEvent, dispatch_ctx: &ConvoManager) {
+    if !dispatch_ctx
+        .get_orch_context()
+        .channels_manager
+        .to_planet_senders_contains(event.planet_id)
+    {
+        log_internal(
+            LogTarget::AsteroidsSunrays,
+            Channel::Debug,
+            payload!(
+                action: "Skipping sunray for missing planet sender",
+                planet_id: event.planet_id,
+            ),
+        );
+        return;
+    }
+
     log_internal(
         LogTarget::AsteroidsSunrays,
         Channel::Trace,

@@ -324,7 +324,7 @@ mod tests {
 
     #[test]
     #[should_panic(
-        expected = "Conversation 1 timed out waiting for Some(PlanetToOrchKind(AsteroidAck))"
+        expected = "Conversation type: WaitingAsteroidAck>, ID: 1 timed out waiting for Some(PlanetToOrchKind(AsteroidAck))"
     )]
     fn waiting_asteroid_timeout_logs_and_terminates() {
         let (ui_tx, _ui_rx) = unbounded::<OrchestratorToUiUpdate>();

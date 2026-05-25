@@ -67,3 +67,8 @@ pub fn log_internal(target: LogTarget, channel: Channel, payload: Payload) {
 pub fn start_logger() {
     init::start_logger();
 }
+
+/// Same as [`start_logger`], but allows disabling terminal (stderr) output.
+pub fn start_logger_with_console(print_to_stderr: bool) {
+    init::start_logger_with_console(print_to_stderr);
+}

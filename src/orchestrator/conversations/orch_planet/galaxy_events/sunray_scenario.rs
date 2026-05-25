@@ -16,6 +16,8 @@ use common_game::protocols::orchestrator_planet::{
 use common_game::utils::ID;
 use std::time::Duration;
 
+// TODO: Chaneg ontimeout
+
 /// Default timeout duration for waiting for a Sunray acknowledgment.
 /// The planet should respond quickly to sunray events.
 const SUNRAY_ACK_TIMEOUT: Duration = Duration::from_secs(5);
@@ -232,6 +234,8 @@ mod tests {
         assert_eq!(conv.get_entities_ids(), (Some(PLANET_ID), None));
         // get_expected_kind (should be None in SendSunray state)
         assert_eq!(conv.get_expected_kind(), None);
+        // send state should not be registered with a timeout
+        assert_eq!(conv.get_timeout(), None);
         // get_priority
         assert_eq!(conv.get_priority(), 1);
     }

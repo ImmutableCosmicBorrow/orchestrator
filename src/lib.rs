@@ -52,6 +52,7 @@ pub fn run(
         explorer1,
         explorer2,
         spawn_planet,
+        true, // background_events_enabled
     );
 
     orchestrator.run();
@@ -76,7 +77,35 @@ pub fn create_with_path<P: AsRef<Path>>(
     crossbeam_channel::Sender<UiToOrchestratorCommand>,
     crossbeam_channel::Receiver<OrchestratorToUiUpdate>,
 ) {
-    logging::start_logger();
+    create_with_path_options(
+        galaxy_path,
+        explorer1,
+        explorer2,
+        spawn_planet,
+        game_step,
+        true,
+        true,
+    )
+}
+
+/// Create the orchestrator with advanced runtime options.
+///
+/// - `log_to_console`: if false, logs are written only to files.
+/// - `enable_background_events`: if false, sunray/asteroid events are disabled.
+pub fn create_with_path_options<P: AsRef<Path>>(
+    galaxy_path: P,
+    explorer1: ExplorerType,
+    explorer2: Option<ExplorerType>,
+    spawn_planet: Option<ID>,
+    game_step: u64,
+    log_to_console: bool,
+    enable_background_events: bool,
+) -> (
+    Orchestrator,
+    crossbeam_channel::Sender<UiToOrchestratorCommand>,
+    crossbeam_channel::Receiver<OrchestratorToUiUpdate>,
+) {
+    logging::start_logger_with_console(log_to_console);
 
     let (ui_to_orch_sender, ui_to_orch_receiver) =
         crossbeam_channel::unbounded::<UiToOrchestratorCommand>();
@@ -91,6 +120,7 @@ pub fn create_with_path<P: AsRef<Path>>(
         explorer1,
         explorer2,
         spawn_planet,
+        enable_background_events,
     );
 
     (orchestrator, ui_to_orch_sender, orch_to_ui_receiver)

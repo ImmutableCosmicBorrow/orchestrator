@@ -1,23 +1,65 @@
-use crate::convo_manager::queue::{ConversationMap, PQueue};
+use crate::convo_manager::queue::{ConversationMap};
 use crate::logging::{LogTarget, log_internal};
 use crate::orchestrator::conversations::{Conversation, PossibleExpectedKinds, PossibleMessage};
 use crate::payload;
 use common_game::logging::Channel;
 use common_game::utils::ID;
+use priority_queue::PriorityQueue;
 use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
+pub(crate) struct PQueue {
+    queue: Arc<Mutex<PriorityQueue<ID, i32>>>,
+}
+
+impl PQueue {
+    pub fn new() -> Self {
+        Self {
+            queue: Arc::new(Mutex::new(PriorityQueue::new())),
+        }
+    }
+
+    pub fn push(&self, id: ID, priority: i32) {
+        let mut queue = self.queue.lock().unwrap();
+        queue.push(id, priority);
+    }
+
+    pub fn pop(&self) -> Option<(ID, i32)> {
+        let mut queue = self.queue.lock().unwrap();
+        queue.pop()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        let queue = self.queue.lock().unwrap();
+        queue.is_empty()
+    }
+}
+
+impl Clone for PQueue {
+    fn clone(&self) -> Self {
+        Self {
+            queue: Arc::clone(&self.queue),
+        }
+    }
+}
+
+pub type TimeoutsMap = Arc<Mutex<HashMap<ID, (Instant, Duration, Duration)>>>;
 
 //TODO: MIGHT CHANGE THIS IN ALL DASHMAPS
-
 pub struct ConvoScheduler {
     queue: PQueue,
     active_convos: ConversationMap,
     inactive_convos: ConversationMap,
     by_expected_msg: Arc<Mutex<HashMap<PossibleExpectedKinds, HashSet<ID>>>>,
     waiting_msgs: Arc<Mutex<HashMap<ID, PossibleMessage>>>,
-    /// Maps conversation IDs to their timeout info: (start time, timeout duration)
-    timeouts: Arc<Mutex<HashMap<ID, (Instant, Duration)>>>,
+    /// Maps conversation IDs to their timeout info: (start time, timeout duration, `paused_duration` snapshot at creation)
+    timeouts: TimeoutsMap,
+    /// Whether the scheduler is in stopped state (timeouts frozen)
+    stopped: Arc<Mutex<bool>>,
+    /// Instant when the scheduler entered stopped state
+    stopped_since: Arc<Mutex<Option<Instant>>>,
+    /// Total accumulated pause duration - subtracted from elapsed time when checking timeouts
+    paused_duration: Arc<Mutex<Duration>>,
 }
 
 impl Clone for ConvoScheduler {
@@ -29,6 +71,9 @@ impl Clone for ConvoScheduler {
             by_expected_msg: Arc::clone(&self.by_expected_msg),
             waiting_msgs: Arc::clone(&self.waiting_msgs),
             timeouts: Arc::clone(&self.timeouts),
+            stopped: Arc::clone(&self.stopped),
+            stopped_since: Arc::clone(&self.stopped_since),
+            paused_duration: Arc::clone(&self.paused_duration),
         }
     }
 }
@@ -42,27 +87,79 @@ impl ConvoScheduler {
             by_expected_msg: Arc::new(Mutex::new(HashMap::new())),
             waiting_msgs: Arc::new(Mutex::new(HashMap::new())),
             timeouts: Arc::new(Mutex::new(HashMap::new())),
+            stopped: Arc::new(Mutex::new(false)),
+            stopped_since: Arc::new(Mutex::new(None)),
+            paused_duration: Arc::new(Mutex::new(Duration::ZERO)),
         }
+    }
+
+    /// Pause or resume timeout progression.
+    ///
+    /// When stopped=true, no conversations will report as timed out.
+    /// When transitioning from stopped=true to stopped=false, the paused duration is accumulated
+    /// so that paused time does not count toward conversation timeouts.
+    pub fn set_stopped(&self, stopped: bool) {
+        let now = Instant::now();
+        let mut stopped_flag = self.stopped.lock().unwrap();
+
+        // No state change
+        if *stopped_flag == stopped {
+            return;
+        }
+
+        if stopped {
+            // Entering stopped state
+            *self.stopped_since.lock().unwrap() = Some(now);
+            *stopped_flag = true;
+        } else {
+            // Resuming from stopped state
+            if let Some(stopped_at) = self.stopped_since.lock().unwrap().take() {
+                let pause_duration = now.duration_since(stopped_at);
+                let mut paused = self.paused_duration.lock().unwrap();
+                *paused = paused.saturating_add(pause_duration);
+            }
+            *stopped_flag = false;
+        }
+    }
+
+    /// Check if the scheduler is currently stopped.
+    pub fn is_stopped(&self) -> bool {
+        *self.stopped.lock().unwrap()
     }
 
     /// Register a timeout for a conversation.
     /// The conversation will be considered timed out after the specified duration
     /// from when this method is called.
+    /// Snapshots the current `paused_duration` so that only pause time occurring
+    /// after this timeout is created gets subtracted from elapsed time.
     pub fn set_timeout(&self, convo_id: ID, duration: Duration) {
+        let paused_snapshot = *self.paused_duration.lock().unwrap();
         self.timeouts
             .lock()
             .unwrap()
-            .insert(convo_id, (Instant::now(), duration));
+            .insert(convo_id, (Instant::now(), duration, paused_snapshot));
     }
 
     /// Check for and return IDs of conversations that have timed out.
     /// Does not remove them from tracking - call `clear_timeout` after handling.
+    /// When stopped, returns an empty list (timeouts are frozen).
+    /// Only subtracts pause duration that occurred after each conversation started.
     pub fn get_timed_out_conversations(&self) -> Vec<ID> {
+        if self.is_stopped() {
+            return Vec::new();
+        }
+
         let timeouts = self.timeouts.lock().unwrap();
+        let paused_now = *self.paused_duration.lock().unwrap();
         let now = Instant::now();
         timeouts
             .iter()
-            .filter(|(_, (start, duration))| now.duration_since(*start) > *duration)
+            .filter(|(_, (start, duration, paused_at_creation))| {
+                let actual_elapsed = now.duration_since(*start);
+                let new_paused_since_start = paused_now.saturating_sub(*paused_at_creation);
+                let effective_elapsed = actual_elapsed.saturating_sub(new_paused_since_start);
+                effective_elapsed > *duration
+            })
             .map(|(id, _)| *id)
             .collect()
     }
@@ -75,12 +172,20 @@ impl ConvoScheduler {
     }
 
     /// Check if a specific conversation has timed out.
-    // TODO: this is not currently used, but might be useful for specific checks in the conversation transitions, to handle timeouts more gracefully than just going to the error state.
-    #[allow(dead_code)]
+    /// When stopped, always returns false (timeouts are frozen).
+    /// Only subtracts pause duration that occurred after the conversation started.
     pub fn is_timed_out(&self, convo_id: ID) -> bool {
+        if self.is_stopped() {
+            return false;
+        }
+
         let timeouts = self.timeouts.lock().unwrap();
-        if let Some((start, duration)) = timeouts.get(&convo_id) {
-            Instant::now().duration_since(*start) > *duration
+        let paused_now = *self.paused_duration.lock().unwrap();
+        if let Some((start, duration, paused_at_creation)) = timeouts.get(&convo_id) {
+            let actual_elapsed = Instant::now().duration_since(*start);
+            let new_paused_since_start = paused_now.saturating_sub(*paused_at_creation);
+            let effective_elapsed = actual_elapsed.saturating_sub(new_paused_since_start);
+            effective_elapsed > *duration
         } else {
             false
         }
@@ -200,9 +305,14 @@ impl ConvoScheduler {
         self.handle_timeouts();
 
         let conversation = self.active_convos.lock().unwrap().remove(&id);
-        let expected_kind = conversation.as_ref().unwrap().get_expected_kind();
+        let Some(conversation) = conversation else {
+            // Conversation was removed by another thread between the check and removal
+            return None;
+        };
+
+        let expected_kind = conversation.get_expected_kind();
         // Log dequeue before returning
-        let entities = conversation.as_ref().unwrap().get_entities_ids();
+        let entities = conversation.get_entities_ids();
         log_internal(
             LogTarget::Conversations,
             Channel::Trace,
@@ -215,7 +325,7 @@ impl ConvoScheduler {
                 explorer_id: format!("{:?}", entities.1)
             ),
         );
-        conversation
+        Some(conversation)
     }
 
     pub fn is_empty(&self) -> bool {
@@ -799,7 +909,7 @@ mod tests {
         // Timeout should be registered
         let timeouts = scheduler.timeouts.lock().unwrap();
         assert!(timeouts.contains_key(&1));
-        let (_, duration) = timeouts.get(&1).unwrap();
+        let (_, duration, _) = timeouts.get(&1).unwrap();
         assert_eq!(*duration, timeout_duration);
     }
 
@@ -896,6 +1006,7 @@ mod tests {
             (
                 Instant::now().checked_sub(Duration::from_secs(10)).unwrap(),
                 Duration::from_secs(1),
+                Duration::ZERO,
             ),
         );
 
@@ -921,8 +1032,107 @@ mod tests {
             (
                 Instant::now().checked_sub(Duration::from_secs(10)).unwrap(),
                 Duration::from_secs(1),
+                Duration::ZERO,
             ),
         );
         assert!(scheduler.is_timed_out(2));
+    }
+
+    // ============================================================================
+    // Stop/Resume Timeout Freezing Tests
+    // ============================================================================
+
+    #[test]
+    fn stopped_scheduler_reports_no_timeouts() {
+        let scheduler = ConvoScheduler::new();
+        scheduler.set_timeout(1, Duration::from_millis(1));
+
+        // Stop before timeout expires
+        scheduler.set_stopped(true);
+        std::thread::sleep(Duration::from_millis(10));
+
+        // Should report no timeouts when stopped
+        assert!(scheduler.get_timed_out_conversations().is_empty());
+        assert!(!scheduler.is_timed_out(1));
+
+        scheduler.set_stopped(false);
+    }
+
+    #[test]
+    fn paused_duration_subtracts_from_elapsed_time() {
+        let scheduler = ConvoScheduler::new();
+        scheduler.set_timeout(1, Duration::from_millis(50));
+
+        // Let timeout start and elapse 10ms
+        std::thread::sleep(Duration::from_millis(10));
+
+        // Pause for 20ms (would exceed timeout if counted)
+        scheduler.set_stopped(true);
+        std::thread::sleep(Duration::from_millis(20));
+        scheduler.set_stopped(false);
+
+        // Should not be timed out because paused time is subtracted
+        // Actual elapsed: ~30ms, Paused: ~20ms, Effective: ~10ms < 50ms
+        assert!(!scheduler.is_timed_out(1));
+
+        // Wait for remaining effective time
+        std::thread::sleep(Duration::from_millis(50));
+
+        // Now should be timed out (total effective elapsed ~60ms > 50ms)
+        assert!(scheduler.is_timed_out(1));
+    }
+
+    #[test]
+    fn multiple_pause_resume_cycles_accumulate() {
+        let scheduler = ConvoScheduler::new();
+        scheduler.set_timeout(1, Duration::from_millis(50));
+
+        std::thread::sleep(Duration::from_millis(10));
+
+        // First pause/resume cycle
+        scheduler.set_stopped(true);
+        std::thread::sleep(Duration::from_millis(15));
+        scheduler.set_stopped(false);
+
+        std::thread::sleep(Duration::from_millis(10));
+
+        // Second pause/resume cycle
+        scheduler.set_stopped(true);
+        std::thread::sleep(Duration::from_millis(15));
+        scheduler.set_stopped(false);
+
+        // Total actual: ~50ms, paused: ~30ms, effective: ~20ms < 50ms
+        assert!(!scheduler.is_timed_out(1));
+
+        std::thread::sleep(Duration::from_millis(35));
+        // Now effective should exceed 50ms
+        assert!(scheduler.is_timed_out(1));
+    }
+
+    #[test]
+    fn get_timed_out_conversations_respects_stopped_state() {
+        let scheduler = ConvoScheduler::new();
+
+        // Add multiple conversations with short timeouts
+        scheduler.set_timeout(1, Duration::from_millis(5));
+        scheduler.set_timeout(2, Duration::from_millis(5));
+
+        std::thread::sleep(Duration::from_millis(10));
+
+        // They should be timed out when not stopped
+        let timed_out = scheduler.get_timed_out_conversations();
+        assert_eq!(timed_out.len(), 2);
+
+        // Stop and check again - should be empty
+        scheduler.set_stopped(true);
+        let timed_out = scheduler.get_timed_out_conversations();
+        assert!(timed_out.is_empty());
+
+        // Resume and they should be timed out again
+        scheduler.set_stopped(false);
+        let timed_out = scheduler.get_timed_out_conversations();
+        assert_eq!(timed_out.len(), 2);
+
+        scheduler.set_stopped(true);
     }
 }

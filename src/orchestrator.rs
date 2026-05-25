@@ -2,7 +2,9 @@
 
 mod background_events;
 pub(crate) mod conversations;
-
+pub mod convo_factory;
+mod convo_router;
+mod queue;
 use crate::galaxy_setup::galaxy_loader;
 use crate::orchestrator::conversations::PossibleMessage;
 use crate::planet::{self, PlanetMap};
@@ -10,8 +12,13 @@ use crate::{get_id_manager, payload};
 
 use crate::channels_manager::ChannelsManager;
 use crate::convo_manager::ConvoManager;
+use crate::galaxy_setup::spawn_planet_with_channels;
 use crate::globals::{get_game_step, set_game_step};
 use crate::logging::{LogTarget, log_internal, log_msg_from};
+use crate::id::PlanetKind;
+use crate::logging::{LogTarget, log_internal, log_msg_from};
+use crate::orchestrator::conversations::ToExplorerStruct;
+use crate::orchestrator::conversations::ToPlanetStruct;
 use crate::ui::{OrchestratorToUiUpdate, UiToOrchestratorCommand};
 use common_explorer::ExplorerAI;
 pub(crate) use common_explorer::ExplorerBagContent;
@@ -91,6 +98,7 @@ pub struct Orchestrator {
     message_processor_thread: Option<JoinHandle<()>>,
     message_processor_stop: Arc<AtomicBool>,
     shutdown_requested: bool,
+    background_events_enabled: bool,
     manual_mode: bool,
 }
 
@@ -108,6 +116,7 @@ impl Orchestrator {
     ///
     /// Panics if the forge cannot be created, or if there are no Planets.
     #[must_use]
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         file_path: &std::path::Path,
         game_step: u64,
@@ -116,6 +125,7 @@ impl Orchestrator {
         explorer1: ExplorerType,
         explorer2: Option<ExplorerType>,
         spawn_planet: Option<ID>,
+        background_events_enabled: bool,
     ) -> Self {
         // Set static variable GAME_STEP
         set_game_step(game_step);
@@ -135,6 +145,18 @@ impl Orchestrator {
         ));
         let convo_manager = ConvoManager::new(orch_context.clone());
 
+        // Sync planet ID generator with pre-loaded galaxy IDs to avoid runtime collisions
+        // (e.g., first AddPlanet duplicating an existing ID from file).
+        {
+            let existing_planet_ids: Vec<ID> = galaxy
+                .read()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .keys()
+                .copied()
+                .collect();
+            get_id_manager().sync_planet_counter_with_existing(&existing_planet_ids);
+        }
+
         let mut orchestrator = Self {
             convo_manager: Arc::new(convo_manager),
             orch_context_ref: orch_context,
@@ -143,6 +165,7 @@ impl Orchestrator {
             message_processor_thread: None,
             message_processor_stop: Arc::new(AtomicBool::new(false)),
             shutdown_requested: false,
+            background_events_enabled,
             manual_mode: false,
         };
 
@@ -220,7 +243,12 @@ impl Orchestrator {
         self.process_messages();
 
         // Start background event senders
-        self.start_background_event_senders();
+        if self.background_events_enabled {
+            self.start_background_event_senders();
+        } else {
+            background_events::disable_asteroids();
+            background_events::disable_sunrays();
+        }
 
         //Get receiving channels
         let from_planets_rcv = self.orch_context_ref.channels_manager.get_from_planet_rcv();
@@ -387,6 +415,7 @@ impl Orchestrator {
             }
             //stop events
             background_events::disable_asteroids();
+            background_events::disable_sunrays();
         } else {
             log_internal(
                 LogTarget::General,
@@ -402,6 +431,7 @@ impl Orchestrator {
             }
             //Start Events
             background_events::enable_asteroids();
+            background_events::enable_sunrays();
         }
     }
 
@@ -410,6 +440,11 @@ impl Orchestrator {
 
         background_events::enable_sunrays();
         background_events::enable_asteroids();
+    }
+
+    fn stop_background_event_senders() {
+        background_events::disable_sunrays();
+        background_events::disable_asteroids();
     }
 
     fn stop_background_event_senders() {
@@ -459,12 +494,59 @@ impl Orchestrator {
                     .create_bag_content_conversation(explorer_id); //the conversation will send the update to UI
             }
 
-            AddPlanet(planet_id, connected_planets) => {
+            AddPlanet(planet_kind, connected_planets) => {
+                let planet_id = match planet_kind {
+                    PlanetKind::Trip => get_id_manager().get_next_trip_id(),
+                    PlanetKind::Rustrelli => get_id_manager().get_next_rustrelli_id(),
+                    PlanetKind::Luna4 => get_id_manager().get_next_luna4_id(),
+                    PlanetKind::RustyCrab => get_id_manager().get_next_rusty_crab_id(),
+                    PlanetKind::Enterprise => get_id_manager().get_next_enterprise_id(),
+                    PlanetKind::Orbitron => get_id_manager().get_next_orbitron_id(),
+                    PlanetKind::Houston => get_id_manager().get_next_houston_id(),
+                };
+
                 planet::add_planet_with_neighbors(
                     &self.orch_context_ref.galaxy,
                     planet_id,
                     connected_planets,
                 );
+                let already_present = self.channels_manager.to_planet_senders_contains(planet_id);
+
+                if already_present {
+                    log_internal(
+                        LogTarget::General,
+                        Channel::Warning,
+                        payload!(
+                            action : "AddPlanet called for an existing planet: topology updated, skipping start",
+                            planet_id : planet_id,
+                        ),
+                    );
+                } else {
+                    self.planet_threads
+                        .lock()
+                        .unwrap()
+                        .entry(planet_id)
+                        .or_insert_with(|| {
+                            spawn_planet_with_channels(self.channels_manager.as_ref(), planet_id)
+                        });
+
+                    // Send PlanetStart to initialize the newly spawned planet
+                    convo_factory::create_start_planet_conversation(
+                        &self.convo_scheduler,
+                        self.channels_manager.get_to_planet_senders_struct_ref(),
+                        planet_id,
+                    );
+
+                    log_internal(
+                        LogTarget::General,
+                        Channel::Info,
+                        payload!(
+                            action : "Added new planet",
+                            planet_id : planet_id,
+                            planet_kind : format!("{:?}", planet_kind),
+                        ),
+                    );
+                }
             }
 
             AddExplorer(explorer_type, into_planet) => {
@@ -496,6 +578,8 @@ impl Orchestrator {
                     self.convo_manager
                         .create_stop_planet_conversation(planet_id);
                 }
+
+                self.convo_scheduler.set_stopped(true);
 
                 log_internal(
                     LogTarget::General,
@@ -670,6 +754,10 @@ impl Orchestrator {
                                 {
                                     let _ = handle.join();
                                 }
+
+                                let _ = ui_sender.send(OrchestratorToUiUpdate::DeadPlanet(dead_id));
+                                let _ = ui_sender
+                                    .send(OrchestratorToUiUpdate::Galaxy(galaxy_clone.clone()));
                             });
                         }
                     }

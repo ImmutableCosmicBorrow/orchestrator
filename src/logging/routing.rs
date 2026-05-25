@@ -232,7 +232,7 @@ pub(super) struct ContentRouter {
     pub(super) common_game: Box<dyn log::Log + Send + Sync>,
     // always receives every record
     pub(super) shared: Box<dyn log::Log + Send + Sync>,
-    pub(super) terminal: Box<dyn log::Log + Send + Sync>,
+    pub(super) terminal: Option<Box<dyn log::Log + Send + Sync>>,
     pub(super) directives: super::init::LogDirectives,
 }
 
@@ -266,7 +266,9 @@ impl log::Log for ContentRouter {
         };
         primary.log(record);
         self.shared.log(record);
-        self.terminal.log(record);
+        if let Some(terminal) = &self.terminal {
+            terminal.log(record);
+        }
     }
 
     fn flush(&self) {
@@ -286,6 +288,8 @@ impl log::Log for ContentRouter {
         self.orchestrator_lifecycle.flush();
         self.common_game.flush();
         self.shared.flush();
-        self.terminal.flush();
+        if let Some(terminal) = &self.terminal {
+            terminal.flush();
+        }
     }
 }

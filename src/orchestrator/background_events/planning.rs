@@ -21,7 +21,13 @@ pub(super) fn schedule_next_event(
     scheduled_at: Instant,
 ) -> Option<PlannedEvent> {
     if let Some(existing) = plan_state.pending {
-        return Some(existing);
+        if planet_ids.contains(&existing.planet_id) {
+            return Some(existing);
+        }
+
+        // The target planet was killed/removed after the plan was created.
+        // Drop the stale plan so the scheduler can pick a new alive target.
+        plan_state.pending = None;
     }
 
     let (planet_id, weight) = select_weighted_planet(planet_ids, explorers_location)?;

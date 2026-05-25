@@ -76,6 +76,29 @@ impl IdManager {
         id
     }
 
+    /// Ensure the next generated planet counter is above all existing planet IDs.
+    ///
+    /// This is useful when loading a galaxy from file where planet IDs are already present:
+    /// without synchronization, the first runtime-generated planet can collide.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the internal planet ID mutex is poisoned.
+    pub fn sync_planet_counter_with_existing(&self, existing_ids: &[ID]) {
+        let max_existing_counter = existing_ids
+            .iter()
+            .copied()
+            .filter(|id| Self::is_planet_id(*id))
+            .map(|id| id & Self::PLANET_MASK)
+            .max()
+            .unwrap_or(0);
+
+        let mut id_lock = self.planet.lock().unwrap();
+        if *id_lock <= max_existing_counter {
+            *id_lock = max_existing_counter + 1;
+        }
+    }
+
     #[must_use]
     pub fn get_next_trip_id(&self) -> ID {
         let id = self.get_next_planet_id();

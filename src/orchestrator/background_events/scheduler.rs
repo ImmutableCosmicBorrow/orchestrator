@@ -84,6 +84,14 @@ fn scheduler_loop(convo_manager: &Arc<ConvoManager>) {
             break;
         }
 
+        // Re-sync flags before dispatching to ensure paused events don't fire
+        let flags = control::read_flags();
+        state.sync_enabled_flags(flags.asteroids_enabled, flags.sunrays_enabled);
+
+        // Re-sync flags before dispatching to ensure paused events don't fire
+        let flags = control::read_flags();
+        state.sync_enabled_flags(flags.asteroids_enabled, flags.sunrays_enabled);
+
         dispatch_due_events(&mut state, Instant::now(), convo_manager);
     }
 }
