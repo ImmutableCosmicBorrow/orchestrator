@@ -56,9 +56,9 @@ fn build_planet_weights(
         .map(|&planet_id| (planet_id, DEFAULT_PLANET_WEIGHT))
         .collect();
 
-    let explorers = explorers_location.lock().unwrap();
-    for &planet_id in explorers.values() {
-        if let Some(weight) = weights.get_mut(&planet_id) {
+    for entry in explorers_location {
+        let planet_id = entry.value();
+        if let Some(weight) = weights.get_mut(planet_id) {
             *weight = weight.saturating_add(EXPLORER_WEIGHT);
         }
     }
@@ -131,11 +131,11 @@ fn duration_to_millis(duration: Duration) -> u64 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::sync::{Arc, Mutex};
+    use dashmap::DashMap;
 
     #[test]
     fn build_planet_weights_counts_baseline_and_explorers() {
-        let explorers_location = Arc::new(Mutex::new(HashMap::from([(10, 1), (11, 1), (12, 2)])));
+        let explorers_location = DashMap::from_iter([(10, 1), (11, 1), (12, 2)]);
         let weights = build_planet_weights(&[1, 2, 3], &explorers_location);
 
         assert_eq!(
@@ -151,7 +151,7 @@ mod tests {
 
     #[test]
     fn schedule_next_event_keeps_single_available_planet() {
-        let explorers_location = Arc::new(Mutex::new(HashMap::new()));
+        let explorers_location = DashMap::new();
         let mut plan_state = EventPlanState::new();
         let scheduled_at = Instant::now();
 

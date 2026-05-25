@@ -15,11 +15,7 @@ pub(super) enum EventKind {
     Sunray,
 }
 
-use crate::channels_manager::ChannelsManager;
-use crate::orchestrator::queue::ConvoScheduler;
-use crate::orchestrator::{ExplorerBagContent, ExplorersLocationRef};
-use crate::planet::PlanetMap;
-use common_game::components::forge::Forge;
+use crate::convo_manager::ConvoManager;
 use std::sync::Arc;
 
 pub(super) struct BackgroundEventsGuard(control::BackgroundEventsGuard);
@@ -76,18 +72,6 @@ pub(super) fn background_events_guard() -> BackgroundEventsGuard {
     BackgroundEventsGuard(control::background_events_guard())
 }
 
-pub(super) fn init_background_event_scheduler(
-    channels_manager: Arc<ChannelsManager>,
-    forge: Arc<Forge>,
-    explorers_location: ExplorersLocationRef,
-    convo_scheduler: ConvoScheduler<ExplorerBagContent>,
-    galaxy: PlanetMap,
-) {
-    scheduler::init_background_event_scheduler(
-        channels_manager,
-        forge,
-        explorers_location,
-        convo_scheduler,
-        galaxy,
-    );
+pub(super) fn init_background_event_scheduler(convo_manager: Arc<ConvoManager>) {
+    scheduler::init_background_event_scheduler(convo_manager);
 }

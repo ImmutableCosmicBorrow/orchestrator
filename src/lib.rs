@@ -1,4 +1,5 @@
 mod channels_manager;
+mod convo_manager;
 mod galaxy_setup;
 mod globals;
 pub mod id;

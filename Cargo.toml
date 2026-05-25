@@ -37,6 +37,7 @@ common-explorer = {git = "https://github.com/ImmutableCosmicBorrow/common-explor
 explorer_nico = {git = "https://github.com/ImmutableCosmicBorrow/explorer_nico"}
 explorer_jacopo =  {git = "https://github.com/ImmutableCosmicBorrow/explorer_jacopo.git"}
 explorer_rob =  {git = "https://github.com/ImmutableCosmicBorrow/explorer_rob.git"}
+dashmap = "7.0.0-rc2"
 
 [patch.'https://github.com/unitn-ap-2025/common']
 common-game = "=3.0.0"

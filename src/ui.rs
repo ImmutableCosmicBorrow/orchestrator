@@ -3,14 +3,13 @@ use std::collections::HashSet;
 use crate::ExplorerType;
 use crate::id::PlanetKind;
 use crate::orchestrator::ExplorersLocationRef;
+use crate::planet::PlanetMap;
 use common_explorer::ExplorerBagContent;
 use common_game::components::planet::DummyPlanetState;
 use common_game::{
     components::resource::{BasicResourceType, ComplexResourceType},
     utils::ID,
 };
-
-use crate::planet::PlanetMap;
 
 // Commands you can send to the orchestrator
 #[derive(Debug)]

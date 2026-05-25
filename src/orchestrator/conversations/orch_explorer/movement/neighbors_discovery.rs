@@ -1,13 +1,14 @@
-use crate::globals::get_explorer_timeout;
+use crate::convo_manager::OrchContextRef;
+use crate::globals::{TIMEOUT, get_explorer_timeout};
 use crate::logging::{LogTarget, log_internal};
-use crate::orchestrator::ExplorerBagContent;
+use crate::orchestrator::ChannelsManagerRef;
+use crate::orchestrator::conversations::EntitiesIDTuple;
 use crate::orchestrator::conversations::PossibleExpectedKinds::ExplorerToOrchKind;
 use crate::orchestrator::conversations::{
-    CommonErrorTypes, Conversation, ErrorState, ErrorType, PossibleExpectedKinds, PossibleMessage,
-    ToExplorerError, ToExplorerStruct,
+    ChannelsContext, CommonErrorTypes, Conversation, ErrorState, ErrorType, ExplorerCommunicator,
+    PossibleExpectedKinds, PossibleMessage,
 };
-use crate::payload;
-use crate::planet::PlanetMap;
+use crate::{create_request_state, create_response_state, define_conversation, payload};
 use common_game::logging::Channel;
 use common_game::protocols::orchestrator_explorer::{
     ExplorerToOrchestrator, ExplorerToOrchestratorKind, OrchestratorToExplorer,
@@ -31,221 +32,91 @@ impl ErrorType for PlanetNotFound {
     }
 }
 
-/// Marker struct for FSM state
+// --- NEIGHBORS DISCOVERY CONVERSATION ---
+define_conversation!(
+    name: NeighborsDiscoveryConversation
+);
+
+// --- SEND NEIGHBORS DEFINITION ---
+create_request_state!(
+    state_name: SendingNeighbors,
+    conv_name: NeighborsDiscoveryConversation,
+    priority: 3,
+    timeout: Some(TIMEOUT),
+    expected_msg: None,
+    fields: {
+        explorer_id: ID,
+        neighbors_list: Vec<ID>
+    },
+    entities_id_fn: |this: &NeighborsDiscoveryConversation<SendingNeighbors>  | { (None, Some(this.state.explorer_id)) },
+    transition_fn: send_neighbors_transition,
+    methods_settings: {
+
+    },
+);
+
+/// Transition Function for [`SendingNeighborsResponse`] state:
 ///
-/// In the [`WaitingExplorerNeighborsRequest`] state, the conversation waits for the explorer
-/// to send a [`ExplorerToOrchestrator::NeighborsRequest`]. It holds a reference to the [`PlanetMap`]
-/// to resolve the query.
-pub(crate) struct WaitingExplorerNeighborsRequest {
-    /// A struct containing fields to send messages to the specific explorer
-    to_explorer_struct: ToExplorerStruct,
-    /// Reference to the galaxy map used to find neighboring IDs
-    galaxy: PlanetMap,
-}
-
-impl WaitingExplorerNeighborsRequest {
-    /// Constructor for [`WaitingExplorerNeighborsRequest`] state struct
-    pub(crate) fn new(to_explorer_struct: ToExplorerStruct, galaxy: PlanetMap) -> Self {
-        Self {
-            to_explorer_struct,
-            galaxy,
-        }
-    }
-}
-
-/// Marker struct for FSM state
+/// Returns:
 ///
-/// In the [`SendingNeighborsResponse`] state, the conversation sends the collected
-/// list of neighboring planet IDs back to the explorer via [`OrchestratorToExplorer::NeighborsResponse`].
-struct SendingNeighborsResponse {
-    /// A struct containing fields to send messages to the specific explorer
-    to_explorer_struct: ToExplorerStruct,
-    /// The list of neighbor planet IDs found in the galaxy map
-    neighbors: Vec<ID>,
-}
-
-impl SendingNeighborsResponse {
-    /// Constructor for [`SendingNeighborsResponse`] state struct
-    fn new(to_explorer_struct: ToExplorerStruct, neighbors: Vec<ID>) -> Self {
-        Self {
-            to_explorer_struct,
-            neighbors,
-        }
-    }
-}
-
-/// Neighbors Discovery Conversation FSM
+/// [None] if the neighbor list is successfully sent to the explorer, ending the conversation.
 ///
-/// This is the generic FSM struct that takes the generic type `State` to ensure only methods
-/// of that specific state can be called during the conversation.
-pub(crate) struct NeighborsDiscoveryConversation<State> {
-    /// Conversation ID
-    id: ID,
-    /// Optional expected message to trigger the transition
-    expected_message: Option<PossibleExpectedKinds>,
-    /// State of the FSM
-    state: State,
-}
-
-// SENDING NEIGHBORS RESPONSE IMPLEMENTATION
-impl Conversation<ExplorerBagContent> for NeighborsDiscoveryConversation<SendingNeighborsResponse> {
-    fn get_id(&self) -> ID {
-        self.id
-    }
-
-    fn get_entities_ids(&self) -> (Option<ID>, Option<ID>) {
-        (None, Some(self.state.to_explorer_struct.explorer_id))
-    }
-
-    fn get_expected_kind(&self) -> Option<PossibleExpectedKinds> {
-        self.expected_message.clone()
-    }
-
-    /// Transition Function for [`SendingNeighborsResponse`] state:
-    ///
-    /// Returns:
-    ///
-    /// [None] if the neighbor list is successfully sent to the explorer, ending the conversation.
-    ///
-    /// [`ErrorState`] if the message failed to send or the explorer's sender is missing.
-    fn transition(
-        self: Box<Self>,
-        _msg_wrapped: Option<PossibleMessage<ExplorerBagContent>>,
-    ) -> Option<Box<dyn Conversation<ExplorerBagContent> + Send + Sync>> {
-        match self
-            .state
-            .to_explorer_struct
-            .to_explorer(OrchestratorToExplorer::NeighborsResponse {
-                neighbors: self.state.neighbors,
-            }) {
-            Ok(()) => {
-                log_internal(
-                    LogTarget::Conversations,
-                    Channel::Debug,
-                    payload!(
-                        action : "Correctly sent its neighbors to Explorer, closing conversation",
-                        explorer_id : self.state.to_explorer_struct.explorer_id,
-                        conversation_id : self.id
-                    ),
-                );
-                None
-            }
-            Err(err) => {
-                let error = match err {
-                    ToExplorerError::SendingMessageFailure(id) => {
-                        CommonErrorTypes::MessageToExplorerFailed(id)
-                    }
-                    ToExplorerError::SenderNotFound(id) => {
-                        CommonErrorTypes::ExplorerSenderNotFound(id)
-                    }
-                };
-                let error_state = ErrorState::new(Box::new(error), self.id);
-                Some(Box::new(error_state)
-                    as Box<dyn Conversation<ExplorerBagContent> + Send + Sync>)
-            }
+/// [`ErrorState`] if the message failed to send or the explorer's sender is missing.
+fn send_neighbors_transition(
+    this: Box<NeighborsDiscoveryConversation<SendingNeighbors>>,
+) -> Option<Box<dyn Conversation + Send + Sync>> {
+    match this.state.to_explorer(
+        this.state.explorer_id,
+        OrchestratorToExplorer::NeighborsResponse {
+            neighbors: this.state.neighbors_list.clone(),
+        },
+    ) {
+        Ok(()) => {
+            log_internal(
+                LogTarget::Conversations,
+                Channel::Debug,
+                payload!(
+                    action : "Correctly sent its neighbors to Explorer, closing conversation",
+                    explorer_id : this.state.explorer_id,
+                    conversation_id : this.id
+                ),
+            );
+            None
         }
-    }
-
-    fn get_priority(&self) -> i32 {
-        3
-    }
-}
-
-impl NeighborsDiscoveryConversation<SendingNeighborsResponse> {
-    /// The constructor for [`NeighborsDiscoveryConversation`] in the [`SendingNeighborsResponse`] state
-    fn new(id: ID, state: SendingNeighborsResponse) -> Self {
-        Self {
-            id,
-            expected_message: None,
-            state,
+        Err(err) => {
+            let error_state = ErrorState::new(Box::new(err), this.id);
+            Some(Box::new(error_state) as Box<dyn Conversation + Send + Sync>)
         }
     }
 }
 
-// WAITING EXPLORER NEIGHBORS REQUEST IMPLEMENTATION
-impl Conversation<ExplorerBagContent>
-    for NeighborsDiscoveryConversation<WaitingExplorerNeighborsRequest>
-{
-    fn get_id(&self) -> ID {
-        self.id
-    }
+// --- WAITING NEIGHBORS REQUEST DEFINITION ---
 
-    fn get_entities_ids(&self) -> (Option<ID>, Option<ID>) {
-        (None, Some(self.state.to_explorer_struct.explorer_id))
-    }
+create_response_state!(
+    state: WaitingNeighborsRequest,
+    conv: NeighborsDiscoveryConversation,
+    priority: 3,
+    timeout: Some(get_explorer_timeout()),
+    expected_msg: ExplorerToOrchKind(ExplorerToOrchestratorKind::NeighborsRequest),
+    fields: {
+        explorer_id: ID,
+    },
+    entities_id_closure: |this: &NeighborsDiscoveryConversation<WaitingNeighborsRequest>| { (None, Some(this.state.explorer_id)) },
+    transition: wait_neighbors_req_transition,
+    methods_settings: {
 
-    fn get_expected_kind(&self) -> Option<PossibleExpectedKinds> {
-        self.expected_message.clone()
-    }
+    },
+);
 
-    /// Transition Function for [`WaitingExplorerNeighborsRequest`] state:
-    ///
-    /// Returns:
-    ///
-    /// [`NeighborsDiscoveryConversation<SendingNeighborsResponse>`] if the request is valid and neighbors are found.
-    ///
-    /// [`ErrorState`] if the planet ID is not found in the galaxy or a wrong message type is received.
-    fn transition(
-        self: Box<Self>,
-        msg_wrapped: Option<PossibleMessage<ExplorerBagContent>>,
-    ) -> Option<Box<dyn Conversation<ExplorerBagContent> + Send + Sync>> {
-        if let Some(PossibleMessage::ExplorerToOrch(ExplorerToOrchestrator::NeighborsRequest {
-            explorer_id: _explorer_id,
-            current_planet_id,
-        })) = msg_wrapped
-        {
-            return match self.get_neighbors(current_planet_id) {
-                Ok(neighbors) => {
-                    let state_struct =
-                        SendingNeighborsResponse::new(self.state.to_explorer_struct, neighbors);
-                    let next_state =
-                        NeighborsDiscoveryConversation::<SendingNeighborsResponse>::new(
-                            self.id,
-                            state_struct,
-                        );
-                    Some(Box::new(next_state))
-                }
-                Err(err) => {
-                    let error_struct = ErrorState::new(err, self.id);
-                    Some(Box::new(error_struct)
-                        as Box<dyn Conversation<ExplorerBagContent> + Send + Sync>)
-                }
-            };
-        }
-
-        //Wrong Message, close conversation
-        let error_state = ErrorState::new(Box::new(CommonErrorTypes::WrongMessage), self.id);
-        Some(Box::new(error_state) as Box<dyn Conversation<ExplorerBagContent> + Send + Sync>)
-    }
-
-    fn get_priority(&self) -> i32 {
-        3
-    }
-
-    // Longer timeout, since it involves a communication with an Explorer
-    fn get_timeout(&self) -> Option<Duration> {
-        Some(get_explorer_timeout())
-    }
-}
-
-impl NeighborsDiscoveryConversation<WaitingExplorerNeighborsRequest> {
-    /// The constructor for [`NeighborsDiscoveryConversation`] in the [`WaitingExplorerNeighborsRequest`] state
-    pub(crate) fn new(id: ID, state: WaitingExplorerNeighborsRequest) -> Self {
-        Self {
-            id,
-            expected_message: Some(ExplorerToOrchKind(
-                ExplorerToOrchestratorKind::NeighborsRequest,
-            )),
-            state,
-        }
-    }
-
+impl WaitingNeighborsRequest {
     /// Helper function to access the galaxy map and retrieve the neighbors of a specific planet.
     fn get_neighbors(
         &self,
         curr_planet_id: ID,
     ) -> Result<Vec<ID>, Box<dyn ErrorType + Send + Sync>> {
-        if let Some(curr_planet_ref) = self.state.galaxy.read().unwrap().get(&curr_planet_id) {
+        let galaxy = self.orch_context.galaxy.clone();
+
+        if let Some(curr_planet_ref) = galaxy.read().unwrap().get(&curr_planet_id) {
             let neighbors = curr_planet_ref.neighbors_snapshot();
             Ok(neighbors)
         } else {
@@ -254,94 +125,120 @@ impl NeighborsDiscoveryConversation<WaitingExplorerNeighborsRequest> {
     }
 }
 
+/// Transition Function for [`WaitingExplorerNeighborsRequest`] state:
+///
+/// Returns:
+///
+/// [`NeighborsDiscoveryConversation<SendingNeighborsResponse>`] if the request is valid and neighbors are found.
+///
+/// [`ErrorState`] if the planet ID is not found in the galaxy or a wrong message type is received.
+fn wait_neighbors_req_transition(
+    this: Box<NeighborsDiscoveryConversation<WaitingNeighborsRequest>>,
+    msg: Option<PossibleMessage>,
+) -> Option<Box<dyn Conversation + Send + Sync>> {
+    if let Some(PossibleMessage::ExplorerToOrch(ExplorerToOrchestrator::NeighborsRequest {
+        explorer_id: _explorer_id,
+        current_planet_id,
+    })) = msg
+    {
+        return match this.state.get_neighbors(current_planet_id) {
+            Ok(neighbors) => {
+                let state_struct = SendingNeighbors::new(
+                    this.state.orch_context,
+                    this.state.explorer_id,
+                    neighbors,
+                );
+                let next_state =
+                    NeighborsDiscoveryConversation::<SendingNeighbors>::new(this.id, state_struct);
+                Some(Box::new(next_state))
+            }
+
+            Err(err) => {
+                let error_struct = ErrorState::new(err, this.id);
+                Some(Box::new(error_struct) as Box<dyn Conversation + Send + Sync>)
+            }
+        };
+    }
+
+    //Wrong Message, return error state
+    let error_state = ErrorState::new(Box::new(CommonErrorTypes::WrongMessage), this.id);
+    Some(Box::new(error_state) as Box<dyn Conversation + Send + Sync>)
+}
+
 #[cfg(test)]
 mod tests {
-    use crate::galaxy_setup::galaxy_loader;
-
     use super::*;
+    use crate::orchestrator::conversations::orch_explorer::test_utils::{
+        add_broken_explorer_sender, add_working_explorer_sender, make_test_context,
+    };
+    use crate::planet::{PlanetMap, add_planet_with_neighbors};
+    use std::collections::HashMap;
+    use std::sync::{Arc, RwLock};
+
     use crate::ui::{OrchestratorToUiUpdate, UiToOrchestratorCommand};
     use crossbeam_channel::unbounded;
-    use std::collections::HashMap;
-    use std::sync::{Arc, Mutex};
 
-    const CONV_ID: u32 = 1;
-    const EXPLORER_ID: u32 = 2;
-    const INIT_PATH: &str = "test_galaxy.txt";
+    const CONV_ID: ID = 1;
+    const EXPLORER_ID: ID = 2;
+    const PLANET_ID: ID = 10;
+    const NEIGHBOR_ID: ID = 11;
 
-    type ExplorerSenders =
-        Arc<Mutex<HashMap<ID, crossbeam_channel::Sender<OrchestratorToExplorer>>>>;
-
-    struct MakeSendersResult(
-        ExplorerSenders,
-        crossbeam_channel::Receiver<OrchestratorToExplorer>,
-    );
-
-    // --- Helper functions ---
-    fn make_senders_with(explorer_id: ID) -> MakeSendersResult {
-        let (tx, rx) = unbounded::<OrchestratorToExplorer>();
-        MakeSendersResult(Arc::new(Mutex::new(HashMap::from([(explorer_id, tx)]))), rx)
+    fn make_galaxy() -> PlanetMap {
+        let galaxy: PlanetMap = Arc::new(RwLock::new(HashMap::new()));
+        add_planet_with_neighbors(&galaxy, PLANET_ID, [NEIGHBOR_ID]);
+        galaxy
     }
 
-    fn make_empty_senders() -> ExplorerSenders {
-        Arc::new(Mutex::new(HashMap::new()))
-    }
-
-    fn make_to_explorer_struct(explorer_id: ID, senders: ExplorerSenders) -> ToExplorerStruct {
-        ToExplorerStruct {
-            explorer_id,
-            explorers_senders: senders,
-        }
-    }
-
-    #[allow(clippy::unnecessary_box_returns)]
     fn make_wait_conv(
-        senders: ExplorerSenders,
-        file_path: &str,
-    ) -> Box<NeighborsDiscoveryConversation<WaitingExplorerNeighborsRequest>> {
-        let to_explorer_struct = make_to_explorer_struct(EXPLORER_ID, senders);
-        let (to_ui_tx, _to_ui_rx) = unbounded::<OrchestratorToUiUpdate>();
-        let (_from_ui_tx, from_ui_rx) = unbounded::<UiToOrchestratorCommand>();
-        let (galaxy, _join_handles) = galaxy_loader(
-            std::path::Path::new(file_path),
-            &crate::orchestrator::ChannelsManager::new(to_ui_tx, from_ui_rx),
-        );
-        let state = WaitingExplorerNeighborsRequest::new(to_explorer_struct, galaxy);
-        Box::new(NeighborsDiscoveryConversation::<
-            WaitingExplorerNeighborsRequest,
-        >::new(CONV_ID, state))
+        orch_context: OrchContextRef,
+    ) -> Box<NeighborsDiscoveryConversation<WaitingNeighborsRequest>> {
+        let state = WaitingNeighborsRequest::new(orch_context, EXPLORER_ID);
+        Box::new(NeighborsDiscoveryConversation::<WaitingNeighborsRequest>::new(CONV_ID, state))
     }
 
-    #[allow(clippy::unnecessary_box_returns)]
     fn make_send_conv(
-        senders: ExplorerSenders,
+        orch_context: OrchContextRef,
         neighbors: Vec<ID>,
-    ) -> Box<NeighborsDiscoveryConversation<SendingNeighborsResponse>> {
-        let to_explorer_struct = make_to_explorer_struct(EXPLORER_ID, senders);
-        let state = SendingNeighborsResponse::new(to_explorer_struct, neighbors);
-        Box::new(NeighborsDiscoveryConversation::<SendingNeighborsResponse>::new(CONV_ID, state))
+    ) -> Box<NeighborsDiscoveryConversation<SendingNeighbors>> {
+        let state = SendingNeighbors::new(orch_context, EXPLORER_ID, neighbors);
+        Box::new(NeighborsDiscoveryConversation::<SendingNeighbors>::new(
+            CONV_ID, state,
+        ))
     }
 
     // --- Tests ---
 
     #[test]
     fn wait_correct_transition() {
-        let MakeSendersResult(senders, _rx) = make_senders_with(EXPLORER_ID);
-        let conv = make_wait_conv(senders, INIT_PATH);
+        let galaxy = make_galaxy();
+
+        let (ui_tx, _ui_rx) = unbounded::<OrchestratorToUiUpdate>();
+        let (_ui_cmd_tx, ui_cmd_rx) = unbounded::<UiToOrchestratorCommand>();
+
+        let test_ctx = make_test_context(Some(galaxy), None, ui_tx, ui_cmd_rx);
+
+        let conv = make_wait_conv(test_ctx.clone());
         let msg = PossibleMessage::ExplorerToOrch(ExplorerToOrchestrator::NeighborsRequest {
             explorer_id: EXPLORER_ID,
-            current_planet_id: 49_153, // Valid planet ID from galaxy.json
+            current_planet_id: PLANET_ID,
         });
+
         let next_conv = conv
             .transition(Some(msg))
-            .expect("Should transition to SendingNeighborsResponse state");
+            .expect("Should transition to SendingNeighbors state");
         assert_eq!(next_conv.get_expected_kind(), None);
         assert_eq!(next_conv.get_id(), CONV_ID);
     }
 
     #[test]
     fn wait_wrong_message() {
-        let explorer_senders = make_empty_senders();
-        let conv = make_wait_conv(explorer_senders, INIT_PATH);
+        let galaxy = make_galaxy();
+
+        let (ui_tx, _ui_rx) = unbounded::<OrchestratorToUiUpdate>();
+        let (_ui_cmd_tx, ui_cmd_rx) = unbounded::<UiToOrchestratorCommand>();
+        let test_ctx = make_test_context(Some(galaxy), None, ui_tx, ui_cmd_rx);
+
+        let conv = make_wait_conv(test_ctx.clone());
         let wrong_msg =
             PossibleMessage::ExplorerToOrch(ExplorerToOrchestrator::StartExplorerAIResult {
                 explorer_id: EXPLORER_ID,
@@ -358,8 +255,11 @@ mod tests {
 
     #[test]
     fn wait_getters() {
-        let explorer_senders = make_empty_senders();
-        let conv = make_wait_conv(explorer_senders, INIT_PATH);
+        let galaxy = make_galaxy();
+        let (ui_tx, _ui_rx) = unbounded::<OrchestratorToUiUpdate>();
+        let (_ui_cmd_tx, ui_cmd_rx) = unbounded::<UiToOrchestratorCommand>();
+        let test_ctx = make_test_context(Some(galaxy), None, ui_tx, ui_cmd_rx);
+        let conv = make_wait_conv(test_ctx.clone());
         assert_eq!(conv.get_id(), CONV_ID);
         assert_eq!(conv.get_entities_ids(), (None, Some(EXPLORER_ID)));
         assert_eq!(
@@ -373,9 +273,12 @@ mod tests {
 
     #[test]
     fn wait_planet_not_found_error() {
-        let MakeSendersResult(senders, _rx) = make_senders_with(EXPLORER_ID);
-        let conv = make_wait_conv(senders, INIT_PATH);
-        // Use a planet ID that does not exist in galaxy.txt
+        let galaxy = make_galaxy();
+        let (ui_tx, _ui_rx) = unbounded::<OrchestratorToUiUpdate>();
+        let (_ui_cmd_tx, ui_cmd_rx) = unbounded::<UiToOrchestratorCommand>();
+        let test_ctx = make_test_context(Some(galaxy), None, ui_tx, ui_cmd_rx);
+        let conv = make_wait_conv(test_ctx.clone());
+        // Use a planet ID that does not exist in our test galaxy
         let invalid_planet_id = 9_999_999;
         let msg = PossibleMessage::ExplorerToOrch(ExplorerToOrchestrator::NeighborsRequest {
             explorer_id: EXPLORER_ID,
@@ -395,8 +298,11 @@ mod tests {
 
     #[test]
     fn send_success() {
-        let MakeSendersResult(senders, _rx) = make_senders_with(EXPLORER_ID);
-        let conv = make_send_conv(senders, vec![10, 20, 30]);
+        let (ui_tx, _ui_rx) = unbounded::<OrchestratorToUiUpdate>();
+        let (_ui_cmd_tx, ui_cmd_rx) = unbounded::<UiToOrchestratorCommand>();
+        let test_ctx = make_test_context(None, None, ui_tx, ui_cmd_rx);
+        let _rx = add_working_explorer_sender(test_ctx.channels_manager.as_ref(), EXPLORER_ID);
+        let conv = make_send_conv(test_ctx.clone(), vec![10, 20, 30]);
         let result = conv.transition(None);
         assert!(
             result.is_none(),
@@ -406,8 +312,10 @@ mod tests {
 
     #[test]
     fn send_missing_sender() {
-        let senders = make_empty_senders();
-        let conv = make_send_conv(senders, vec![10, 20, 30]);
+        let (ui_tx, _ui_rx) = unbounded::<OrchestratorToUiUpdate>();
+        let (_ui_cmd_tx, ui_cmd_rx) = unbounded::<UiToOrchestratorCommand>();
+        let test_ctx = make_test_context(None, None, ui_tx, ui_cmd_rx);
+        let conv = make_send_conv(test_ctx.clone(), vec![10, 20, 30]);
         let next_conv = conv.transition(None).expect("Should return an ErrorState");
         assert!(next_conv.get_expected_kind().is_none());
         assert_eq!(next_conv.get_id(), CONV_ID);
@@ -419,10 +327,11 @@ mod tests {
 
     #[test]
     fn send_message_failure() {
-        let (tx, rx) = unbounded::<OrchestratorToExplorer>();
-        drop(rx);
-        let senders = Arc::new(Mutex::new(HashMap::from([(EXPLORER_ID, tx)])));
-        let conv = make_send_conv(senders, vec![10, 20, 30]);
+        let (ui_tx, _ui_rx) = unbounded::<OrchestratorToUiUpdate>();
+        let (_ui_cmd_tx, ui_cmd_rx) = unbounded::<UiToOrchestratorCommand>();
+        let test_ctx = make_test_context(None, None, ui_tx, ui_cmd_rx);
+        add_broken_explorer_sender(test_ctx.channels_manager.as_ref(), EXPLORER_ID);
+        let conv = make_send_conv(test_ctx.clone(), vec![10, 20, 30]);
         let next_conv = conv.transition(None).expect("Should return an ErrorState");
         let error_msg = next_conv
             .get_error_details()
@@ -435,10 +344,11 @@ mod tests {
 
     #[test]
     fn send_getters() {
-        let MakeSendersResult(senders, _rx) = make_senders_with(EXPLORER_ID);
-        let to_explorer = make_to_explorer_struct(EXPLORER_ID, senders);
-        let state = SendingNeighborsResponse::new(to_explorer, vec![10, 20, 30]);
-        let conv = NeighborsDiscoveryConversation::<SendingNeighborsResponse>::new(CONV_ID, state);
+        let (ui_tx, _ui_rx) = unbounded::<OrchestratorToUiUpdate>();
+        let (_ui_cmd_tx, ui_cmd_rx) = unbounded::<UiToOrchestratorCommand>();
+        let test_ctx = make_test_context(None, None, ui_tx, ui_cmd_rx);
+        let _rx = add_working_explorer_sender(test_ctx.channels_manager.as_ref(), EXPLORER_ID);
+        let conv = make_send_conv(test_ctx.clone(), vec![10, 20, 30]);
         assert_eq!(conv.get_id(), CONV_ID);
         assert_eq!(conv.get_entities_ids(), (None, Some(EXPLORER_ID)));
         assert_eq!(conv.get_expected_kind(), None);

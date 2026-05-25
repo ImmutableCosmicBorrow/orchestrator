@@ -1,250 +1,166 @@
+use crate::globals::TIMEOUT;
 use crate::logging::{LogTarget, log_internal};
-use crate::orchestrator::ExplorerBagContent;
+use crate::orchestrator::Duration;
+use crate::orchestrator::conversations::EntitiesIDTuple;
 use crate::orchestrator::conversations::PossibleExpectedKinds::PlanetToOrchKind;
 use crate::orchestrator::conversations::{
-    CommonErrorTypes, Conversation, ErrorState, PossibleExpectedKinds, PossibleMessage,
-    ToPlanetError, ToPlanetStruct,
+    ChannelsContext, CommonErrorTypes, Conversation, ErrorState, PlanetCommunicator,
+    PossibleExpectedKinds, PossibleMessage,
 };
-use crate::payload;
+use crate::orchestrator::{ChannelsManagerRef, OrchContextRef};
+use crate::{create_request_state, create_response_state, define_conversation, payload};
 use common_game::logging::Channel;
 use common_game::protocols::orchestrator_planet::{
     OrchestratorToPlanet, PlanetToOrchestrator, PlanetToOrchestratorKind,
 };
 use common_game::utils::ID;
 
-///**Stop Planet Conversation**
+// **Stop Planet Conversation**
+//
+// This module manages the conversation between the Orchestrator and a Planet regarding the stopping of its AI.
+// It uses a Finite State Machine (FSM) to ensure that requests and responses are handled in the correct
+// order at compile time.
+//
+// The conversation flow starts by sending a stop request and terminates once the planet
+// confirms the AI has successfully stopped.
+// Marker struct for FSM state
+//
+// In the [`WaitingPlanetStopResult`] state, the conversation expects a
+// [`PlanetToOrchestrator::StopPlanetAIResult`] message to confirm the planet has successfully halted its AI processes.
+// --- STOP PLANET CONVERSATION ---
+
+define_conversation!(
+    name: StopPlanetConversation
+);
+
+// --- SENDING PLANET START STATE DEFINITION ---
+
+create_request_state!(
+    state_name: SendingPlanetStop,
+    conv_name: StopPlanetConversation,
+    priority: 5,
+    timeout: Some(TIMEOUT),
+    expected_msg: None,
+    fields: {
+        planet_id: ID,
+    },
+    entities_id_fn: |this: &StopPlanetConversation<SendingPlanetStop>| { (Some(this.state.planet_id), None) },
+    transition_fn: send_planet_stop_transition,
+    methods_settings: {
+
+    },
+);
+
+/// Transition Function for [`SendingPlanetStop`] state:
 ///
-/// This module manages the conversation between the Orchestrator and a Planet regarding the stopping of its AI.
-/// It uses a Finite State Machine (FSM) to ensure that requests and responses are handled in the correct
-/// order at compile time.
+/// Returns:
 ///
-/// The conversation flow starts by sending a stop request and terminates once the planet
-/// confirms the AI has successfully stopped.
-/// Marker struct for FSM state
+/// [`ErrorState`] with [`CommonErrorTypes::MessageToPlanetFailed`] if the message has not been correctly sent to the planet
 ///
-/// In the [`WaitingPlanetStopResult`] state, the conversation expects a
-/// [`PlanetToOrchestrator::StopPlanetAIResult`] message to confirm the planet has successfully halted its AI processes.
-struct WaitingPlanetStopResult {
-    /// ID of the planet we are stopping
-    planet_id: ID,
-}
-
-impl WaitingPlanetStopResult {
-    /// The constructor for [`WaitingPlanetStopResult`] state struct
-    fn new(planet_id: ID) -> Self {
-        Self { planet_id }
-    }
-}
-
-/// Marker struct for FSM state
+/// [`ErrorState`] with [`CommonErrorTypes::PlanetSenderNotFound`] if the sender to the planet is not in the list
 ///
-/// The conversation starts in the [`SendingPlanetStop`] state, which sends an
-/// [`OrchestratorToPlanet::StopPlanetAI`] when the [`Conversation::transition`] method is called.
-pub(crate) struct SendingPlanetStop {
-    /// A struct containing fields to send messages to the indicated planet
-    to_planet_struct: ToPlanetStruct,
-}
-
-impl SendingPlanetStop {
-    /// Constructor for [`SendingPlanetStop`] state struct
-    pub(crate) fn new(to_planet_struct: ToPlanetStruct) -> Self {
-        Self { to_planet_struct }
-    }
-}
-
-/// Stop Planet Conversation FSM
-///
-/// This is the generic FSM struct that takes the generic type `State` to ensure only methods
-/// of that specific state can be called during the conversation.
-pub(crate) struct StopPlanetConversation<State> {
-    /// Conversation ID
-    id: ID,
-    /// Optional expected message to trigger the conversation
-    expected_message: Option<PossibleExpectedKinds>,
-    /// State of the FSM
-    state: State,
-}
-
-// SENDING PLANET STOP IMPLEMENTATION
-impl Conversation<ExplorerBagContent> for StopPlanetConversation<SendingPlanetStop> {
-    fn get_id(&self) -> ID {
-        self.id
-    }
-
-    fn get_entities_ids(&self) -> (Option<ID>, Option<ID>) {
-        (Some(self.state.to_planet_struct.planet_id), None)
-    }
-
-    fn get_expected_kind(&self) -> Option<PossibleExpectedKinds> {
-        self.expected_message.clone()
-    }
-
-    /// Transition Function for [`SendingPlanetStop`] state:
-    ///
-    /// Returns:
-    ///
-    /// [`ErrorState`] with [`CommonErrorTypes::MessageToPlanetFailed`] if the message has not been correctly sent to the planet
-    ///
-    /// [`ErrorState`] with [`CommonErrorTypes::PlanetSenderNotFound`] if the sender to the planet is not in the list
-    ///
-    /// The next state: [`StopPlanetConversation<WaitingPlanetStopResult>`] if the stop command was sent successfully.
-    fn transition(
-        self: Box<Self>,
-        _msg_wrapped: Option<PossibleMessage<ExplorerBagContent>>,
-    ) -> Option<Box<dyn Conversation<ExplorerBagContent> + Send + Sync>> {
-        match self
-            .state
-            .to_planet_struct
-            .to_planet(OrchestratorToPlanet::StopPlanetAI)
-        {
-            Ok(()) => {
-                let planet_id = self.state.to_planet_struct.planet_id;
-                let next_state =
-                    StopPlanetConversation::<WaitingPlanetStopResult>::new(self.id, planet_id);
-                Some(Box::new(next_state))
-            }
-            Err(err) => {
-                let error = match err {
-                    ToPlanetError::SendingMessageFailure(id) => {
-                        CommonErrorTypes::MessageToPlanetFailed(id)
-                    }
-                    ToPlanetError::SenderNotFound(id) => CommonErrorTypes::PlanetSenderNotFound(id),
-                };
-                let error_state = ErrorState::new(Box::new(error), self.id);
-                Some(Box::new(error_state)
-                    as Box<dyn Conversation<ExplorerBagContent> + Send + Sync>)
-            }
+/// The next state: [`StopPlanetConversation<WaitingPlanetStopResult>`] if the stop command was sent successfully.
+fn send_planet_stop_transition(
+    this: Box<StopPlanetConversation<SendingPlanetStop>>,
+) -> Option<Box<dyn Conversation + Send + Sync>> {
+    match this
+        .state
+        .to_planet(this.state.planet_id, OrchestratorToPlanet::StopPlanetAI)
+    {
+        Ok(()) => {
+            let next_state =
+                WaitingPlanetStopResult::new(this.state.orch_context, this.state.planet_id);
+            let next_conv =
+                StopPlanetConversation::<WaitingPlanetStopResult>::new(this.id, next_state);
+            Some(Box::new(next_conv))
         }
-    }
-
-    fn get_priority(&self) -> i32 {
-        5
-    }
-}
-
-impl StopPlanetConversation<SendingPlanetStop> {
-    /// The constructor for [`StopPlanetConversation`] in the [`SendingPlanetStop`] state
-    pub(crate) fn new(id: ID, state: SendingPlanetStop) -> Self {
-        Self {
-            id,
-            expected_message: None,
-            state,
+        Err(err) => {
+            let error_state = ErrorState::new(Box::new(err), this.id);
+            Some(Box::new(error_state) as Box<dyn Conversation + Send + Sync>)
         }
     }
 }
 
-// WAITING RESULT IMPLEMENTATION
-impl Conversation<ExplorerBagContent> for StopPlanetConversation<WaitingPlanetStopResult> {
-    fn get_id(&self) -> ID {
-        self.id
+// --- WAIT START PLANET RESULT STATE DEFINITION ---
+
+create_response_state!(
+    state: WaitingPlanetStopResult,
+    conv: StopPlanetConversation,
+    priority: 5,
+    timeout: Some(TIMEOUT),
+    expected_msg: PlanetToOrchKind(PlanetToOrchestratorKind::StopPlanetAIResult),
+    fields: {
+        planet_id: ID
+    },
+    entities_id_closure: |this: &StopPlanetConversation<WaitingPlanetStopResult>| { (Some(this.state.planet_id), None) },
+    transition: wait_planet_stop_res_transition,
+    methods_settings: {
+
+    },
+);
+
+/// Transition Function for [`WaitingPlanetStopResult`] state:
+///
+/// Returns:
+///
+/// [None] if the stop result is successfully received and processed, closing the conversation.
+///
+/// [`ErrorState`] with [`CommonErrorTypes::WrongMessage`] if the trigger message is different from the expected one [`PlanetToOrchestrator::StopPlanetAIResult`]
+fn wait_planet_stop_res_transition(
+    this: Box<StopPlanetConversation<WaitingPlanetStopResult>>,
+    msg: Option<PossibleMessage>,
+) -> Option<Box<dyn Conversation + Send + Sync>> {
+    if let Some(PossibleMessage::PlanetToOrch(PlanetToOrchestrator::StopPlanetAIResult {
+        planet_id,
+    })) = msg
+    {
+        log_internal(
+            LogTarget::Conversations,
+            Channel::Info,
+            payload!(
+                action : "Stopped Planet, closing conversation",
+                planet_id : planet_id,
+                conversation_id : this.id
+            ),
+        );
+        return None;
     }
 
-    fn get_entities_ids(&self) -> (Option<ID>, Option<ID>) {
-        (Some(self.state.planet_id), None)
-    }
-
-    fn get_expected_kind(&self) -> Option<PossibleExpectedKinds> {
-        self.expected_message.clone()
-    }
-
-    /// Transition Function for [`WaitingPlanetStopResult`] state:
-    ///
-    /// Returns:
-    ///
-    /// [None] if the stop result is successfully received and processed, closing the conversation.
-    ///
-    /// [`ErrorState`] with [`CommonErrorTypes::WrongMessage`] if the trigger message is different from the expected one [`PlanetToOrchestrator::StopPlanetAIResult`]
-    fn transition(
-        self: Box<Self>,
-        msg_wrapped: Option<PossibleMessage<ExplorerBagContent>>,
-    ) -> Option<Box<dyn Conversation<ExplorerBagContent> + Send + Sync>> {
-        if let Some(PossibleMessage::PlanetToOrch(PlanetToOrchestrator::StopPlanetAIResult {
-            planet_id,
-        })) = msg_wrapped
-        {
-            log_internal(
-                LogTarget::Conversations,
-                Channel::Info,
-                payload!(
-                    action : "Stopped Planet, closing conversation",
-                    planet_id : planet_id,
-                    conversation_id : self.id
-                ),
-            );
-            return None;
-        }
-
-        //Wrong Message, close conversation
-        let error_state = ErrorState::new(Box::new(CommonErrorTypes::WrongMessage), self.id);
-        Some(Box::new(error_state) as Box<dyn Conversation<ExplorerBagContent> + Send + Sync>)
-    }
-
-    fn get_priority(&self) -> i32 {
-        5
-    }
-}
-
-impl StopPlanetConversation<WaitingPlanetStopResult> {
-    /// The constructor for [`StopPlanetConversation`] in the [`WaitingPlanetStopResult`] state
-    fn new(id: ID, planet_id: ID) -> Self {
-        Self {
-            id,
-            expected_message: Some(PlanetToOrchKind(
-                PlanetToOrchestratorKind::StopPlanetAIResult,
-            )),
-            state: WaitingPlanetStopResult::new(planet_id),
-        }
-    }
+    //Wrong Message, close conversation
+    let error_state = ErrorState::new(Box::new(CommonErrorTypes::WrongMessage), this.id);
+    Some(Box::new(error_state) as Box<dyn Conversation + Send + Sync>)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::orchestrator::conversations::orch_planet::test_utils::{
+        add_broken_planet_sender, add_working_planet_sender, make_test_context,
+    };
+    use crate::ui::{OrchestratorToUiUpdate, UiToOrchestratorCommand};
     use common_game::protocols::orchestrator_planet::PlanetToOrchestratorKind;
     use crossbeam_channel::unbounded;
-    use std::collections::HashMap;
-    use std::sync::{Arc, Mutex};
 
     const CONV_ID: ID = 100;
     const PLANET_ID: ID = 200;
 
-    type PlanetSenders = Arc<Mutex<HashMap<ID, crossbeam_channel::Sender<OrchestratorToPlanet>>>>;
-
-    struct MakeSendersResult(
-        PlanetSenders,
-        crossbeam_channel::Receiver<OrchestratorToPlanet>,
-    );
-
     // --- Helper functions ---
-    fn make_senders_with(planet_id: ID) -> MakeSendersResult {
-        let (tx, rx) = unbounded::<OrchestratorToPlanet>();
-        MakeSendersResult(Arc::new(Mutex::new(HashMap::from([(planet_id, tx)]))), rx)
-    }
 
-    fn make_empty_senders() -> PlanetSenders {
-        Arc::new(Mutex::new(HashMap::new()))
-    }
-
-    fn make_to_planet_struct(planet_id: ID, senders: PlanetSenders) -> ToPlanetStruct {
-        ToPlanetStruct {
-            planet_id,
-            planets_senders: senders,
-        }
-    }
-
-    #[allow(clippy::unnecessary_box_returns)]
-    fn make_send_conv(senders: PlanetSenders) -> Box<StopPlanetConversation<SendingPlanetStop>> {
-        let to_planet = make_to_planet_struct(PLANET_ID, senders);
-        let state = SendingPlanetStop::new(to_planet);
+    fn make_send_conv(
+        orch_context: OrchContextRef,
+    ) -> Box<StopPlanetConversation<SendingPlanetStop>> {
+        let state = SendingPlanetStop::new(orch_context, PLANET_ID);
         Box::new(StopPlanetConversation::<SendingPlanetStop>::new(
             CONV_ID, state,
         ))
     }
 
-    #[allow(clippy::unnecessary_box_returns)]
-    fn make_wait_conv() -> Box<StopPlanetConversation<WaitingPlanetStopResult>> {
+    fn make_wait_conv(
+        orch_context: OrchContextRef,
+    ) -> Box<StopPlanetConversation<WaitingPlanetStopResult>> {
+        let state = WaitingPlanetStopResult::new(orch_context, PLANET_ID);
         Box::new(StopPlanetConversation::<WaitingPlanetStopResult>::new(
-            CONV_ID, PLANET_ID,
+            CONV_ID, state,
         ))
     }
 
@@ -252,8 +168,11 @@ mod tests {
 
     #[test]
     fn send_success() {
-        let MakeSendersResult(senders, _rx) = make_senders_with(PLANET_ID);
-        let conv = make_send_conv(senders);
+        let (ui_tx, _ui_rx) = unbounded::<OrchestratorToUiUpdate>();
+        let (_ui_cmd_tx, ui_cmd_rx) = unbounded::<UiToOrchestratorCommand>();
+        let test_ctx = make_test_context(None, None, ui_tx, ui_cmd_rx);
+        let _rx = add_working_planet_sender(test_ctx.channels_manager.as_ref(), PLANET_ID);
+        let conv = make_send_conv(test_ctx.clone());
         let next_conv = conv
             .transition(None)
             .expect("Should transition to WaitingPlanetStopResult");
@@ -269,8 +188,10 @@ mod tests {
 
     #[test]
     fn send_missing_sender() {
-        let senders = make_empty_senders();
-        let conv = make_send_conv(senders);
+        let (ui_tx, _ui_rx) = unbounded::<OrchestratorToUiUpdate>();
+        let (_ui_cmd_tx, ui_cmd_rx) = unbounded::<UiToOrchestratorCommand>();
+        let test_ctx = make_test_context(None, None, ui_tx, ui_cmd_rx);
+        let conv = make_send_conv(test_ctx.clone());
         let next_conv = conv.transition(None).expect("Should return an ErrorState");
         assert!(next_conv.get_expected_kind().is_none());
         assert_eq!(
@@ -281,10 +202,11 @@ mod tests {
 
     #[test]
     fn send_message_failure() {
-        let (tx, rx) = unbounded::<OrchestratorToPlanet>();
-        drop(rx);
-        let senders = Arc::new(Mutex::new(HashMap::from([(PLANET_ID, tx)])));
-        let conv = make_send_conv(senders);
+        let (ui_tx, _ui_rx) = unbounded::<OrchestratorToUiUpdate>();
+        let (_ui_cmd_tx, ui_cmd_rx) = unbounded::<UiToOrchestratorCommand>();
+        let test_ctx = make_test_context(None, None, ui_tx, ui_cmd_rx);
+        add_broken_planet_sender(test_ctx.channels_manager.as_ref(), PLANET_ID);
+        let conv = make_send_conv(test_ctx.clone());
         let next_conv = conv.transition(None).expect("Should return an ErrorState");
         let error_msg = next_conv
             .get_error_details()
@@ -297,10 +219,10 @@ mod tests {
 
     #[test]
     fn send_getters() {
-        let MakeSendersResult(senders, _rx) = make_senders_with(PLANET_ID);
-        let to_planet = make_to_planet_struct(PLANET_ID, senders);
-        let state = SendingPlanetStop::new(to_planet);
-        let conv = StopPlanetConversation::<SendingPlanetStop>::new(CONV_ID, state);
+        let (ui_tx, _ui_rx) = unbounded::<OrchestratorToUiUpdate>();
+        let (_ui_cmd_tx, ui_cmd_rx) = unbounded::<UiToOrchestratorCommand>();
+        let test_ctx = make_test_context(None, None, ui_tx, ui_cmd_rx);
+        let conv = make_send_conv(test_ctx.clone());
         assert_eq!(conv.get_id(), CONV_ID);
         assert_eq!(conv.get_entities_ids(), (Some(PLANET_ID), None));
         assert_eq!(conv.get_expected_kind(), None);
@@ -309,7 +231,10 @@ mod tests {
 
     #[test]
     fn wait_correct_message() {
-        let conv = make_wait_conv();
+        let (ui_tx, _ui_rx) = unbounded::<OrchestratorToUiUpdate>();
+        let (_ui_cmd_tx, ui_cmd_rx) = unbounded::<UiToOrchestratorCommand>();
+        let test_ctx = make_test_context(None, None, ui_tx, ui_cmd_rx);
+        let conv = make_wait_conv(test_ctx.clone());
         let msg = PossibleMessage::PlanetToOrch(PlanetToOrchestrator::StopPlanetAIResult {
             planet_id: PLANET_ID,
         });
@@ -322,7 +247,10 @@ mod tests {
 
     #[test]
     fn wait_wrong_message() {
-        let conv = make_wait_conv();
+        let (ui_tx, _ui_rx) = unbounded::<OrchestratorToUiUpdate>();
+        let (_ui_cmd_tx, ui_cmd_rx) = unbounded::<UiToOrchestratorCommand>();
+        let test_ctx = make_test_context(None, None, ui_tx, ui_cmd_rx);
+        let conv = make_wait_conv(test_ctx.clone());
         let wrong_msg = PossibleMessage::PlanetToOrch(PlanetToOrchestrator::StartPlanetAIResult {
             planet_id: PLANET_ID,
         });
@@ -338,7 +266,10 @@ mod tests {
 
     #[test]
     fn wait_getters() {
-        let conv = StopPlanetConversation::<WaitingPlanetStopResult>::new(CONV_ID, PLANET_ID);
+        let (ui_tx, _ui_rx) = unbounded::<OrchestratorToUiUpdate>();
+        let (_ui_cmd_tx, ui_cmd_rx) = unbounded::<UiToOrchestratorCommand>();
+        let test_ctx = make_test_context(None, None, ui_tx, ui_cmd_rx);
+        let conv = make_wait_conv(test_ctx.clone());
         assert_eq!(conv.get_id(), CONV_ID);
         assert_eq!(conv.get_entities_ids(), (Some(PLANET_ID), None));
         assert_eq!(
