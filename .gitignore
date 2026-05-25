@@ -4,3 +4,4 @@
 .idea
 .vscode
 .orchestrator_cli_history
+Cargo.lock
