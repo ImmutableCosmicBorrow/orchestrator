@@ -37,7 +37,6 @@ define_conversation!(
 // --- SEND SUPPORTED RESOURCES REQUEST DEFINITION ---
 create_request_state!(
     state_name: SendingSupportedResourcesRequest,
-    conv_name: SupportedResourcesConversation,
     convo_kind: ConvoKind::SupportedResources,
     timeout: Some(TIMEOUT),
     expected_msg: None,
@@ -90,7 +89,6 @@ fn send_supp_resources_req_transition(
 
 create_response_state!(
     state: WaitingSupportedResourcesResult,
-    conv: SupportedResourcesConversation,
     convo_kind: ConvoKind::SupportedResources,
     timeout: Some(get_explorer_timeout().mul(2)),
     expected_msg: ExplorerToOrchKind(ExplorerToOrchestratorKind::SupportedResourceResult),

@@ -28,6 +28,17 @@ pub(crate) mod orch_planet;
 pub(crate) mod params;
 pub(crate) mod util;
 
+pub(crate) struct ConversationWrapper<State> {
+    pub(crate) id: ID,
+    pub(crate) state: State,
+}
+
+impl<State: Send + Sync> ConversationWrapper<State> {
+    pub fn new(id: ID, state: State) -> Self {
+        Self { id, state }
+    }
+}
+
 ///**The Conversation Trait**
 ///
 /// This is the foundation of the FSM system. Every state in a conversation must implement this trait.

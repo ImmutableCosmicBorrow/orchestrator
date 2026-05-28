@@ -51,7 +51,7 @@ pub(crate) fn sunray_ack_timeout() -> Duration {
 ///
 /// Examples:
 /// - Planet `Kill/Start/Stop` -> `High`/`Max` (prevents inconsistent world state)
-/// - Explorer `MoveExplorerHigh` -> `High` (player-visible movement)
+/// - Explorer `MoveExplorerDispatch` -> `High` (player-visible movement)
 /// - `RequestState`/`ResponseState` -> `Medium` (important but not urgent)
 /// - `Sunray` gameplay events -> `Medium` (gameplay-relevant but not lifecycle-critical)
 ///
@@ -93,8 +93,8 @@ pub(crate) enum ConvoKind {
 
     OutgoingExplorer,
     IncomingExplorer,
-    MoveExplorerHigh,
-    MoveExplorerLow,
+    MoveExplorerDispatch,
+    MoveExplorerFinalize,
     ManualMoveToPlanet,
     WaitTravelRequest,
     NeighborsDiscovery,
@@ -132,15 +132,15 @@ impl ConvoKind {
                 PriorityLevel::Max
             }
 
-            // Explorer lifecycle: critical for start/kill/stop (Max), reset is medium
+            // Explorer lifecycle: critical for start/kill/stop (Max), reset is high since it can leave the explorer in an inconsistent state if delayed
             ConvoKind::KillExplorer | ConvoKind::StartExplorer | ConvoKind::StopExplorer => {
                 PriorityLevel::Max
             }
             ConvoKind::ResetExplorer => PriorityLevel::High,
 
             // Movement / explorer flow
-            ConvoKind::MoveExplorerHigh => PriorityLevel::High,
-            ConvoKind::MoveExplorerLow
+            ConvoKind::MoveExplorerDispatch => PriorityLevel::High,
+            ConvoKind::MoveExplorerFinalize
             | ConvoKind::OutgoingExplorer
             | ConvoKind::IncomingExplorer
             | ConvoKind::ManualMoveToPlanet
@@ -148,12 +148,12 @@ impl ConvoKind {
 
             ConvoKind::NeighborsDiscovery => PriorityLevel::Medium,
 
-            // Resource scenarios treated as medium
-            ConvoKind::BagContentScenario
-            | ConvoKind::CombineResource
+            // Resource scenarios treated as medium, bag content scenario is low since it's more of a internal state check for the UI
+            ConvoKind::CombineResource
             | ConvoKind::CraftResource
             | ConvoKind::SupportedCombination
             | ConvoKind::SupportedResources => PriorityLevel::Medium,
+            ConvoKind::BagContentScenario => PriorityLevel::Low,
 
             // Galaxy/planet events: significant but not lifecycle-critical
             ConvoKind::AdvDeadExplorer | ConvoKind::Asteroid => PriorityLevel::High,

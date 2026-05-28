@@ -37,7 +37,6 @@ define_conversation!(
 // --- SEND SUPPORTED COMBINATION REQUEST DEFINITION ---
 create_request_state!(
     state_name: SendingSupportedCombinationRequest,
-    conv_name: SupportedCombinationConversation,
     convo_kind: ConvoKind::SupportedCombination,
     timeout: Some(TIMEOUT),
     expected_msg: None,
@@ -91,7 +90,6 @@ fn send_supp_comb_req_transition(
 
 create_response_state!(
     state: WaitingSupportedCombinationResult,
-    conv: SupportedCombinationConversation,
     convo_kind: ConvoKind::SupportedCombination,
     timeout: Some(get_explorer_timeout().mul(2)),
     expected_msg: ExplorerToOrchKind(ExplorerToOrchestratorKind::SupportedCombinationResult),

@@ -23,7 +23,6 @@ use crate::orchestrator::conversations::orch_explorer::movement::move_to_planet:
 // --- SEND MANUAL MOVE REQUEST DEFINITION ---
 create_request_state!(
     state_name: SendManualMoveRequest,
-    conv_name: MoveToPlanetConversation,
     convo_kind: ConvoKind::ManualMoveToPlanet,
     timeout: Some(TIMEOUT),
     expected_msg: None,

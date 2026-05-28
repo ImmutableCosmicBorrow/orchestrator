@@ -44,7 +44,6 @@ define_conversation!(
 
 create_request_state!(
     state_name: SendingInternalStateRequest,
-    conv_name: InternalStateConversation,
     convo_kind: ConvoKind::InternalState,
     timeout: Some(TIMEOUT),
     expected_msg: None,
@@ -83,7 +82,6 @@ fn send_internal_state_req_transition(
 
 create_response_state!(
     state: WaitingInternalStateResponse,
-    conv: InternalStateConversation,
     convo_kind: ConvoKind::InternalState,
     timeout: Some(TIMEOUT),
     expected_msg: PlanetToOrchKind(PlanetToOrchestratorKind::InternalStateResponse),

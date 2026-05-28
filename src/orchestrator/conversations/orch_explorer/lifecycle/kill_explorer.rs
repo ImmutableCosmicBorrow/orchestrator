@@ -44,7 +44,6 @@ define_conversation!(
 
 create_request_state!(
     state_name: SendingExplorerKill,
-    conv_name: KillExplorerConversation,
     convo_kind: ConvoKind::KillExplorer,
     timeout: Some(TIMEOUT),
     expected_msg: None,
@@ -96,7 +95,6 @@ fn send_explorer_kill_transition(
 
 create_response_state!(
     state: WaitingKillExplorerResult,
-    conv: KillExplorerConversation,
     convo_kind: ConvoKind::KillExplorer,
     timeout: Some(get_explorer_timeout()),
     expected_msg: ExplorerToOrchKind(ExplorerToOrchestratorKind::KillExplorerResult),

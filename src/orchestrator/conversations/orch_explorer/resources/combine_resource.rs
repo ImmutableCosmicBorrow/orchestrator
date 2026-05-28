@@ -56,7 +56,6 @@ define_conversation!(
 // --- SEND COMBINE RESOURCE REQUEST DEFINITION ---
 create_request_state!(
     state_name: SendingCombineResourceRequest,
-    conv_name: CombineResourceConversation,
     convo_kind: ConvoKind::CombineResource,
     timeout: Some(TIMEOUT),
     expected_msg: None,
@@ -110,7 +109,6 @@ fn send_comb_resource_req_transition(
 
 create_response_state!(
     state: WaitingCombineResourceResult,
-    conv: CombineResourceConversation,
     convo_kind: ConvoKind::CombineResource,
     timeout: Some(get_explorer_timeout().mul(2)),
     expected_msg: ExplorerToOrchKind(ExplorerToOrchestratorKind::CombineResourceResponse),

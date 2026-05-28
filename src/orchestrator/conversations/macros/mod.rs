@@ -1,20 +1,12 @@
 pub(crate) mod request_state;
 pub(crate) mod response_state;
 
-//Macro for defining tha wrapper structure of each conversation flow
+//Macro for defining the shared wrapper alias of each conversation flow
 #[macro_export]
 macro_rules! define_conversation {
     (name: $name:ident ) => {
-        pub(crate) struct $name<State> {
-            id: ID,
-            state: State,
-        }
-
-        impl<State: Send + Sync> $name<State> {
-            pub fn new(id: ID, state: State) -> Self {
-                Self { id, state }
-            }
-        }
+        pub(crate) type $name<State> =
+            $crate::orchestrator::conversations::ConversationWrapper<State>;
     };
 }
 

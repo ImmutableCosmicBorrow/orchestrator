@@ -36,7 +36,6 @@ define_conversation!(
 
 create_request_state!(
     state_name: SendPlanetKill,
-    conv_name: KillPlanetConversation,
     convo_kind: ConvoKind::KillPlanet,
     timeout: Some(TIMEOUT),
     expected_msg: None,
@@ -82,7 +81,6 @@ fn send_kill_planet_transition(
 
 create_response_state!(
     state: WaitingPlanetKillResult,
-    conv: KillPlanetConversation,
     convo_kind: ConvoKind::KillPlanet,
     timeout: Some(TIMEOUT),
     expected_msg: PlanetToOrchKind(KillPlanetResult),

@@ -38,7 +38,6 @@ define_conversation!(
 
 create_request_state!(
     state_name: SendingPlanetStop,
-    conv_name: StopPlanetConversation,
     convo_kind: ConvoKind::StopPlanet,
     timeout: Some(TIMEOUT),
     expected_msg: None,
@@ -86,7 +85,6 @@ fn send_planet_stop_transition(
 
 create_response_state!(
     state: WaitingPlanetStopResult,
-    conv: StopPlanetConversation,
     convo_kind: ConvoKind::StopPlanet,
     timeout: Some(TIMEOUT),
     expected_msg: PlanetToOrchKind(PlanetToOrchestratorKind::StopPlanetAIResult),

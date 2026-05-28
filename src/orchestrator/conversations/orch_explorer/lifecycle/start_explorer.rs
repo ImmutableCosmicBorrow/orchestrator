@@ -38,7 +38,6 @@ define_conversation!(
 // --- SEND EXPLORER START DEFINITION ---
 create_request_state!(
     state_name: SendingExplorerStart,
-    conv_name: StartExplorerConversation,
     convo_kind: ConvoKind::StartExplorer,
     timeout: Some(TIMEOUT),
     expected_msg: None,
@@ -86,7 +85,6 @@ fn send_explorer_start_transition(
 
 create_response_state!(
     state: WaitingExplorerStartResult,
-    conv: StartExplorerConversation,
     convo_kind: ConvoKind::StartExplorer,
     timeout: Some(get_explorer_timeout()),
     expected_msg: ExplorerToOrchKind(ExplorerToOrchestratorKind::StartExplorerAIResult),

@@ -51,7 +51,6 @@ define_conversation!(
 
 create_request_state!(
     state_name: SendingDeadExpAdv,
-    conv_name: AdvDeadExplorer,
     convo_kind: ConvoKind::AdvDeadExplorer,
     timeout: Some(TIMEOUT),
     expected_msg: None,
@@ -97,7 +96,6 @@ fn send_dead_exp_adv_transition(
 
 create_response_state!(
     state: WaitingDeadAdvResponse,
-    conv: AdvDeadExplorer,
     convo_kind: ConvoKind::AdvDeadExplorer,
     timeout: Some(TIMEOUT),
     expected_msg: PlanetToOrchKind(PlanetToOrchestratorKind::OutgoingExplorerResponse),

@@ -5,11 +5,10 @@
 ///
 /// This macro generates a struct for the state, implements `ChannelsContext` to
 /// give it access to communication channels, and implements `Conversation` for the
-/// wrapper conversation type `$conv<$state>`.
+/// shared wrapper conversation type `ConversationWrapper<$state>`.
 ///
 /// # Parameters
 /// * `state` - The identifier of the state struct to be generated.
-/// * `conv` - The wrapper conversation type that will hold this state.
 /// * `convo_kind` - The conversation kind used to derive execution priority.
 /// * `timeout` - An expression yielding an `Option<Duration>` for the state's timeout.
 /// * `expected_msg` - An expression yielding a `PossibleExpectedKinds` that this state expects.
@@ -21,7 +20,6 @@
 macro_rules! create_response_state {
     (
         state: $state:ident,
-        conv: $conv:ident,
         convo_kind: $kind:expr,
         timeout: $timeout:expr,
         expected_msg: $expected_msg:expr,
@@ -55,7 +53,7 @@ macro_rules! create_response_state {
             }
         }
 
-        impl Conversation for $conv<$state> {
+        impl Conversation for $crate::orchestrator::conversations::ConversationWrapper<$state> {
             fn get_id(&self) -> ID { self.id }
             fn get_priority(&self) -> i32 { self.state.convo_kind.priority().as_i32() }
             fn get_timeout(&self) -> Option<Duration> { $timeout }

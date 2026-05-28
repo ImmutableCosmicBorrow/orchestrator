@@ -41,7 +41,6 @@ define_conversation!(
 // --- SEND NEIGHBORS DEFINITION ---
 create_request_state!(
     state_name: SendingNeighbors,
-    conv_name: NeighborsDiscoveryConversation,
     convo_kind: ConvoKind::NeighborsDiscovery,
     timeout: Some(TIMEOUT),
     expected_msg: None,
@@ -95,7 +94,6 @@ fn send_neighbors_transition(
 
 create_response_state!(
     state: WaitingNeighborsRequest,
-    conv: NeighborsDiscoveryConversation,
     convo_kind: ConvoKind::NeighborsDiscovery,
     timeout: Some(get_explorer_timeout()),
     expected_msg: ExplorerToOrchKind(ExplorerToOrchestratorKind::NeighborsRequest),

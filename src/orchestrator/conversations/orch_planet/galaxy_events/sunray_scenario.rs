@@ -28,7 +28,6 @@ define_conversation!(
 // --- SEND SUNRAY STATE DEFINITION ---
 create_request_state!(
     state_name: SendSunray,
-    conv_name: SunrayConversation,
            convo_kind: ConvoKind::Sunray,
     timeout: Some(TIMEOUT),
     expected_msg: None,
@@ -77,7 +76,6 @@ fn send_sunray_transition(
 
 create_response_state!(
     state: WaitingSunrayAck,
-    conv: SunrayConversation,
         convo_kind: ConvoKind::Sunray,
         timeout: Some(crate::orchestrator::conversations::params::sunray_ack_timeout()),
     expected_msg: PlanetToOrchKind(PlanetToOrchestratorKind::SunrayAck),

@@ -55,7 +55,6 @@ define_conversation!(
 // --- SEND CRAFT RESOURCE REQUEST DEFINITION ---
 create_request_state!(
     state_name: SendingCraftResourceRequest,
-    conv_name: CraftResourceConversation,
     convo_kind: ConvoKind::CraftResource,
     timeout: Some(TIMEOUT),
     expected_msg: None,
@@ -107,7 +106,6 @@ fn send_craft_resource_req_transition(
 
 create_response_state!(
     state: WaitingCraftResourceResult,
-    conv: CraftResourceConversation,
     convo_kind: ConvoKind::CraftResource,
     timeout: Some(get_explorer_timeout().mul(2)), //longer timeout since involves Explorer - Planet Conversation
     expected_msg: ExplorerToOrchKind(ExplorerToOrchestratorKind::GenerateResourceResponse),

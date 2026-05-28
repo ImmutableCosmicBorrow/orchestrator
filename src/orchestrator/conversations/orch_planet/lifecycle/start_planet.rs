@@ -39,7 +39,6 @@ define_conversation!(
 
 create_request_state!(
     state_name: SendingPlanetStart,
-    conv_name: StartPlanetConversation,
     convo_kind: ConvoKind::StartPlanet,
     timeout: Some(TIMEOUT),
     expected_msg: None,
@@ -78,7 +77,6 @@ fn send_planet_start_transition(
 
 create_response_state!(
     state: WaitingPlanetStartResult,
-    conv: StartPlanetConversation,
     convo_kind: ConvoKind::StartPlanet,
     timeout: Some(TIMEOUT),
     expected_msg: PlanetToOrchKind(PlanetToOrchestratorKind::StartPlanetAIResult),

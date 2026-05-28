@@ -35,7 +35,6 @@ use common_game::utils::ID;
 
 create_request_state!(
     state_name: SendOutgoingRequest,
-    conv_name: MoveToPlanetConversation,
     convo_kind: ConvoKind::OutgoingExplorer,
     timeout: Some(TIMEOUT),
     expected_msg: None,
@@ -124,7 +123,6 @@ fn send_incoming_req_transition(
 
 create_response_state!(
     state: WaitingOutgoingResponse,
-    conv: MoveToPlanetConversation,
     convo_kind: ConvoKind::OutgoingExplorer,
     timeout: Some(TIMEOUT),
     expected_msg: PlanetToOrchKind(PlanetToOrchestratorKind::OutgoingExplorerResponse),

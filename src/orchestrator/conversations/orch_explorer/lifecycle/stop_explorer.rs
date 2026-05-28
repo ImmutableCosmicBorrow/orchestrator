@@ -38,7 +38,6 @@ define_conversation!(
 // --- SEND EXPLORER STOP DEFINITION ---
 create_request_state!(
     state_name: SendingExplorerStop,
-    conv_name: StopExplorerConversation,
     convo_kind: ConvoKind::StopExplorer,
     timeout: Some(TIMEOUT),
     expected_msg: None,
@@ -86,7 +85,6 @@ fn send_explorer_stop_transition(
 
 create_response_state!(
     state: WaitingExplorerStopResult,
-    conv: StopExplorerConversation,
     convo_kind: ConvoKind::StopExplorer,
     timeout: Some(get_explorer_timeout()),
     expected_msg: ExplorerToOrchKind(ExplorerToOrchestratorKind::StopExplorerAIResult),

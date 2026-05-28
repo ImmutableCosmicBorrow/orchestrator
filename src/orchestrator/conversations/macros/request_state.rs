@@ -7,13 +7,12 @@
 ///
 /// This macro generates a struct for the state, implements `ChannelsContext` to
 /// give it access to communication channels, and implements `Conversation` for the
-/// wrapper conversation type `$conv<$state>`.
+/// shared wrapper conversation type `ConversationWrapper<$state>`.
 ///
 /// The macro automatically requires the state to have an `orch_context` field of type `OrchContextRef`, that contains the necessary context for the state to operate.
 ///
 /// # Parameters
 /// * `state_name` - The identifier of the state struct to be generated.
-/// * `conv_name` - The wrapper conversation type that will hold this state.
 /// * `convo_kind` - The conversation kind used to derive execution priority.
 /// * `timeout` - An expression yielding an `Option<Duration>` for the state's timeout.
 /// * `expected_msg` - Typically `None` since this state is not waiting for a message.
@@ -25,7 +24,6 @@
 macro_rules! create_request_state {
     (
         state_name: $state:ident,
-        conv_name: $conv:ident,
         convo_kind: $kind:expr,
         timeout: $timeout:expr,
         expected_msg: $expected_msg:expr,
@@ -61,7 +59,7 @@ macro_rules! create_request_state {
 
 
 
-        impl Conversation for $conv<$state> {
+        impl Conversation for $crate::orchestrator::conversations::ConversationWrapper<$state> {
             fn get_id(&self) -> ID { self.id }
             fn get_priority(&self) -> i32 { self.state.convo_kind.priority().as_i32() }
             fn get_timeout(&self) -> Option<Duration> { $timeout }

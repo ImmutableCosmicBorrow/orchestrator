@@ -26,7 +26,6 @@ use std::time::Duration;
 // --- SEND INCOMING REQUEST DEFINITION ---
 create_request_state!(
     state_name: SendIncomingRequest,
-    conv_name: MoveToPlanetConversation,
     convo_kind: ConvoKind::IncomingExplorer,
     timeout: Some(TIMEOUT),
     expected_msg: None,
@@ -115,7 +114,6 @@ impl SendIncomingRequest {
 
 create_response_state!(
     state: WaitingIncomingResponse,
-    conv: MoveToPlanetConversation,
     convo_kind: ConvoKind::IncomingExplorer,
     timeout: Some(TIMEOUT),
     expected_msg: PlanetToOrchKind(PlanetToOrchestratorKind::IncomingExplorerResponse),

@@ -25,7 +25,6 @@ define_conversation!(
 
 create_request_state!(
     state_name: SendingAsteroid,
-    conv_name: AsteroidConversation,
     convo_kind: ConvoKind::Asteroid,
     timeout: Some(TIMEOUT),
     expected_msg: None,
@@ -71,7 +70,6 @@ fn sending_asteroid_transition(
 
 create_response_state!(
     state: WaitingAsteroidAck,
-    conv: AsteroidConversation,
     convo_kind: ConvoKind::Asteroid,
     timeout: Some(crate::orchestrator::conversations::params::asteroid_ack_timeout()),
     expected_msg: PossibleExpectedKinds::PlanetToOrchKind(PlanetToOrchestratorKind::AsteroidAck),

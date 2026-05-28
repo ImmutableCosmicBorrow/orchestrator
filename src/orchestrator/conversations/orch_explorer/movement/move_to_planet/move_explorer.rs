@@ -31,8 +31,7 @@ use std::time::Duration;
 // SEND MOVE REQUEST DEFINITION
 create_request_state!(
     state_name: SendMoveRequest,
-    conv_name: MoveToPlanetConversation,
-    convo_kind: ConvoKind::MoveExplorerHigh,
+    convo_kind: ConvoKind::MoveExplorerDispatch,
     timeout: Some(TIMEOUT),
     expected_msg: None,
     fields: {
@@ -128,8 +127,7 @@ impl SendMoveRequest {
 // WAIT MOVE TO PLANET RESPONSE IMPLEMENTATION
 create_response_state!(
     state: WaitMoveToPlanetResponse,
-    conv: MoveToPlanetConversation,
-    convo_kind: ConvoKind::MoveExplorerLow,
+    convo_kind: ConvoKind::MoveExplorerFinalize,
     timeout: Some(get_explorer_timeout()),
     expected_msg: ExplorerToOrchKind(MovedToPlanetResult),
     fields: {

@@ -35,7 +35,6 @@ use crate::orchestrator::conversations::orch_explorer::movement::move_to_planet:
 // --- WAIT TRAVEL REQUEST DEFINITION ---
 create_response_state!(
     state: WaitingTravelRequest,
-    conv: MoveToPlanetConversation,
     convo_kind: ConvoKind::WaitTravelRequest,
     timeout: Some(get_explorer_timeout()),
     expected_msg: ExplorerToOrchKind(ExplorerToOrchestratorKind::TravelToPlanetRequest),

@@ -38,7 +38,6 @@ define_conversation!(
 // --- SEND EXPLORER RESET DEFINITION ---
 create_request_state!(
     state_name: SendingExplorerReset,
-    conv_name: ResetExplorerConversation,
     convo_kind: ConvoKind::ResetExplorer,
     timeout: Some(TIMEOUT),
     expected_msg: None,
@@ -86,7 +85,6 @@ fn send_explorer_reset_transition(
 
 create_response_state!(
     state: WaitingExplorerResetResult,
-    conv: ResetExplorerConversation,
     convo_kind: ConvoKind::ResetExplorer,
     timeout: Some(get_explorer_timeout()),
     expected_msg: ExplorerToOrchKind(ExplorerToOrchestratorKind::ResetExplorerAIResult),

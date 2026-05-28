@@ -35,7 +35,6 @@ define_conversation!(
 // --- SEND BAG CONTENT REQUEST DEFINITION ---
 create_request_state!(
     state_name: SendingBagContentRequest,
-    conv_name: BagContentConversation,
     convo_kind: ConvoKind::BagContentScenario,
     timeout: Some(TIMEOUT),
     expected_msg: None,
@@ -83,7 +82,6 @@ fn send_bag_content_req_transition(
 
 create_response_state!(
     state: WaitingBagContentResponse,
-    conv: BagContentConversation,
     convo_kind: ConvoKind::BagContentScenario,
     timeout: Some(get_explorer_timeout()),
     expected_msg: ExplorerToOrchKind(ExplorerToOrchestratorKind::BagContentResponse),
