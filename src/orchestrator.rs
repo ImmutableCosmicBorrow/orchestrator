@@ -2,6 +2,8 @@
 
 mod background_events;
 pub(crate) mod conversations;
+use crate::id::PlanetKind;
+mod ui_handler;
 use crate::galaxy_setup::galaxy_loader;
 use crate::orchestrator::conversations::PossibleMessage;
 use crate::planet::{self, PlanetMap};
@@ -11,7 +13,6 @@ use crate::channels_manager::ChannelsManager;
 use crate::convo_manager::ConvoManager;
 use crate::galaxy_setup::spawn_planet_with_channels;
 use crate::globals::{get_game_step, set_game_step};
-use crate::id::PlanetKind;
 use crate::logging::{LogTarget, log_internal, log_msg_from};
 use crate::ui::{OrchestratorToUiUpdate, UiToOrchestratorCommand};
 use common_explorer::ExplorerAI;
@@ -225,6 +226,11 @@ impl Orchestrator {
         }
     }
 
+    #[must_use]
+    pub fn get_galaxy(&self) -> &PlanetMap {
+        &self.orch_context_ref.galaxy
+    }
+
     /// Runs the orchestrator, managing all planet and explorer conversations.
     ///
     /// # Panics
@@ -392,11 +398,6 @@ impl Orchestrator {
         }
     }
 
-    #[must_use]
-    pub fn get_galaxy(&self) -> &PlanetMap {
-        &self.orch_context_ref.galaxy
-    }
-
     /// Toggles between manual and automatic mode for the orchestrator.
     ///
     /// # Panics
@@ -451,256 +452,6 @@ impl Orchestrator {
     fn stop_background_event_senders() {
         background_events::disable_sunrays();
         background_events::disable_asteroids();
-    }
-
-    /// Handles UI commands from the UI layer and creates appropriate conversations or performs direct actions.
-    ///
-    /// # Panics
-    ///
-    /// Panics if a mutex lock is poisoned.
-    // TODO: remove the clippy allow once the function is refactored into smaller functions
-    // TODO: Move this in convo_manager?
-    #[allow(clippy::too_many_lines)]
-    pub fn handle_ui_message(&mut self, command: UiToOrchestratorCommand) {
-        #[allow(clippy::enum_glob_use)]
-        use UiToOrchestratorCommand::*;
-
-        match command {
-            // Rendering/Query Commands - Direct responses without conversations
-            GetGalaxy => {
-                let _ = self
-                    .orch_context_ref
-                    .channels_manager
-                    .get_ui_sender_ref()
-                    .send(OrchestratorToUiUpdate::Galaxy(
-                        self.orch_context_ref.galaxy.clone(),
-                    ));
-            }
-            GetExplorersPosition => {
-                let _ = self
-                    .orch_context_ref
-                    .channels_manager
-                    .get_ui_sender_ref()
-                    .send(OrchestratorToUiUpdate::ExplorersPosition(
-                        self.orch_context_ref.explorers_location.clone(),
-                    ));
-            }
-            GetPlanetSnapshot(planet_id) => {
-                self.convo_manager
-                    .create_internal_state_conversation(planet_id); //the conversation will send the update to UI
-            }
-
-            GetExplorerSnapshot(explorer_id) => {
-                self.convo_manager
-                    .create_bag_content_conversation(explorer_id); //the conversation will send the update to UI
-            }
-
-            AddPlanet(planet_kind, connected_planets) => {
-                let planet_id = match planet_kind {
-                    PlanetKind::Trip => get_id_manager().get_next_trip_id(),
-                    PlanetKind::Rustrelli => get_id_manager().get_next_rustrelli_id(),
-                    PlanetKind::Luna4 => get_id_manager().get_next_luna4_id(),
-                    PlanetKind::RustyCrab => get_id_manager().get_next_rusty_crab_id(),
-                    PlanetKind::Enterprise => get_id_manager().get_next_enterprise_id(),
-                    PlanetKind::Orbitron => get_id_manager().get_next_orbitron_id(),
-                    PlanetKind::Houston => get_id_manager().get_next_houston_id(),
-                };
-
-                planet::add_planet_with_neighbors(
-                    &self.orch_context_ref.galaxy,
-                    planet_id,
-                    connected_planets,
-                );
-                let already_present = self
-                    .orch_context_ref
-                    .channels_manager
-                    .to_planet_senders_contains(planet_id);
-
-                if already_present {
-                    log_internal(
-                        LogTarget::General,
-                        Channel::Warning,
-                        payload!(
-                            action : "AddPlanet called for an existing planet: topology updated, skipping start",
-                            planet_id : planet_id,
-                        ),
-                    );
-                } else {
-                    self.planet_threads
-                        .lock()
-                        .unwrap()
-                        .entry(planet_id)
-                        .or_insert_with(|| {
-                            spawn_planet_with_channels(
-                                self.orch_context_ref.channels_manager.as_ref(),
-                                planet_id,
-                            )
-                        });
-
-                    // Send PlanetStart to initialize the newly spawned planet
-                    self.convo_manager
-                        .create_start_planet_conversation(planet_id);
-
-                    log_internal(
-                        LogTarget::General,
-                        Channel::Info,
-                        payload!(
-                            action : "Added new planet",
-                            planet_id : planet_id,
-                            planet_kind : format!("{:?}", planet_kind),
-                        ),
-                    );
-                }
-            }
-
-            AddExplorer(explorer_type, into_planet) => {
-                self.add_explorer(explorer_type, into_planet);
-            }
-
-            SwitchGameMode => {
-                self.change_mode();
-            }
-            EndGame => {
-                log_internal(
-                    LogTarget::General,
-                    Channel::Info,
-                    payload!(
-                        action : "Received EndGame command from UI. Shutting down orchestrator",
-                    ),
-                );
-                self.shutdown_requested = true;
-            }
-            PauseGame => {
-                Orchestrator::stop_background_event_senders();
-
-                for explorer_id in self.orch_context_ref.channels_manager.get_explorer_list() {
-                    self.convo_manager
-                        .create_stop_explorer_conversation(explorer_id);
-                }
-
-                for planet_id in self.orch_context_ref.channels_manager.get_planet_list() {
-                    self.convo_manager
-                        .create_stop_planet_conversation(planet_id);
-                }
-
-                self.convo_manager.convo_scheduler.set_stopped(true);
-
-                log_internal(
-                    LogTarget::General,
-                    Channel::Info,
-                    payload!(
-                        action : "Received PauseGame command from UI. Pausing background events and planet/explorer AIs",
-                    ),
-                );
-            }
-            ResumeGame => {
-                self.start_background_event_senders();
-
-                for explorer_id in self.orch_context_ref.channels_manager.get_explorer_list() {
-                    self.convo_manager
-                        .create_start_explorer_conversation(explorer_id);
-                }
-
-                for planet_id in self.orch_context_ref.channels_manager.get_planet_list() {
-                    self.convo_manager
-                        .create_start_planet_conversation(planet_id);
-                }
-
-                log_internal(
-                    LogTarget::General,
-                    Channel::Info,
-                    payload!(
-                        action : "Received ResumeGame command from UI. Resuming background events and planet/explorer AIs",
-                    ),
-                );
-            }
-
-            // Explorer Movement Commands
-            ManualMoveExplorer(explorer_id, current_planet, dst_planet) => {
-                self.convo_manager.create_send_manual_move_conversation(
-                    explorer_id,
-                    current_planet,
-                    dst_planet,
-                );
-            }
-
-            // Explorer Resource Commands
-            ExplorerGenerateResource(explorer_id, resource_type) => {
-                self.convo_manager
-                    .create_generate_resource_conversation(explorer_id, resource_type);
-            }
-            ExplorerCombineResource(explorer_id, resource_type) => {
-                self.convo_manager
-                    .create_combine_resource_conversation(explorer_id, resource_type);
-            }
-
-            SupportedCombinations(explorer_id) => {
-                //it automatically sends the update to UI
-                self.convo_manager
-                    .create_supported_combinations_conversation(explorer_id);
-            }
-
-            SupportedResources(explorer_id) => {
-                //it automatically sends the update to UI
-                self.convo_manager
-                    .create_supported_resources_conversation(explorer_id);
-            }
-
-            // Asteroid/Sunray Commands
-            SendManualAsteroid(planet_id) => {
-                self.convo_manager.create_asteroid_conversation(planet_id);
-            }
-
-            SendManualSunray(planet_id) => {
-                self.convo_manager.create_sunray_conversation(planet_id);
-            }
-
-            // Planet AI Control Commands
-            StartPlanetAI(planet_id) => {
-                self.convo_manager
-                    .create_start_planet_conversation(planet_id);
-            }
-            StopPlanetAI(planet_id) => {
-                self.convo_manager
-                    .create_stop_planet_conversation(planet_id);
-            }
-            ResetPlanetAI(planet_id) => {
-                // morally a stop + start
-                self.convo_manager
-                    .create_stop_planet_conversation(planet_id);
-                self.convo_manager
-                    .create_start_planet_conversation(planet_id);
-            }
-            KillPlanet(planet_id) => {
-                self.convo_manager
-                    .create_kill_planet_conversation(planet_id);
-            }
-
-            // Explorer AI Control Commands
-            StartExplorerAI(explorer_id) => {
-                self.convo_manager
-                    .create_start_explorer_conversation(explorer_id);
-            }
-            StopExplorerAI(explorer_id) => {
-                self.convo_manager
-                    .create_stop_explorer_conversation(explorer_id);
-            }
-            ResetExplorerAI(explorer_id) => {
-                self.convo_manager
-                    .create_reset_explorer_conversation(explorer_id);
-            }
-            KillExplorer(explorer_id) => {
-                self.convo_manager.create_kill_explorer_conversation(
-                    explorer_id,
-                    *self
-                        .orch_context_ref
-                        .explorers_location
-                        .get(&explorer_id)
-                        .expect("Explorer not found in explorers_location when trying to kill it"),
-                    true,
-                );
-            }
-        }
     }
 
     //TODO: EXPLORERS_SENDERS AND PLANETS_SENDERS ARE NEEDED TO BE OWNED?
@@ -839,6 +590,64 @@ impl Orchestrator {
             for (_, handle) in handles.drain() {
                 let _ = handle.join();
             }
+        }
+    }
+
+    fn add_planet(&self, planet_kind: PlanetKind, connected_planets: Vec<u32>) {
+        let planet_id = match planet_kind {
+            PlanetKind::Trip => get_id_manager().get_next_trip_id(),
+            PlanetKind::Rustrelli => get_id_manager().get_next_rustrelli_id(),
+            PlanetKind::Luna4 => get_id_manager().get_next_luna4_id(),
+            PlanetKind::RustyCrab => get_id_manager().get_next_rusty_crab_id(),
+            PlanetKind::Enterprise => get_id_manager().get_next_enterprise_id(),
+            PlanetKind::Orbitron => get_id_manager().get_next_orbitron_id(),
+            PlanetKind::Houston => get_id_manager().get_next_houston_id(),
+        };
+
+        planet::add_planet_with_neighbors(
+            &self.orch_context_ref.galaxy,
+            planet_id,
+            connected_planets,
+        );
+        let already_present = self
+            .orch_context_ref
+            .channels_manager
+            .to_planet_senders_contains(planet_id);
+
+        if already_present {
+            log_internal(
+                LogTarget::General,
+                Channel::Warning,
+                payload!(
+                    action : "AddPlanet called for an existing planet: topology updated, skipping start",
+                    planet_id : planet_id,
+                ),
+            );
+        } else {
+            self.planet_threads
+                .lock()
+                .unwrap()
+                .entry(planet_id)
+                .or_insert_with(|| {
+                    spawn_planet_with_channels(
+                        self.orch_context_ref.channels_manager.as_ref(),
+                        planet_id,
+                    )
+                });
+
+            // Send PlanetStart to initialize the newly spawned planet
+            self.convo_manager
+                .create_start_planet_conversation(planet_id);
+
+            log_internal(
+                LogTarget::General,
+                Channel::Info,
+                payload!(
+                    action : "Added new planet",
+                    planet_id : planet_id,
+                    planet_kind : format!("{:?}", planet_kind),
+                ),
+            );
         }
     }
 
