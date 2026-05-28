@@ -4,6 +4,7 @@ use crate::logging::{LogTarget, log_internal};
 use crate::orchestrator::ChannelsManagerRef;
 use crate::orchestrator::conversations::EntitiesIDTuple;
 use crate::orchestrator::conversations::PossibleExpectedKinds::PlanetToOrchKind;
+use crate::orchestrator::conversations::params::EventKind;
 use crate::orchestrator::conversations::{
     ChannelsContext, CommonErrorTypes, Conversation, ErrorState, PlanetCommunicator,
     PossibleExpectedKinds, PossibleMessage,
@@ -18,11 +19,6 @@ use std::time::Duration;
 
 // TODO: Chaneg ontimeout
 
-// Default timeout duration for waiting for a Sunray acknowledgment.
-// The planet should respond quickly to sunray events.
-// TODO: lo commento e tengo il default
-// const SUNRAY_ACK_TIMEOUT: Duration = Duration::from_secs(5);
-
 // --- CONVERSATION FSM WRAPPER DEFINITION ---
 
 define_conversation!(
@@ -33,7 +29,7 @@ define_conversation!(
 create_request_state!(
     state_name: SendSunray,
     conv_name: SunrayConversation,
-    priority: 1,
+           priority: EventKind::Sunray.priority_i32(),
     timeout: Some(TIMEOUT),
     expected_msg: None,
     fields: {
@@ -82,8 +78,8 @@ fn send_sunray_transition(
 create_response_state!(
     state: WaitingSunrayAck,
     conv: SunrayConversation,
-    priority: 1,
-    timeout: Some(TIMEOUT),
+        priority: EventKind::Sunray.priority_i32(),
+        timeout: Some(crate::orchestrator::conversations::params::sunray_ack_timeout()),
     expected_msg: PlanetToOrchKind(PlanetToOrchestratorKind::SunrayAck),
     fields: {
         planet_id: ID,
@@ -238,7 +234,7 @@ mod tests {
         // send state should have a timeout configured
         assert_eq!(conv.get_timeout(), Some(TIMEOUT));
         // get_priority
-        assert_eq!(conv.get_priority(), 1);
+        assert_eq!(conv.get_priority(), EventKind::Sunray.priority_i32());
     }
 
     #[test]
@@ -286,7 +282,7 @@ mod tests {
         // get_expected_kind (should be Some(SunrayAck))
         assert_eq!(conv.get_expected_kind(), Some(PlanetToOrchKind(SunrayAck)));
         // get_priority
-        assert_eq!(conv.get_priority(), 1);
+        assert_eq!(conv.get_priority(), EventKind::Sunray.priority_i32());
     }
 
     // --- Timeout Feature Tests ---
@@ -300,7 +296,10 @@ mod tests {
 
         // Verify timeout is configured
         assert!(conv.get_timeout().is_some());
-        assert_eq!(conv.get_timeout(), Some(TIMEOUT));
+        assert_eq!(
+            conv.get_timeout(),
+            Some(crate::orchestrator::conversations::params::sunray_ack_timeout())
+        );
     }
 
     #[test]

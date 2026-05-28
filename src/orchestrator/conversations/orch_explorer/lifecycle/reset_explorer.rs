@@ -4,6 +4,7 @@ use crate::logging::{LogTarget, log_internal};
 use crate::orchestrator::ChannelsManagerRef;
 use crate::orchestrator::conversations::EntitiesIDTuple;
 use crate::orchestrator::conversations::PossibleExpectedKinds::ExplorerToOrchKind;
+use crate::orchestrator::conversations::params::EventKind;
 use crate::orchestrator::conversations::{
     ChannelsContext, CommonErrorTypes, Conversation, ErrorState, ExplorerCommunicator,
     PossibleExpectedKinds, PossibleMessage,
@@ -38,7 +39,7 @@ define_conversation!(
 create_request_state!(
     state_name: SendingExplorerReset,
     conv_name: ResetExplorerConversation,
-    priority: 5,
+    priority: EventKind::ResetExplorer.priority_i32(),
     timeout: Some(TIMEOUT),
     expected_msg: None,
     fields: {
@@ -86,7 +87,7 @@ fn send_explorer_reset_transition(
 create_response_state!(
     state: WaitingExplorerResetResult,
     conv: ResetExplorerConversation,
-    priority: 5,
+    priority: EventKind::ResetExplorer.priority_i32(),
     timeout: Some(get_explorer_timeout()),
     expected_msg: ExplorerToOrchKind(ExplorerToOrchestratorKind::ResetExplorerAIResult),
     fields: {
@@ -222,7 +223,7 @@ mod tests {
         assert_eq!(conv.get_id(), CONV_ID);
         assert_eq!(conv.get_entities_ids(), (None, Some(EXPLORER_ID)));
         assert_eq!(conv.get_expected_kind(), None);
-        assert_eq!(conv.get_priority(), 5);
+        assert_eq!(conv.get_priority(), EventKind::ResetExplorer.priority_i32());
     }
 
     #[test]
@@ -276,6 +277,6 @@ mod tests {
                 ExplorerToOrchestratorKind::ResetExplorerAIResult
             ))
         );
-        assert_eq!(conv.get_priority(), 5);
+        assert_eq!(conv.get_priority(), EventKind::ResetExplorer.priority_i32());
     }
 }

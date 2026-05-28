@@ -7,6 +7,7 @@ use crate::orchestrator::conversations::ExplorerCommunicator;
 use crate::orchestrator::conversations::PossibleExpectedKinds::ExplorerToOrchKind;
 use crate::orchestrator::conversations::orch_explorer::movement::move_to_planet::MoveToPlanetConversation;
 use crate::orchestrator::conversations::orch_explorer::movement::move_to_planet::errors::MoveToPlanetErrors;
+use crate::orchestrator::conversations::params::EventKind;
 use crate::orchestrator::conversations::{
     ChannelsContext, CommonErrorTypes, Conversation, ErrorState, PossibleExpectedKinds,
     PossibleMessage,
@@ -31,7 +32,7 @@ use std::time::Duration;
 create_request_state!(
     state_name: SendMoveRequest,
     conv_name: MoveToPlanetConversation,
-    priority: 5,
+    priority: EventKind::MoveExplorerHigh.priority_i32(),
     timeout: Some(TIMEOUT),
     expected_msg: None,
     fields: {
@@ -128,7 +129,7 @@ impl SendMoveRequest {
 create_response_state!(
     state: WaitMoveToPlanetResponse,
     conv: MoveToPlanetConversation,
-    priority: 4,
+    priority: EventKind::MoveExplorerLow.priority_i32(),
     timeout: Some(get_explorer_timeout()),
     expected_msg: ExplorerToOrchKind(MovedToPlanetResult),
     fields: {

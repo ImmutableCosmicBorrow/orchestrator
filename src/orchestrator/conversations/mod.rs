@@ -25,6 +25,7 @@ use std::time::Duration;
 pub mod macros;
 pub(crate) mod orch_explorer;
 pub(crate) mod orch_planet;
+pub(crate) mod params;
 pub(crate) mod util;
 
 ///**The Conversation Trait**

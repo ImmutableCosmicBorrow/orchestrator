@@ -6,6 +6,7 @@ use crate::orchestrator::conversations::ChannelsContext;
 use crate::orchestrator::conversations::EntitiesIDTuple;
 use crate::orchestrator::conversations::PossibleExpectedKinds;
 use crate::orchestrator::conversations::PossibleExpectedKinds::ExplorerToOrchKind;
+use crate::orchestrator::conversations::params::EventKind;
 use crate::orchestrator::conversations::{
     CommonErrorTypes, Conversation, ErrorState, ExplorerCommunicator, PossibleMessage,
 };
@@ -38,7 +39,7 @@ define_conversation!(
 create_request_state!(
     state_name: SendingExplorerStop,
     conv_name: StopExplorerConversation,
-    priority: 5,
+    priority: EventKind::StopExplorer.priority_i32(),
     timeout: Some(TIMEOUT),
     expected_msg: None,
     fields: {
@@ -86,7 +87,7 @@ fn send_explorer_stop_transition(
 create_response_state!(
     state: WaitingExplorerStopResult,
     conv: StopExplorerConversation,
-    priority: 5,
+    priority: EventKind::StopExplorer.priority_i32(),
     timeout: Some(get_explorer_timeout()),
     expected_msg: ExplorerToOrchKind(ExplorerToOrchestratorKind::StopExplorerAIResult),
     fields: {
@@ -224,7 +225,7 @@ mod tests {
         assert_eq!(conv.get_id(), CONV_ID);
         assert_eq!(conv.get_entities_ids(), (None, Some(EXPLORER_ID)));
         assert_eq!(conv.get_expected_kind(), None);
-        assert_eq!(conv.get_priority(), 5);
+        assert_eq!(conv.get_priority(), EventKind::StopExplorer.priority_i32());
     }
 
     #[test]
@@ -278,6 +279,6 @@ mod tests {
                 ExplorerToOrchestratorKind::StopExplorerAIResult
             ))
         );
-        assert_eq!(conv.get_priority(), 5);
+        assert_eq!(conv.get_priority(), EventKind::StopExplorer.priority_i32());
     }
 }

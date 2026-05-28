@@ -4,6 +4,7 @@ use crate::logging::{LogTarget, log_internal};
 use crate::orchestrator::ChannelsManagerRef;
 use crate::orchestrator::conversations::EntitiesIDTuple;
 use crate::orchestrator::conversations::PossibleExpectedKinds::PlanetToOrchKind;
+use crate::orchestrator::conversations::params::EventKind;
 use crate::orchestrator::conversations::{
     ChannelsContext, CommonErrorTypes, Conversation, ErrorState, ErrorType, PlanetCommunicator,
     PossibleExpectedKinds, PossibleMessage,
@@ -51,7 +52,7 @@ define_conversation!(
 create_request_state!(
     state_name: SendingDeadExpAdv,
     conv_name: AdvDeadExplorer,
-    priority: 4,
+    priority: EventKind::AdvDeadExplorer.priority_i32(),
     timeout: Some(TIMEOUT),
     expected_msg: None,
     fields: {
@@ -97,7 +98,7 @@ fn send_dead_exp_adv_transition(
 create_response_state!(
     state: WaitingDeadAdvResponse,
     conv: AdvDeadExplorer,
-    priority: 4,
+    priority: EventKind::AdvDeadExplorer.priority_i32(),
     timeout: Some(TIMEOUT),
     expected_msg: PlanetToOrchKind(PlanetToOrchestratorKind::OutgoingExplorerResponse),
     fields: {
@@ -246,7 +247,10 @@ mod tests {
         assert_eq!(conv.get_id(), CONV_ID);
         assert_eq!(conv.get_entities_ids(), (Some(PLANET_ID), None));
         assert_eq!(conv.get_expected_kind(), None);
-        assert_eq!(conv.get_priority(), 4);
+        assert_eq!(
+            conv.get_priority(),
+            EventKind::AdvDeadExplorer.priority_i32()
+        );
     }
 
     #[test]
@@ -302,7 +306,10 @@ mod tests {
                 PlanetToOrchestratorKind::OutgoingExplorerResponse
             ))
         );
-        assert_eq!(conv.get_priority(), 4);
+        assert_eq!(
+            conv.get_priority(),
+            EventKind::AdvDeadExplorer.priority_i32()
+        );
     }
 
     #[test]

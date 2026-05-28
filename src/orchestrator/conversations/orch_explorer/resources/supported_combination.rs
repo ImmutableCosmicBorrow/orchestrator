@@ -3,6 +3,7 @@ use crate::globals::{TIMEOUT, get_explorer_timeout};
 use crate::logging::{LogTarget, log_internal};
 use crate::orchestrator::ChannelsManagerRef;
 use crate::orchestrator::conversations::PossibleExpectedKinds::ExplorerToOrchKind;
+use crate::orchestrator::conversations::params::EventKind;
 use crate::orchestrator::conversations::{
     ChannelsContext, CommonErrorTypes, Conversation, ErrorState, ExplorerCommunicator,
     PossibleExpectedKinds, PossibleMessage,
@@ -37,7 +38,7 @@ define_conversation!(
 create_request_state!(
     state_name: SendingSupportedCombinationRequest,
     conv_name: SupportedCombinationConversation,
-    priority: 2,
+    priority: EventKind::SupportedCombination.priority_i32(),
     timeout: Some(TIMEOUT),
     expected_msg: None,
     fields: {
@@ -91,7 +92,7 @@ fn send_supp_comb_req_transition(
 create_response_state!(
     state: WaitingSupportedCombinationResult,
     conv: SupportedCombinationConversation,
-    priority: 2,
+    priority: EventKind::SupportedCombination.priority_i32(),
     timeout: Some(get_explorer_timeout().mul(2)),
     expected_msg: ExplorerToOrchKind(ExplorerToOrchestratorKind::SupportedCombinationResult),
     fields: {
@@ -269,7 +270,10 @@ mod tests {
         assert_eq!(conv.get_id(), CONV_ID);
         assert_eq!(conv.get_entities_ids(), (None, Some(EXPLORER_ID)));
         assert_eq!(conv.get_expected_kind(), None);
-        assert_eq!(conv.get_priority(), 2);
+        assert_eq!(
+            conv.get_priority(),
+            EventKind::SupportedCombination.priority_i32()
+        );
     }
 
     #[test]
@@ -327,6 +331,9 @@ mod tests {
                 ExplorerToOrchestratorKind::SupportedCombinationResult
             ))
         );
-        assert_eq!(conv.get_priority(), 2);
+        assert_eq!(
+            conv.get_priority(),
+            EventKind::SupportedCombination.priority_i32()
+        );
     }
 }
