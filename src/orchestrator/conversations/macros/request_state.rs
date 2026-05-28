@@ -14,7 +14,7 @@
 /// # Parameters
 /// * `state_name` - The identifier of the state struct to be generated.
 /// * `conv_name` - The wrapper conversation type that will hold this state.
-/// * `priority` - An expression yielding the execution priority (`i32`).
+/// * `convo_kind` - The conversation kind used to derive execution priority.
 /// * `timeout` - An expression yielding an `Option<Duration>` for the state's timeout.
 /// * `expected_msg` - Typically `None` since this state is not waiting for a message.
 /// * `fields` - A block defining the specific fields of the generated state struct.
@@ -26,7 +26,7 @@ macro_rules! create_request_state {
     (
         state_name: $state:ident,
         conv_name: $conv:ident,
-        priority: $pri:expr,
+        convo_kind: $kind:expr,
         timeout: $timeout:expr,
         expected_msg: $expected_msg:expr,
         fields: { $($field:ident : $type:ty),* $(,)? }, //Takes the field specified and builds the state struct
@@ -38,6 +38,7 @@ macro_rules! create_request_state {
         pub(crate) struct $state {
             expected_msg: Option<PossibleExpectedKinds>,
             orch_context: OrchContextRef,
+            convo_kind: $crate::orchestrator::conversations::params::ConvoKind,
             $($field: $type),*
         }
 
@@ -47,6 +48,7 @@ macro_rules! create_request_state {
                     $($field,)*
                     expected_msg: $expected_msg,
                     orch_context,
+                    convo_kind: $kind,
                 }
             }
         }
@@ -61,7 +63,7 @@ macro_rules! create_request_state {
 
         impl Conversation for $conv<$state> {
             fn get_id(&self) -> ID { self.id }
-            fn get_priority(&self) -> i32 { $pri }
+            fn get_priority(&self) -> i32 { self.state.convo_kind.priority().as_i32() }
             fn get_timeout(&self) -> Option<Duration> { $timeout }
             fn get_expected_kind(&self) -> Option<PossibleExpectedKinds> { $expected_msg }
             fn get_entities_ids(&self) -> EntitiesIDTuple {

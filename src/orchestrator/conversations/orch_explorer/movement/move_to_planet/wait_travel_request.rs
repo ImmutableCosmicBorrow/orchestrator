@@ -7,7 +7,7 @@ use crate::orchestrator::conversations::orch_explorer::movement::move_to_planet:
 use crate::orchestrator::conversations::EntitiesIDTuple;
 use crate::orchestrator::conversations::PossibleExpectedKinds::ExplorerToOrchKind;
 use crate::orchestrator::conversations::{ChannelsContext, CommonErrorTypes, Conversation, ErrorState, PossibleExpectedKinds, PossibleMessage};
-use crate::orchestrator::conversations::params::EventKind;
+use crate::orchestrator::conversations::params::ConvoKind;
 use crate::orchestrator::ChannelsManagerRef;
 use crate::{create_response_state, payload};
 use common_game::logging::Channel;
@@ -36,7 +36,7 @@ use crate::orchestrator::conversations::orch_explorer::movement::move_to_planet:
 create_response_state!(
     state: WaitingTravelRequest,
     conv: MoveToPlanetConversation,
-    priority: EventKind::WaitTravelRequest.priority_i32(),
+    convo_kind: ConvoKind::WaitTravelRequest,
     timeout: Some(get_explorer_timeout()),
     expected_msg: ExplorerToOrchKind(ExplorerToOrchestratorKind::TravelToPlanetRequest),
     fields: {

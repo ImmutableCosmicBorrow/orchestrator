@@ -7,7 +7,7 @@ use crate::orchestrator::conversations::PossibleExpectedKinds::PlanetToOrchKind;
 use crate::orchestrator::conversations::orch_explorer::movement::move_to_planet::MoveToPlanetConversation;
 use crate::orchestrator::conversations::orch_explorer::movement::move_to_planet::errors::MoveToPlanetErrors;
 use crate::orchestrator::conversations::orch_explorer::movement::move_to_planet::move_explorer::SendMoveRequest;
-use crate::orchestrator::conversations::params::EventKind;
+use crate::orchestrator::conversations::params::ConvoKind;
 use crate::orchestrator::conversations::{
     ChannelsContext, CommonErrorTypes, Conversation, ErrorState, PossibleExpectedKinds,
     PossibleMessage,
@@ -36,7 +36,7 @@ use common_game::utils::ID;
 create_request_state!(
     state_name: SendOutgoingRequest,
     conv_name: MoveToPlanetConversation,
-    priority: EventKind::OutgoingExplorer.priority_i32(),
+    convo_kind: ConvoKind::OutgoingExplorer,
     timeout: Some(TIMEOUT),
     expected_msg: None,
     fields: {
@@ -125,7 +125,7 @@ fn send_incoming_req_transition(
 create_response_state!(
     state: WaitingOutgoingResponse,
     conv: MoveToPlanetConversation,
-    priority: EventKind::OutgoingExplorer.priority_i32(),
+    convo_kind: ConvoKind::OutgoingExplorer,
     timeout: Some(TIMEOUT),
     expected_msg: PlanetToOrchKind(PlanetToOrchestratorKind::OutgoingExplorerResponse),
     fields: {

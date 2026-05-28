@@ -3,7 +3,7 @@ use crate::globals::{TIMEOUT, get_explorer_timeout};
 use crate::logging::{LogTarget, log_internal};
 use crate::orchestrator::ChannelsManagerRef;
 use crate::orchestrator::conversations::PossibleExpectedKinds::ExplorerToOrchKind;
-use crate::orchestrator::conversations::params::EventKind;
+use crate::orchestrator::conversations::params::ConvoKind;
 use crate::orchestrator::conversations::{
     ChannelsContext, CommonErrorTypes, Conversation, ErrorState, ErrorType, PossibleExpectedKinds,
     PossibleMessage,
@@ -57,7 +57,7 @@ define_conversation!(
 create_request_state!(
     state_name: SendingCombineResourceRequest,
     conv_name: CombineResourceConversation,
-    priority: EventKind::CombineResource.priority_i32(),
+    convo_kind: ConvoKind::CombineResource,
     timeout: Some(TIMEOUT),
     expected_msg: None,
     fields: {
@@ -111,7 +111,7 @@ fn send_comb_resource_req_transition(
 create_response_state!(
     state: WaitingCombineResourceResult,
     conv: CombineResourceConversation,
-    priority: EventKind::CombineResource.priority_i32(),
+    convo_kind: ConvoKind::CombineResource,
     timeout: Some(get_explorer_timeout().mul(2)),
     expected_msg: ExplorerToOrchKind(ExplorerToOrchestratorKind::CombineResourceResponse),
     fields: {
@@ -271,7 +271,7 @@ mod tests {
         assert_eq!(conv.get_expected_kind(), None);
         assert_eq!(
             conv.get_priority(),
-            EventKind::CombineResource.priority_i32()
+            ConvoKind::CombineResource.priority().as_i32()
         );
     }
 
@@ -347,7 +347,7 @@ mod tests {
         );
         assert_eq!(
             conv.get_priority(),
-            EventKind::CombineResource.priority_i32()
+            ConvoKind::CombineResource.priority().as_i32()
         );
     }
 }

@@ -7,7 +7,7 @@ use crate::orchestrator::conversations::orch_explorer::movement::move_to_planet:
     MoveToPlanetConversation,
 };
 use crate::orchestrator::conversations::{ChannelsContext, Conversation, PossibleExpectedKinds, PossibleMessage};
-use crate::orchestrator::conversations::params::EventKind;
+use crate::orchestrator::conversations::params::ConvoKind;
 use common_game::utils::ID;
 use crate::create_request_state;
 use crate::globals::TIMEOUT;
@@ -24,7 +24,7 @@ use crate::orchestrator::conversations::orch_explorer::movement::move_to_planet:
 create_request_state!(
     state_name: SendManualMoveRequest,
     conv_name: MoveToPlanetConversation,
-    priority: EventKind::ManualMoveToPlanet.priority_i32(),
+    convo_kind: ConvoKind::ManualMoveToPlanet,
     timeout: Some(TIMEOUT),
     expected_msg: None,
     fields: {

@@ -3,7 +3,7 @@ use crate::logging::{LogTarget, log_internal};
 use crate::orchestrator::Duration;
 use crate::orchestrator::conversations::EntitiesIDTuple;
 use crate::orchestrator::conversations::PossibleExpectedKinds::PlanetToOrchKind;
-use crate::orchestrator::conversations::params::EventKind;
+use crate::orchestrator::conversations::params::ConvoKind;
 use crate::orchestrator::conversations::{
     ChannelsContext, CommonErrorTypes, Conversation, ErrorState, PlanetCommunicator,
     PossibleExpectedKinds, PossibleMessage,
@@ -39,7 +39,7 @@ define_conversation!(
 create_request_state!(
     state_name: SendingPlanetStop,
     conv_name: StopPlanetConversation,
-    priority: EventKind::StopPlanet.priority_i32(),
+    convo_kind: ConvoKind::StopPlanet,
     timeout: Some(TIMEOUT),
     expected_msg: None,
     fields: {
@@ -87,7 +87,7 @@ fn send_planet_stop_transition(
 create_response_state!(
     state: WaitingPlanetStopResult,
     conv: StopPlanetConversation,
-    priority: EventKind::StopPlanet.priority_i32(),
+    convo_kind: ConvoKind::StopPlanet,
     timeout: Some(TIMEOUT),
     expected_msg: PlanetToOrchKind(PlanetToOrchestratorKind::StopPlanetAIResult),
     fields: {
@@ -227,7 +227,10 @@ mod tests {
         assert_eq!(conv.get_id(), CONV_ID);
         assert_eq!(conv.get_entities_ids(), (Some(PLANET_ID), None));
         assert_eq!(conv.get_expected_kind(), None);
-        assert_eq!(conv.get_priority(), EventKind::StopPlanet.priority_i32());
+        assert_eq!(
+            conv.get_priority(),
+            ConvoKind::StopPlanet.priority().as_i32()
+        );
     }
 
     #[test]
@@ -279,6 +282,9 @@ mod tests {
                 PlanetToOrchestratorKind::StopPlanetAIResult
             ))
         );
-        assert_eq!(conv.get_priority(), EventKind::StopPlanet.priority_i32());
+        assert_eq!(
+            conv.get_priority(),
+            ConvoKind::StopPlanet.priority().as_i32()
+        );
     }
 }

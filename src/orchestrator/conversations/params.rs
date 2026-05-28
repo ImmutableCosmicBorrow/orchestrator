@@ -75,7 +75,8 @@ impl PriorityLevel {
     }
 }
 
-pub(crate) enum EventKind {
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub(crate) enum ConvoKind {
     // Planet lifecycle
     KillPlanet,
     StartPlanet,
@@ -115,51 +116,47 @@ pub(crate) enum EventKind {
     ResponseState,
 }
 
-impl EventKind {
+impl ConvoKind {
     pub(crate) fn priority(self) -> PriorityLevel {
         #[allow(clippy::match_same_arms)]
         match self {
             // Sunray events are important for gameplay but not lifecycle-critical, so we assign them a medium priority.
-            EventKind::Sunray => PriorityLevel::Medium,
+            ConvoKind::Sunray => PriorityLevel::Medium,
 
             // Planet/internal state
-            EventKind::InternalState => PriorityLevel::Low,
-            EventKind::RequestState | EventKind::ResponseState => PriorityLevel::Medium,
+            ConvoKind::InternalState => PriorityLevel::Low,
+            ConvoKind::RequestState | ConvoKind::ResponseState => PriorityLevel::Medium,
 
             // Planet lifecycle => critical (Max)
-            EventKind::KillPlanet | EventKind::StartPlanet | EventKind::StopPlanet => {
+            ConvoKind::KillPlanet | ConvoKind::StartPlanet | ConvoKind::StopPlanet => {
                 PriorityLevel::Max
             }
 
             // Explorer lifecycle: critical for start/kill/stop (Max), reset is medium
-            EventKind::KillExplorer | EventKind::StartExplorer | EventKind::StopExplorer => {
+            ConvoKind::KillExplorer | ConvoKind::StartExplorer | ConvoKind::StopExplorer => {
                 PriorityLevel::Max
             }
-            EventKind::ResetExplorer => PriorityLevel::High,
+            ConvoKind::ResetExplorer => PriorityLevel::High,
 
             // Movement / explorer flow
-            EventKind::MoveExplorerHigh => PriorityLevel::High,
-            EventKind::MoveExplorerLow
-            | EventKind::OutgoingExplorer
-            | EventKind::IncomingExplorer
-            | EventKind::ManualMoveToPlanet
-            | EventKind::WaitTravelRequest => PriorityLevel::Medium,
+            ConvoKind::MoveExplorerHigh => PriorityLevel::High,
+            ConvoKind::MoveExplorerLow
+            | ConvoKind::OutgoingExplorer
+            | ConvoKind::IncomingExplorer
+            | ConvoKind::ManualMoveToPlanet
+            | ConvoKind::WaitTravelRequest => PriorityLevel::Medium,
 
-            EventKind::NeighborsDiscovery => PriorityLevel::Medium,
+            ConvoKind::NeighborsDiscovery => PriorityLevel::Medium,
 
             // Resource scenarios treated as medium
-            EventKind::BagContentScenario
-            | EventKind::CombineResource
-            | EventKind::CraftResource
-            | EventKind::SupportedCombination
-            | EventKind::SupportedResources => PriorityLevel::Medium,
+            ConvoKind::BagContentScenario
+            | ConvoKind::CombineResource
+            | ConvoKind::CraftResource
+            | ConvoKind::SupportedCombination
+            | ConvoKind::SupportedResources => PriorityLevel::Medium,
 
             // Galaxy/planet events: significant but not lifecycle-critical
-            EventKind::AdvDeadExplorer | EventKind::Asteroid => PriorityLevel::High,
+            ConvoKind::AdvDeadExplorer | ConvoKind::Asteroid => PriorityLevel::High,
         }
-    }
-
-    pub(crate) fn priority_i32(self) -> i32 {
-        self.priority().as_i32()
     }
 }

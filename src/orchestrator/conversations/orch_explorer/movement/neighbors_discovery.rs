@@ -4,7 +4,7 @@ use crate::logging::{LogTarget, log_internal};
 use crate::orchestrator::ChannelsManagerRef;
 use crate::orchestrator::conversations::EntitiesIDTuple;
 use crate::orchestrator::conversations::PossibleExpectedKinds::ExplorerToOrchKind;
-use crate::orchestrator::conversations::params::EventKind;
+use crate::orchestrator::conversations::params::ConvoKind;
 use crate::orchestrator::conversations::{
     ChannelsContext, CommonErrorTypes, Conversation, ErrorState, ErrorType, ExplorerCommunicator,
     PossibleExpectedKinds, PossibleMessage,
@@ -42,7 +42,7 @@ define_conversation!(
 create_request_state!(
     state_name: SendingNeighbors,
     conv_name: NeighborsDiscoveryConversation,
-    priority: EventKind::NeighborsDiscovery.priority_i32(),
+    convo_kind: ConvoKind::NeighborsDiscovery,
     timeout: Some(TIMEOUT),
     expected_msg: None,
     fields: {
@@ -96,7 +96,7 @@ fn send_neighbors_transition(
 create_response_state!(
     state: WaitingNeighborsRequest,
     conv: NeighborsDiscoveryConversation,
-    priority: EventKind::NeighborsDiscovery.priority_i32(),
+    convo_kind: ConvoKind::NeighborsDiscovery,
     timeout: Some(get_explorer_timeout()),
     expected_msg: ExplorerToOrchKind(ExplorerToOrchestratorKind::NeighborsRequest),
     fields: {
@@ -271,7 +271,7 @@ mod tests {
         );
         assert_eq!(
             conv.get_priority(),
-            EventKind::NeighborsDiscovery.priority_i32()
+            ConvoKind::NeighborsDiscovery.priority().as_i32()
         );
     }
 
@@ -358,7 +358,7 @@ mod tests {
         assert_eq!(conv.get_expected_kind(), None);
         assert_eq!(
             conv.get_priority(),
-            EventKind::NeighborsDiscovery.priority_i32()
+            ConvoKind::NeighborsDiscovery.priority().as_i32()
         );
     }
 }

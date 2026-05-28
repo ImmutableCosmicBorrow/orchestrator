@@ -3,7 +3,7 @@ use crate::globals::{TIMEOUT, get_explorer_timeout};
 use crate::logging::{LogTarget, log_internal};
 use crate::orchestrator::ChannelsManagerRef;
 use crate::orchestrator::conversations::PossibleExpectedKinds::ExplorerToOrchKind;
-use crate::orchestrator::conversations::params::EventKind;
+use crate::orchestrator::conversations::params::ConvoKind;
 use crate::orchestrator::conversations::{
     ChannelsContext, CommonErrorTypes, Conversation, ErrorState, PossibleExpectedKinds,
     PossibleMessage,
@@ -36,7 +36,7 @@ define_conversation!(
 create_request_state!(
     state_name: SendingBagContentRequest,
     conv_name: BagContentConversation,
-    priority: EventKind::BagContentScenario.priority_i32(),
+    convo_kind: ConvoKind::BagContentScenario,
     timeout: Some(TIMEOUT),
     expected_msg: None,
     fields: {
@@ -84,7 +84,7 @@ fn send_bag_content_req_transition(
 create_response_state!(
     state: WaitingBagContentResponse,
     conv: BagContentConversation,
-    priority: EventKind::BagContentScenario.priority_i32(),
+    convo_kind: ConvoKind::BagContentScenario,
     timeout: Some(get_explorer_timeout()),
     expected_msg: ExplorerToOrchKind(ExplorerToOrchestratorKind::BagContentResponse),
     fields: {
@@ -256,7 +256,7 @@ mod tests {
         assert_eq!(conv.get_expected_kind(), None);
         assert_eq!(
             conv.get_priority(),
-            EventKind::BagContentScenario.priority_i32()
+            ConvoKind::BagContentScenario.priority().as_i32()
         );
     }
 
@@ -320,7 +320,7 @@ mod tests {
         );
         assert_eq!(
             conv.get_priority(),
-            EventKind::BagContentScenario.priority_i32()
+            ConvoKind::BagContentScenario.priority().as_i32()
         );
     }
 }

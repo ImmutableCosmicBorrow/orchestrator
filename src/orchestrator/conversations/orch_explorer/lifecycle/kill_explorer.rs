@@ -5,7 +5,7 @@ use crate::orchestrator::conversations::PossibleExpectedKinds::ExplorerToOrchKin
 use crate::orchestrator::conversations::orch_planet::galaxy_events::adv_dead_explorer::{
     AdvDeadExplorer, SendingDeadExpAdv,
 };
-use crate::orchestrator::conversations::params::EventKind;
+use crate::orchestrator::conversations::params::ConvoKind;
 use crate::orchestrator::conversations::{
     ChannelsContext, CommonErrorTypes, Conversation, ErrorState, ExplorerCommunicator,
     PossibleExpectedKinds, PossibleMessage,
@@ -45,7 +45,7 @@ define_conversation!(
 create_request_state!(
     state_name: SendingExplorerKill,
     conv_name: KillExplorerConversation,
-    priority: EventKind::KillExplorer.priority_i32(),
+    convo_kind: ConvoKind::KillExplorer,
     timeout: Some(TIMEOUT),
     expected_msg: None,
     fields: {
@@ -97,7 +97,7 @@ fn send_explorer_kill_transition(
 create_response_state!(
     state: WaitingKillExplorerResult,
     conv: KillExplorerConversation,
-    priority: EventKind::KillExplorer.priority_i32(),
+    convo_kind: ConvoKind::KillExplorer,
     timeout: Some(get_explorer_timeout()),
     expected_msg: ExplorerToOrchKind(ExplorerToOrchestratorKind::KillExplorerResult),
     fields: {
@@ -288,7 +288,10 @@ mod tests {
         assert_eq!(conv.get_id(), CONV_ID);
         assert_eq!(conv.get_entities_ids(), (None, Some(EXPLORER_ID)));
         assert_eq!(conv.get_expected_kind(), None);
-        assert_eq!(conv.get_priority(), EventKind::KillExplorer.priority_i32());
+        assert_eq!(
+            conv.get_priority(),
+            ConvoKind::KillExplorer.priority().as_i32()
+        );
     }
 
     #[test]
@@ -383,6 +386,9 @@ mod tests {
                 ExplorerToOrchestratorKind::KillExplorerResult
             ))
         );
-        assert_eq!(conv.get_priority(), EventKind::KillExplorer.priority_i32());
+        assert_eq!(
+            conv.get_priority(),
+            ConvoKind::KillExplorer.priority().as_i32()
+        );
     }
 }

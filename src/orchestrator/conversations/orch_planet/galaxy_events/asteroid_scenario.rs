@@ -6,7 +6,7 @@ use crate::orchestrator::conversations::EntitiesIDTuple;
 use crate::orchestrator::conversations::orch_planet::lifecycle::kill_planet::{
     KillPlanetConversation, SendPlanetKill,
 };
-use crate::orchestrator::conversations::params::EventKind;
+use crate::orchestrator::conversations::params::ConvoKind;
 use crate::orchestrator::conversations::{
     ChannelsContext, CommonErrorTypes, Conversation, ErrorState, PlanetCommunicator,
     PossibleExpectedKinds, PossibleMessage,
@@ -26,7 +26,7 @@ define_conversation!(
 create_request_state!(
     state_name: SendingAsteroid,
     conv_name: AsteroidConversation,
-    priority: EventKind::Asteroid.priority_i32(),
+    convo_kind: ConvoKind::Asteroid,
     timeout: Some(TIMEOUT),
     expected_msg: None,
     fields: {
@@ -72,7 +72,7 @@ fn sending_asteroid_transition(
 create_response_state!(
     state: WaitingAsteroidAck,
     conv: AsteroidConversation,
-    priority: EventKind::Asteroid.priority_i32(),
+    convo_kind: ConvoKind::Asteroid,
     timeout: Some(crate::orchestrator::conversations::params::asteroid_ack_timeout()),
     expected_msg: PossibleExpectedKinds::PlanetToOrchKind(PlanetToOrchestratorKind::AsteroidAck),
     fields: { planet_id: ID},
@@ -230,7 +230,7 @@ mod tests {
         assert_eq!(conv.get_id(), CONV_ID);
         assert_eq!(conv.get_entities_ids(), (Some(PLANET_ID), None));
         assert_eq!(conv.get_expected_kind(), None);
-        assert_eq!(conv.get_priority(), EventKind::Asteroid.priority_i32());
+        assert_eq!(conv.get_priority(), ConvoKind::Asteroid.priority().as_i32());
     }
 
     #[test]
@@ -282,7 +282,7 @@ mod tests {
                 PlanetToOrchestratorKind::AsteroidAck
             ))
         );
-        assert_eq!(conv.get_priority(), EventKind::Asteroid.priority_i32());
+        assert_eq!(conv.get_priority(), ConvoKind::Asteroid.priority().as_i32());
     }
 
     #[test]

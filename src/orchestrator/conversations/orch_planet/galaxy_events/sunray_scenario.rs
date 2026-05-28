@@ -4,7 +4,7 @@ use crate::logging::{LogTarget, log_internal};
 use crate::orchestrator::ChannelsManagerRef;
 use crate::orchestrator::conversations::EntitiesIDTuple;
 use crate::orchestrator::conversations::PossibleExpectedKinds::PlanetToOrchKind;
-use crate::orchestrator::conversations::params::EventKind;
+use crate::orchestrator::conversations::params::ConvoKind;
 use crate::orchestrator::conversations::{
     ChannelsContext, CommonErrorTypes, Conversation, ErrorState, PlanetCommunicator,
     PossibleExpectedKinds, PossibleMessage,
@@ -29,7 +29,7 @@ define_conversation!(
 create_request_state!(
     state_name: SendSunray,
     conv_name: SunrayConversation,
-           priority: EventKind::Sunray.priority_i32(),
+           convo_kind: ConvoKind::Sunray,
     timeout: Some(TIMEOUT),
     expected_msg: None,
     fields: {
@@ -78,7 +78,7 @@ fn send_sunray_transition(
 create_response_state!(
     state: WaitingSunrayAck,
     conv: SunrayConversation,
-        priority: EventKind::Sunray.priority_i32(),
+        convo_kind: ConvoKind::Sunray,
         timeout: Some(crate::orchestrator::conversations::params::sunray_ack_timeout()),
     expected_msg: PlanetToOrchKind(PlanetToOrchestratorKind::SunrayAck),
     fields: {
@@ -234,7 +234,7 @@ mod tests {
         // send state should have a timeout configured
         assert_eq!(conv.get_timeout(), Some(TIMEOUT));
         // get_priority
-        assert_eq!(conv.get_priority(), EventKind::Sunray.priority_i32());
+        assert_eq!(conv.get_priority(), ConvoKind::Sunray.priority().as_i32());
     }
 
     #[test]
@@ -282,7 +282,7 @@ mod tests {
         // get_expected_kind (should be Some(SunrayAck))
         assert_eq!(conv.get_expected_kind(), Some(PlanetToOrchKind(SunrayAck)));
         // get_priority
-        assert_eq!(conv.get_priority(), EventKind::Sunray.priority_i32());
+        assert_eq!(conv.get_priority(), ConvoKind::Sunray.priority().as_i32());
     }
 
     // --- Timeout Feature Tests ---

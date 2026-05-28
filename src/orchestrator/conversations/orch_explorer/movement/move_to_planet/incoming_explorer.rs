@@ -6,7 +6,7 @@ use crate::orchestrator::conversations::orch_explorer::movement::move_to_planet:
 use crate::orchestrator::conversations::EntitiesIDTuple;
 use crate::orchestrator::conversations::PossibleExpectedKinds::PlanetToOrchKind;
 use crate::orchestrator::conversations::{ChannelsContext, CommonErrorTypes, Conversation, ErrorState, PlanetCommunicator, PossibleExpectedKinds, PossibleMessage};
-use crate::orchestrator::conversations::params::EventKind;
+use crate::orchestrator::conversations::params::ConvoKind;
 use crate::orchestrator::ChannelsManagerRef;
 use crate::{create_request_state, create_response_state};
 use common_game::protocols::orchestrator_planet::{
@@ -27,7 +27,7 @@ use std::time::Duration;
 create_request_state!(
     state_name: SendIncomingRequest,
     conv_name: MoveToPlanetConversation,
-    priority: EventKind::IncomingExplorer.priority_i32(),
+    convo_kind: ConvoKind::IncomingExplorer,
     timeout: Some(TIMEOUT),
     expected_msg: None,
     fields: {
@@ -116,7 +116,7 @@ impl SendIncomingRequest {
 create_response_state!(
     state: WaitingIncomingResponse,
     conv: MoveToPlanetConversation,
-    priority: EventKind::IncomingExplorer.priority_i32(),
+    convo_kind: ConvoKind::IncomingExplorer,
     timeout: Some(TIMEOUT),
     expected_msg: PlanetToOrchKind(PlanetToOrchestratorKind::IncomingExplorerResponse),
     fields: {
