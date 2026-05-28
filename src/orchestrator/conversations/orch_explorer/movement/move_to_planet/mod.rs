@@ -6,7 +6,6 @@ pub(crate) mod outgoing_explorer;
 pub(crate) mod wait_travel_request;
 
 use crate::define_conversation;
-use common_game::utils::ID;
 
 //**Move To Planet Conversation - State Container**
 //
