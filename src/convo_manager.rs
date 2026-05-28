@@ -1,3 +1,5 @@
+use common_game::utils::ID;
+
 use crate::convo_manager::convo_scheduler::ConvoScheduler;
 pub(crate) use crate::orchestrator::{OrchContext, OrchContextRef};
 use std::sync::Arc;
@@ -28,5 +30,9 @@ impl ConvoManager {
 
     pub(crate) fn get_orch_context(&self) -> Arc<OrchContext> {
         self.orch_context.clone()
+    }
+
+    pub fn remove_convos_for_dead_entity(&self, id: ID) {
+        self.convo_scheduler.remove_convos_for_dead_entity(id);
     }
 }

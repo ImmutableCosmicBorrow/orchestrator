@@ -483,9 +483,11 @@ impl Orchestrator {
                     let kill_expl_vec = convo.get_kill_explorers_vec();
                     if let Some((vec, handle_outgoing)) = kill_expl_vec {
                         for el in vec {
-                            convo_manager.create_kill_explorer_conversation(
+                            Self::kill_explorer_internal(
+                                &orch_context_ref.clone(),
+                                &convo_manager.clone(),
                                 el.0,
-                                el.1,
+                                Some(el.1),
                                 handle_outgoing,
                             );
                         }
@@ -518,6 +520,8 @@ impl Orchestrator {
                                 let _ = ui_sender.send(OrchestratorToUiUpdate::DeadPlanet(dead_id));
                                 let _ = ui_sender
                                     .send(OrchestratorToUiUpdate::Galaxy(galaxy_clone.clone()));
+
+                                convo_manager.remove_convos_for_dead_entity(dead_id);
                             });
                         }
                     }
@@ -648,6 +652,40 @@ impl Orchestrator {
                     planet_kind : format!("{:?}", planet_kind),
                 ),
             );
+        }
+    }
+
+    fn kill_explorer(&mut self, explorer_id: ID, planet_id: Option<ID>, handle_outgoing: bool) {
+        Self::kill_explorer_internal(
+            &self.orch_context_ref.clone(),
+            &self.convo_manager.clone(),
+            explorer_id,
+            planet_id,
+            handle_outgoing,
+        );
+    }
+
+    fn kill_explorer_internal(
+        orch_context_ref: &OrchContextRef,
+        convo_manager: &Arc<ConvoManager>,
+        explorer_id: ID,
+        planet_id: Option<ID>,
+        handle_outgoing: bool,
+    ) {
+        let planet_id = planet_id.or_else(|| {
+            orch_context_ref
+                .explorers_location
+                .get(&explorer_id)
+                .map(|entry| *entry.value())
+        });
+
+        if let Some(planet_id) = planet_id {
+            convo_manager.create_kill_explorer_conversation(
+                explorer_id,
+                planet_id,
+                handle_outgoing,
+            );
+            convo_manager.remove_convos_for_dead_entity(explorer_id);
         }
     }
 

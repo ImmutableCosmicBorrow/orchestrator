@@ -18,9 +18,10 @@ use std::time::Duration;
 
 // TODO: Chaneg ontimeout
 
-/// Default timeout duration for waiting for a Sunray acknowledgment.
-/// The planet should respond quickly to sunray events.
-const SUNRAY_ACK_TIMEOUT: Duration = Duration::from_secs(5);
+// Default timeout duration for waiting for a Sunray acknowledgment.
+// The planet should respond quickly to sunray events.
+// TODO: lo commento e tengo il default
+// const SUNRAY_ACK_TIMEOUT: Duration = Duration::from_secs(5);
 
 // --- CONVERSATION FSM WRAPPER DEFINITION ---
 
@@ -82,7 +83,7 @@ create_response_state!(
     state: WaitingSunrayAck,
     conv: SunrayConversation,
     priority: 1,
-    timeout: Some(SUNRAY_ACK_TIMEOUT),
+    timeout: Some(TIMEOUT),
     expected_msg: PlanetToOrchKind(PlanetToOrchestratorKind::SunrayAck),
     fields: {
         planet_id: ID,
@@ -135,7 +136,7 @@ fn on_timeout(this: Box<SunrayConversation<WaitingSunrayAck>>) {
             action : "Sunray conversation timed out waiting for planet acknowledgment",
             planet_id : this.state.planet_id,
             conversation_id : this.id,
-            timeout_secs : SUNRAY_ACK_TIMEOUT.as_secs()
+            timeout_secs : TIMEOUT.as_secs()
         ),
     );
 }
@@ -299,7 +300,7 @@ mod tests {
 
         // Verify timeout is configured
         assert!(conv.get_timeout().is_some());
-        assert_eq!(conv.get_timeout(), Some(SUNRAY_ACK_TIMEOUT));
+        assert_eq!(conv.get_timeout(), Some(TIMEOUT));
     }
 
     #[test]

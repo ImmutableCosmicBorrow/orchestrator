@@ -44,7 +44,7 @@ define_conversation!(
 create_request_state!(
     state_name: SendingInternalStateRequest,
     conv_name: InternalStateConversation,
-    priority: 3,
+    priority: 2,
     timeout: Some(TIMEOUT),
     expected_msg: None,
     fields: {
@@ -83,7 +83,7 @@ fn send_internal_state_req_transition(
 create_response_state!(
     state: WaitingInternalStateResponse,
     conv: InternalStateConversation,
-    priority: 3,
+    priority: 2,
     timeout: Some(TIMEOUT),
     expected_msg: PlanetToOrchKind(PlanetToOrchestratorKind::InternalStateResponse),
     fields: {
@@ -242,7 +242,7 @@ mod tests {
         assert_eq!(conv.get_id(), CONV_ID);
         assert_eq!(conv.get_entities_ids(), (Some(PLANET_ID), None));
         assert_eq!(conv.get_expected_kind(), None);
-        assert_eq!(conv.get_priority(), 3);
+        assert_eq!(conv.get_priority(), 2);
     }
 
     #[test]
@@ -292,6 +292,6 @@ mod tests {
                 PlanetToOrchestratorKind::InternalStateResponse
             ))
         );
-        assert_eq!(conv.get_priority(), 3);
+        assert_eq!(conv.get_priority(), 2);
     }
 }

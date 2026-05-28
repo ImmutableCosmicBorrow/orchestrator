@@ -176,15 +176,7 @@ impl Orchestrator {
                     .create_reset_explorer_conversation(explorer_id);
             }
             UiCmd::KillExplorer(explorer_id) => {
-                self.convo_manager.create_kill_explorer_conversation(
-                    explorer_id,
-                    *self
-                        .orch_context_ref
-                        .explorers_location
-                        .get(&explorer_id)
-                        .expect("Explorer not found in explorers_location when trying to kill it"),
-                    true,
-                );
+                self.kill_explorer(explorer_id, None, true);
             }
         }
     }

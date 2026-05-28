@@ -300,6 +300,48 @@ impl ConvoScheduler {
         self.active_convos.lock().unwrap().contains_key(&id)
     }
 
+    pub fn remove_convos_for_dead_entity(&self, id: ID) {
+        let mut active_convos = self.active_convos.lock().unwrap();
+        let mut inactive_convos = self.inactive_convos.lock().unwrap();
+        let mut by_expected_msg = self.by_expected_msg.lock().unwrap();
+
+        // Remove from active convos
+        let active_ids: Vec<ID> = active_convos
+            .iter()
+            .filter(|(_, convo)| {
+                convo.get_entities_ids().0 == Some(id) || convo.get_entities_ids().1 == Some(id)
+            })
+            .map(|(&convo_id, _)| convo_id)
+            .collect();
+        for convo_id in active_ids {
+            active_convos.remove(&convo_id);
+            if let Some(kind) = active_convos
+                .get(&convo_id)
+                .and_then(|c| c.get_expected_kind())
+            {
+                by_expected_msg.entry(kind).or_default().remove(&convo_id);
+            }
+        }
+
+        // Remove from inactive convos
+        let inactive_ids: Vec<ID> = inactive_convos
+            .iter()
+            .filter(|(_, convo)| {
+                convo.get_entities_ids().0 == Some(id) || convo.get_entities_ids().1 == Some(id)
+            })
+            .map(|(&convo_id, _)| convo_id)
+            .collect();
+        for convo_id in inactive_ids {
+            inactive_convos.remove(&convo_id);
+            if let Some(kind) = inactive_convos
+                .get(&convo_id)
+                .and_then(|c| c.get_expected_kind())
+            {
+                by_expected_msg.entry(kind).or_default().remove(&convo_id);
+            }
+        }
+    }
+
     pub fn add_waiting_message(&self, convo_id: ID, message: PossibleMessage) {
         // Clear any timeout when a message arrives - the conversation is no longer waiting
         self.clear_timeout(convo_id);
