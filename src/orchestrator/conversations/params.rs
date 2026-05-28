@@ -120,8 +120,6 @@ impl ConvoKind {
     pub(crate) fn priority(self) -> PriorityLevel {
         #[allow(clippy::match_same_arms)]
         match self {
-            // Sunray events are important for gameplay but not lifecycle-critical, so we assign them a medium priority.
-            ConvoKind::Sunray => PriorityLevel::Medium,
 
             // Planet/internal state
             ConvoKind::InternalState => PriorityLevel::Low,
@@ -155,8 +153,10 @@ impl ConvoKind {
             | ConvoKind::SupportedResources => PriorityLevel::Medium,
             ConvoKind::BagContentScenario => PriorityLevel::Low,
 
-            // Galaxy/planet events: significant but not lifecycle-critical
+            // Galaxy/planet events: critical for AdvDeadExplorer and Asteroid since they can cause cascading failures if not handled in time,
+            // Sunray is medium since it's important for gameplay but doesn't cause critical failures if delayed
             ConvoKind::AdvDeadExplorer | ConvoKind::Asteroid => PriorityLevel::High,
+            ConvoKind::Sunray => PriorityLevel::Medium,
         }
     }
 }
