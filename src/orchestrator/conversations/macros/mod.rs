@@ -6,12 +6,12 @@ pub(crate) mod response_state;
 macro_rules! define_conversation {
     (name: $name:ident ) => {
         pub(crate) struct $name<State> {
-            id: ID,
+            id: common_game::utils::ID,
             state: State,
         }
 
         impl<State: Send + Sync> $name<State> {
-            pub fn new(id: ID, state: State) -> Self {
+            pub fn new(id: common_game::utils::ID, state: State) -> Self {
                 Self { id, state }
             }
         }
