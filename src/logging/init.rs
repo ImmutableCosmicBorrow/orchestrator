@@ -75,6 +75,18 @@ impl LogDirectives {
         // Fall back to global level
         level <= self.global_level
     }
+
+    /// Returns `true` if *any* module-level directive would accept `level`.
+    ///
+    /// Used by [`ContentRouter::enabled`] as a permissive pre-filter: the
+    /// `log` framework calls `enabled()` before `log()`, and we need to let
+    /// records through that might match a category directive discovered only
+    /// after content-based classification.
+    pub fn any_module_enables(&self, level: log::Level) -> bool {
+        self.module_levels
+            .values()
+            .any(|&filter| level <= filter)
+    }
 }
 
 // ── .env loader ──────────────────────────────────────────────────────────

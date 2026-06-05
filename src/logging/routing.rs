@@ -54,6 +54,33 @@ pub(super) enum MessageClass {
     General,
 }
 
+impl MessageClass {
+    /// Returns the category name usable as a `RUST_LOG` directive key.
+    ///
+    /// These match the log subfolder names, so `explorer_lifecycle=debug`
+    /// in `RUST_LOG` will enable debug logging for all records routed to
+    /// the `log/explorer_lifecycle/` directory.
+    pub(super) fn directive_key(&self) -> &'static str {
+        match self {
+            Self::AsteroidsSunrays => "asteroids_sunrays",
+            Self::Asteroids => "asteroids",
+            Self::Sunrays => "sunrays",
+            Self::Conversations => "conversations",
+            Self::ConversationsPlanets => "conversations_planets",
+            Self::ConversationsExplorers => "conversations_explorers",
+            Self::ChannelMessages => "channel_messages",
+            Self::ChannelMessagesPlanets => "channel_messages_planets",
+            Self::ChannelMessagesExplorers => "channel_messages_explorers",
+            Self::ChannelMessagesUi => "channel_messages_ui",
+            Self::PlanetLifecycle => "planet_lifecycle",
+            Self::ExplorerLifecycle => "explorer_lifecycle",
+            Self::OrchestratorLifecycle => "orchestrator_lifecycle",
+            Self::CommonGame => "common_game",
+            Self::General => "general",
+        }
+    }
+}
+
 /// Classify a log record by its target and formatted message.
 pub(super) fn classify(target: &str, message: &str) -> MessageClass {
     if target.starts_with("orch::") {
@@ -238,16 +265,31 @@ pub(super) struct ContentRouter {
 
 impl log::Log for ContentRouter {
     fn enabled(&self, metadata: &log::Metadata) -> bool {
+        // Permissive: allow if the record *might* pass after classification.
+        // The real per-category gate is in `log()` below.
         self.directives
             .is_enabled(metadata.level(), metadata.target())
+            || self.directives.any_module_enables(metadata.level())
     }
 
     fn log(&self, record: &log::Record) {
-        if !self.enabled(record.metadata()) {
+        // Classify first, then filter — this lets category-based directives
+        // (e.g., `explorer_lifecycle=debug`) work for records whose
+        // `target()` is a different module (e.g., `common_game::logging`).
+        let msg = record.args().to_string();
+        let class = classify(record.target(), &msg);
+
+        let level = record.level();
+        let target = record.target();
+        let category = class.directive_key();
+
+        if !self.directives.is_enabled(level, target)
+            && !self.directives.is_enabled(level, category)
+        {
             return;
         }
-        let msg = record.args().to_string();
-        let primary: &dyn log::Log = match classify(record.target(), &msg) {
+
+        let primary: &dyn log::Log = match class {
             MessageClass::AsteroidsSunrays => &*self.asteroids_sunrays,
             MessageClass::Asteroids => &*self.asteroids,
             MessageClass::Sunrays => &*self.sunrays,
