@@ -263,24 +263,33 @@ impl Orchestrator {
         }
 
         //Get receiving channels
-        let from_planets_rcv = self.orch_context_ref.channels_manager.get_from_planet_rcv();
-        let from_explorers_rcv = self
+        let mut from_planets_rcv = self.orch_context_ref.channels_manager.get_from_planet_rcv();
+        let mut from_explorers_rcv = self
             .orch_context_ref
             .channels_manager
             .get_from_explorers_rcv();
-        let from_ui_rcv = self.orch_context_ref.channels_manager.get_ui_receiver();
+        let mut from_ui_rcv = self.orch_context_ref.channels_manager.get_ui_receiver();
         // Main loop
         loop {
             let timeout = crossbeam_channel::after(get_game_step() + Duration::from_secs(1));
             select! {
                 recv(from_planets_rcv) -> msg => {
+                    if msg.is_err() {
+                        from_planets_rcv = crossbeam_channel::never();
+                    }
                     self.handle_planets_message(msg);
                 }
                 recv(from_explorers_rcv) -> msg => {
+                    if msg.is_err() {
+                        from_explorers_rcv = crossbeam_channel::never();
+                    }
                     self.handle_explorers_message(msg);
                 }
 
                 recv(from_ui_rcv) -> msg => {
+                    if msg.is_err() {
+                        from_ui_rcv = crossbeam_channel::never();
+                    }
                     self.handle_ui_receiver_message(msg);
                 }
 
@@ -522,6 +531,7 @@ impl Orchestrator {
                                     .send(OrchestratorToUiUpdate::Galaxy(galaxy_clone.clone()));
 
                                 convo_manager.remove_convos_for_dead_entity(dead_id);
+                                orch_context_ref.channels_manager.remove_planet_channels(dead_id);
                             });
                         }
                     }
@@ -680,12 +690,12 @@ impl Orchestrator {
         });
 
         if let Some(planet_id) = planet_id {
+            convo_manager.remove_convos_for_dead_entity(explorer_id);
             convo_manager.create_kill_explorer_conversation(
                 explorer_id,
                 planet_id,
                 handle_outgoing,
             );
-            convo_manager.remove_convos_for_dead_entity(explorer_id);
         }
     }
 

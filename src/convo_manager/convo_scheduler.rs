@@ -163,10 +163,10 @@ impl ConvoScheduler {
         message_kind: &PossibleExpectedKinds,
         entity_ids: (Option<ID>, Option<ID>),
     ) -> Option<ID> {
+        let inactive_convos = self.inactive_convos.lock().unwrap();
         let by_expected_msg = self.by_expected_msg.lock().unwrap();
         if let Some(convo_ids) = by_expected_msg.get(message_kind) {
             for &convo_id in convo_ids {
-                let inactive_convos = self.inactive_convos.lock().unwrap();
                 let convo = inactive_convos.get(&convo_id);
                 if let Some(convo) = convo
                     && convo.get_entities_ids() == entity_ids
@@ -211,7 +211,12 @@ impl ConvoScheduler {
 
         // Register timeout if the conversation has one configured
         if let Some(timeout_duration) = conversation.get_timeout() {
-            self.set_timeout(id, timeout_duration);
+            let scaled_timeout = if timeout_duration == crate::globals::TIMEOUT {
+                timeout_duration.max(crate::globals::get_game_step() + Duration::from_secs(1))
+            } else {
+                timeout_duration
+            };
+            self.set_timeout(id, scaled_timeout);
         }
 
         let priority = conversation.get_priority();

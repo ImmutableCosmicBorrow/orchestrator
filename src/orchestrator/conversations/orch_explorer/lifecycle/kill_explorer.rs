@@ -129,6 +129,7 @@ fn wait_exp_kill_res_transition(
     {
         //Delete killed explorer from the explorer location list
         this.state.delete_dead_explorer();
+        this.state.get_channels_manager().remove_explorer_channels(explorer_id);
 
         log_internal(
             LogTarget::Conversations,

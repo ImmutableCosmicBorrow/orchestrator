@@ -505,6 +505,20 @@ impl ChannelsManager {
         self.planet_explorer.get_exp_to_planet_rcv(planet_id)
     }
 
+    pub(crate) fn remove_planet_channels(&self, planet_id: ID) {
+        self.orchestrator.planets_channels.to_planet_senders.remove(&planet_id);
+        self.orchestrator.planets_channels.to_planet_receivers.remove(&planet_id);
+        self.planet_explorer.explorer_to_planet_senders.remove(&planet_id);
+        self.planet_explorer.explorer_to_planet_receivers.remove(&planet_id);
+    }
+
+    pub(crate) fn remove_explorer_channels(&self, explorer_id: ID) {
+        self.orchestrator.explorers_channels.to_explorer_senders.remove(&explorer_id);
+        self.orchestrator.explorers_channels.to_explorer_receivers.remove(&explorer_id);
+        self.planet_explorer.planet_to_explorer_senders.remove(&explorer_id);
+        self.planet_explorer.planet_to_explorer_receivers.remove(&explorer_id);
+    }
+
     pub(crate) fn get_planet_explorer_struct(&self) -> &PlanetExplorerChannels {
         &self.planet_explorer
     }
