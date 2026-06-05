@@ -1,8 +1,8 @@
-use crate::Orchestrator;
 use crate::logging::{LogTarget, log_internal};
 use crate::payload;
 use crate::ui::OrchestratorToUiUpdate;
 use crate::ui::UiToOrchestratorCommand as UiCmd;
+use crate::{Orchestrator, explorer_factory};
 use common_game::logging::Channel;
 
 impl Orchestrator {
@@ -40,7 +40,13 @@ impl Orchestrator {
             }
 
             UiCmd::AddExplorer(explorer_type, into_planet) => {
-                self.add_explorer(explorer_type, into_planet);
+                explorer_factory::spawn_explorer(
+                    &self.orch_context_ref,
+                    &self.convo_manager,
+                    &mut self.explorer_threads,
+                    explorer_type,
+                    into_planet,
+                );
             }
 
             UiCmd::SwitchGameMode => {
@@ -176,7 +182,13 @@ impl Orchestrator {
                     .create_reset_explorer_conversation(explorer_id);
             }
             UiCmd::KillExplorer(explorer_id) => {
-                self.kill_explorer(explorer_id, None, true);
+                explorer_factory::kill_explorer(
+                    &self.orch_context_ref,
+                    &self.convo_manager,
+                    explorer_id,
+                    None,
+                    true,
+                );
             }
         }
     }

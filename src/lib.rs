@@ -1,5 +1,6 @@
 mod channels_manager;
 mod convo_manager;
+mod explorer_factory;
 mod galaxy_setup;
 mod globals;
 pub mod id;
@@ -10,8 +11,8 @@ mod planet_factory;
 pub mod ui;
 
 // Re-export public items that other crates can use
+pub use explorer_factory::ExplorerType;
 pub use globals::get_id_manager;
-pub use orchestrator::ExplorerType;
 pub use orchestrator::Orchestrator;
 
 use common_game::utils::ID;
