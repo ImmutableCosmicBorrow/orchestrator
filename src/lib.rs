@@ -52,7 +52,7 @@ pub fn run(
         explorer1,
         explorer2,
         spawn_planet,
-        true, // background_events_enabled
+        true, // enable_background_events
     );
 
     orchestrator.run();

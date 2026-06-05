@@ -46,4 +46,8 @@ pub struct Cli {
     /// Disable interactive REPL and just run.
     #[arg(short = 'n', long, default_value_t = false)]
     pub no_repl: bool,
+
+    /// Enable background events (asteroids and sunrays).
+    #[arg(short = 'b', long = "enable-background-events", default_value_t = true, action = clap::ArgAction::Set)]
+    pub enable_background_events: bool,
 }

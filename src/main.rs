@@ -16,7 +16,7 @@ fn main() {
             cli.spawn_planet,
             cli.game_step,
             false,
-            false,
+            cli.enable_background_events,
         );
 
     let orchestrator_thread = thread::spawn(move || {
