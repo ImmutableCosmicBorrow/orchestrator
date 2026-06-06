@@ -15,6 +15,9 @@ pub struct ConvoScheduler {
     inactive_convos: ConversationMap,
     by_expected_msg: Arc<Mutex<HashMap<PossibleExpectedKinds, HashSet<ID>>>>,
     waiting_msgs: Arc<Mutex<HashMap<ID, PossibleMessage>>>,
+    /// Messages that arrived before their target conversation was registered.
+    /// Drained in `add_conversation()` when a matching conversation is added.
+    pending_msgs: Arc<Mutex<Vec<PossibleMessage>>>,
     /// Maps conversation IDs to their timeout info: (start time, timeout duration, `paused_duration` snapshot at creation)
     timeouts: TimeoutsMap,
     /// Whether the scheduler is in stopped state (timeouts frozen)
@@ -33,6 +36,7 @@ impl Clone for ConvoScheduler {
             inactive_convos: Arc::clone(&self.inactive_convos),
             by_expected_msg: Arc::clone(&self.by_expected_msg),
             waiting_msgs: Arc::clone(&self.waiting_msgs),
+            pending_msgs: Arc::clone(&self.pending_msgs),
             timeouts: Arc::clone(&self.timeouts),
             stopped: Arc::clone(&self.stopped),
             stopped_since: Arc::clone(&self.stopped_since),
@@ -49,6 +53,7 @@ impl ConvoScheduler {
             inactive_convos: Arc::new(Mutex::new(HashMap::new())),
             by_expected_msg: Arc::new(Mutex::new(HashMap::new())),
             waiting_msgs: Arc::new(Mutex::new(HashMap::new())),
+            pending_msgs: Arc::new(Mutex::new(Vec::new())),
             timeouts: Arc::new(Mutex::new(HashMap::new())),
             stopped: Arc::new(Mutex::new(false)),
             stopped_since: Arc::new(Mutex::new(None)),
@@ -221,8 +226,10 @@ impl ConvoScheduler {
 
         let priority = conversation.get_priority();
         let entities = conversation.get_entities_ids();
+        // Capture expected_kind before the conversation is moved into a map
+        let expected_kind = conversation.get_expected_kind();
         let ready_to_transition =
-            conversation.get_expected_kind().is_none() || self.get_waiting_message(id).is_some();
+            expected_kind.is_none() || self.get_waiting_message(id).is_some();
         log_internal(
             LogTarget::Conversations,
             Channel::Trace,
@@ -231,7 +238,7 @@ impl ConvoScheduler {
                 conversation_id: id,
                 priority: priority,
                 ready_to_transition: ready_to_transition,
-                expected_kind: format!("{:?}", conversation.get_expected_kind()),
+                expected_kind: format!("{:?}", expected_kind),
                 planet_id: format!("{:?}", entities.0),
                 explorer_id: format!("{:?}", entities.1)
             ),
@@ -242,11 +249,11 @@ impl ConvoScheduler {
             self.active_convos.lock().unwrap().insert(id, conversation);
         } else {
             // Add the expected kind to the expected messages
-            if let Some(kind) = conversation.get_expected_kind() {
+            if let Some(ref kind) = expected_kind {
                 self.by_expected_msg
                     .lock()
                     .unwrap()
-                    .entry(kind)
+                    .entry(kind.clone())
                     .or_default()
                     .insert(id);
             }
@@ -258,6 +265,34 @@ impl ConvoScheduler {
 
         // Enqueue and log
         self.queue.push(id, priority);
+
+        // Drain pending messages that match this newly registered conversation.
+        // This closes the race where a response arrives between transition() and
+        // add_conversation() on the processor thread.
+        if let Some(ref kind) = expected_kind {
+            let mut pending = self.pending_msgs.lock().unwrap();
+            if let Some(pos) = pending.iter().position(|msg| {
+                let msg_kind = msg.to_kind_type();
+                let msg_entities = msg.get_entity_ids();
+                msg_kind == *kind
+                    && (msg_entities == entities
+                        || (msg_entities.0 == entities.1 && msg_entities.1 == entities.0))
+            }) {
+                let matched_msg = pending.remove(pos);
+                log_internal(
+                    LogTarget::Conversations,
+                    Channel::Debug,
+                    payload!(
+                        event: "PendingMessageDrained",
+                        conversation_id: id,
+                        message_kind: format!("{:?}", matched_msg.to_kind_type())
+                    ),
+                );
+                // Drop the pending lock before calling add_waiting_message to avoid deadlock
+                drop(pending);
+                self.add_waiting_message(id, matched_msg);
+            }
+        }
     }
 
     /// This method retrieves and removes the next conversation from the scheduler based on priority.
@@ -345,6 +380,12 @@ impl ConvoScheduler {
                 by_expected_msg.entry(kind).or_default().remove(&convo_id);
             }
         }
+
+        // Also remove pending messages for the dead entity to prevent stale matches
+        self.pending_msgs.lock().unwrap().retain(|msg| {
+            let (planet, explorer) = msg.get_entity_ids();
+            planet != Some(id) && explorer != Some(id)
+        });
     }
 
     pub fn add_waiting_message(&self, convo_id: ID, message: PossibleMessage) {
@@ -384,6 +425,24 @@ impl ConvoScheduler {
                 is_active : self.is_active_conversation(convo_id),
             ),
         );
+    }
+
+    /// Buffer a message that arrived before its target conversation was registered.
+    /// These messages will be drained and matched when `add_conversation()` is called.
+    pub fn buffer_pending_message(&self, message: PossibleMessage) {
+        let message_kind = message.to_kind_type();
+        let entity_ids = message.get_entity_ids();
+        log_internal(
+            LogTarget::Conversations,
+            Channel::Debug,
+            payload!(
+                event: "MessageBufferedPending",
+                message_kind: format!("{:?}", message_kind),
+                planet_id: format!("{:?}", entity_ids.0),
+                explorer_id: format!("{:?}", entity_ids.1)
+            ),
+        );
+        self.pending_msgs.lock().unwrap().push(message);
     }
 
     pub fn get_waiting_message(&self, convo_id: ID) -> Option<PossibleMessage> {
@@ -1145,5 +1204,124 @@ mod tests {
         assert_eq!(timed_out.len(), 2);
 
         scheduler.set_stopped(true);
+    }
+
+    // ============================================================================
+    // Pending Message Buffer Tests
+    // ============================================================================
+
+    /// Helper: create a PlanetToOrch SunrayAck message for a given planet_id
+    fn make_sunray_ack_msg(planet_id: ID) -> PossibleMessage {
+        PossibleMessage::PlanetToOrch(
+            common_game::protocols::orchestrator_planet::PlanetToOrchestrator::SunrayAck {
+                planet_id,
+            },
+        )
+    }
+
+    /// Helper: create a PlanetToOrch StartPlanetAIResult message for a given planet_id
+    fn make_start_planet_ai_result_msg(planet_id: ID) -> PossibleMessage {
+        PossibleMessage::PlanetToOrch(
+            common_game::protocols::orchestrator_planet::PlanetToOrchestrator::StartPlanetAIResult {
+                planet_id,
+            },
+        )
+    }
+
+    #[test]
+    fn pending_message_drained_on_add_conversation() {
+        let scheduler = ConvoScheduler::new();
+        let kind = PossibleExpectedKinds::PlanetToOrchKind(PlanetToOrchestratorKind::SunrayAck);
+
+        // Buffer a message before any conversation is registered
+        let msg = make_sunray_ack_msg(42);
+        scheduler.buffer_pending_message(msg);
+        assert_eq!(scheduler.pending_msgs.lock().unwrap().len(), 1);
+
+        // Now register a conversation expecting that exact kind + entity
+        let convo = Box::new(MockConversation::with_expected_kind(100, 42, 10, kind));
+        scheduler.add_conversation(convo);
+
+        // The pending buffer should be drained
+        assert_eq!(scheduler.pending_msgs.lock().unwrap().len(), 0);
+        // The message should now be a waiting message (already consumed by add_waiting_message)
+        // and the conversation should be active
+        assert!(scheduler.is_active_conversation(100));
+    }
+
+    #[test]
+    fn pending_message_not_drained_wrong_kind() {
+        let scheduler = ConvoScheduler::new();
+        let kind = PossibleExpectedKinds::PlanetToOrchKind(
+            PlanetToOrchestratorKind::StartPlanetAIResult,
+        );
+
+        // Buffer a SunrayAck message
+        let msg = make_sunray_ack_msg(42);
+        scheduler.buffer_pending_message(msg);
+
+        // Register a conversation expecting StartPlanetAIResult (different kind)
+        let convo = Box::new(MockConversation::with_expected_kind(100, 42, 10, kind));
+        scheduler.add_conversation(convo);
+
+        // Pending buffer should NOT be drained — wrong kind
+        assert_eq!(scheduler.pending_msgs.lock().unwrap().len(), 1);
+    }
+
+    #[test]
+    fn pending_message_not_drained_wrong_entity() {
+        let scheduler = ConvoScheduler::new();
+        let kind = PossibleExpectedKinds::PlanetToOrchKind(PlanetToOrchestratorKind::SunrayAck);
+
+        // Buffer a SunrayAck for planet 42
+        let msg = make_sunray_ack_msg(42);
+        scheduler.buffer_pending_message(msg);
+
+        // Register a conversation for planet 999 (different entity)
+        let convo = Box::new(MockConversation::with_expected_kind(100, 999, 10, kind));
+        scheduler.add_conversation(convo);
+
+        // Pending buffer should NOT be drained — wrong entity
+        assert_eq!(scheduler.pending_msgs.lock().unwrap().len(), 1);
+    }
+
+    #[test]
+    fn pending_cleanup_on_dead_entity() {
+        let scheduler = ConvoScheduler::new();
+
+        // Buffer messages for entity 42
+        scheduler.buffer_pending_message(make_sunray_ack_msg(42));
+        scheduler.buffer_pending_message(make_start_planet_ai_result_msg(42));
+        // Buffer a message for a different entity
+        scheduler.buffer_pending_message(make_sunray_ack_msg(99));
+        assert_eq!(scheduler.pending_msgs.lock().unwrap().len(), 3);
+
+        // Kill entity 42
+        scheduler.remove_convos_for_dead_entity(42);
+
+        // Only the message for entity 99 should remain
+        assert_eq!(scheduler.pending_msgs.lock().unwrap().len(), 1);
+    }
+
+    #[test]
+    fn multiple_pending_first_match_wins() {
+        let scheduler = ConvoScheduler::new();
+        let kind = PossibleExpectedKinds::PlanetToOrchKind(PlanetToOrchestratorKind::SunrayAck);
+
+        // Buffer two SunrayAck messages for different planets
+        scheduler.buffer_pending_message(make_sunray_ack_msg(10));
+        scheduler.buffer_pending_message(make_sunray_ack_msg(20));
+        assert_eq!(scheduler.pending_msgs.lock().unwrap().len(), 2);
+
+        // Register a conversation for planet 20
+        let convo = Box::new(MockConversation::with_expected_kind(200, 20, 10, kind));
+        scheduler.add_conversation(convo);
+
+        // Only the matching message (planet 20) should be drained
+        let pending = scheduler.pending_msgs.lock().unwrap();
+        assert_eq!(pending.len(), 1);
+        // The remaining message should be for planet 10
+        let remaining_entities = pending[0].get_entity_ids();
+        assert_eq!(remaining_entities.0, Some(10));
     }
 }

@@ -27,6 +27,11 @@ impl ConvoManager {
                 ),
             );
             self.convo_scheduler.add_waiting_message(id, message);
+        } else {
+            // No matching conversation found yet — buffer for later matching.
+            // This handles the race where a response arrives between
+            // transition() and add_conversation() on the processor thread.
+            self.convo_scheduler.buffer_pending_message(message);
         }
     }
 }
