@@ -1,5 +1,5 @@
 use crate::convo_manager::OrchContextRef;
-use crate::globals::TIMEOUT;
+use crate::globals::get_convo_timeout;
 use crate::logging::{LogTarget, log_internal};
 use crate::orchestrator::ChannelsManagerRef;
 use crate::orchestrator::conversations::EntitiesIDTuple;
@@ -27,7 +27,7 @@ create_request_state!(
     state_name: SendingAsteroid,
     conv_name: AsteroidConversation,
     convo_kind: ConvoKind::Asteroid,
-    timeout: Some(TIMEOUT),
+    timeout: Some(get_convo_timeout()),
     expected_msg: None,
     fields: {
         planet_id: ID,
@@ -137,7 +137,7 @@ fn waiting_asteroid_ack_transition(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::globals::TIMEOUT;
+    use crate::globals::get_convo_timeout;
     use crate::orchestrator::conversations::orch_planet::test_utils::{
         add_broken_planet_sender, add_working_planet_sender, make_test_context,
     };
@@ -345,6 +345,6 @@ mod tests {
         let conv = make_send_conv(test_ctx.clone());
 
         // Sending states should not have timeout - they're not waiting for messages
-        assert_eq!(conv.get_timeout(), Some(TIMEOUT));
+        assert_eq!(conv.get_timeout(), Some(get_convo_timeout()));
     }
 }

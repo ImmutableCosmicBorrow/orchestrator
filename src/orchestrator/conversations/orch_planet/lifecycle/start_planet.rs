@@ -1,5 +1,5 @@
 use crate::convo_manager::OrchContextRef;
-use crate::globals::TIMEOUT;
+use crate::globals::get_convo_timeout;
 use crate::logging::{LogTarget, log_internal};
 use crate::orchestrator::ChannelsManagerRef;
 use crate::orchestrator::Duration;
@@ -41,7 +41,7 @@ create_request_state!(
     state_name: SendingPlanetStart,
     conv_name: StartPlanetConversation,
     convo_kind: ConvoKind::StartPlanet,
-    timeout: Some(TIMEOUT),
+    timeout: Some(get_convo_timeout()),
     expected_msg: None,
     fields: {
         planet_id: ID,
@@ -80,7 +80,7 @@ create_response_state!(
     state: WaitingPlanetStartResult,
     conv: StartPlanetConversation,
     convo_kind: ConvoKind::StartPlanet,
-    timeout: Some(TIMEOUT),
+    timeout: Some(get_convo_timeout()),
     expected_msg: PlanetToOrchKind(PlanetToOrchestratorKind::StartPlanetAIResult),
     fields: {
         planet_id: ID

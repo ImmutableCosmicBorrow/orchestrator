@@ -1,5 +1,5 @@
 use crate::convo_manager::OrchContextRef;
-use crate::globals::{TIMEOUT, get_explorer_timeout};
+use crate::globals::get_convo_timeout;
 use crate::logging::{LogTarget, log_internal};
 use crate::orchestrator::ChannelsManagerRef;
 use crate::orchestrator::conversations::EntitiesIDTuple;
@@ -43,7 +43,7 @@ create_request_state!(
     state_name: SendingNeighbors,
     conv_name: NeighborsDiscoveryConversation,
     convo_kind: ConvoKind::NeighborsDiscovery,
-    timeout: Some(TIMEOUT),
+    timeout: Some(get_convo_timeout()),
     expected_msg: None,
     fields: {
         explorer_id: ID,
@@ -97,7 +97,7 @@ create_response_state!(
     state: WaitingNeighborsRequest,
     conv: NeighborsDiscoveryConversation,
     convo_kind: ConvoKind::NeighborsDiscovery,
-    timeout: Some(get_explorer_timeout()),
+    timeout: Some(get_convo_timeout()),
     expected_msg: ExplorerToOrchKind(ExplorerToOrchestratorKind::NeighborsRequest),
     fields: {
         explorer_id: ID,

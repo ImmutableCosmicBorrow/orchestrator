@@ -1,5 +1,5 @@
 use crate::convo_manager::OrchContextRef;
-use crate::globals::TIMEOUT;
+use crate::globals::get_convo_timeout;
 use crate::logging::{LogTarget, log_internal};
 use crate::orchestrator::ChannelsManagerRef;
 use crate::orchestrator::conversations::EntitiesIDTuple;
@@ -30,7 +30,7 @@ create_request_state!(
     state_name: SendSunray,
     conv_name: SunrayConversation,
            convo_kind: ConvoKind::Sunray,
-    timeout: Some(TIMEOUT),
+    timeout: Some(get_convo_timeout()),
     expected_msg: None,
     fields: {
         planet_id: ID,
@@ -132,7 +132,7 @@ fn on_timeout(this: Box<SunrayConversation<WaitingSunrayAck>>) {
             action : "Sunray conversation timed out waiting for planet acknowledgment",
             planet_id : this.state.planet_id,
             conversation_id : this.id,
-            timeout_secs : TIMEOUT.as_secs()
+            timeout_secs : get_convo_timeout().as_secs()
         ),
     );
 }
@@ -232,7 +232,7 @@ mod tests {
         // get_expected_kind (should be None in SendSunray state)
         assert_eq!(conv.get_expected_kind(), None);
         // send state should have a timeout configured
-        assert_eq!(conv.get_timeout(), Some(TIMEOUT));
+        assert_eq!(conv.get_timeout(), Some(get_convo_timeout()));
         // get_priority
         assert_eq!(conv.get_priority(), ConvoKind::Sunray.priority().as_i32());
     }

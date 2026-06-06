@@ -1,4 +1,4 @@
-use crate::globals::{TIMEOUT, get_explorer_timeout};
+use crate::globals::get_convo_timeout;
 use crate::logging::{LogTarget, log_internal};
 use crate::orchestrator::conversations::EntitiesIDTuple;
 use crate::orchestrator::conversations::PossibleExpectedKinds::ExplorerToOrchKind;
@@ -46,7 +46,7 @@ create_request_state!(
     state_name: SendingExplorerKill,
     conv_name: KillExplorerConversation,
     convo_kind: ConvoKind::KillExplorer,
-    timeout: Some(TIMEOUT),
+    timeout: Some(get_convo_timeout()),
     expected_msg: None,
     fields: {
         explorer_id: ID,
@@ -98,7 +98,7 @@ create_response_state!(
     state: WaitingKillExplorerResult,
     conv: KillExplorerConversation,
     convo_kind: ConvoKind::KillExplorer,
-    timeout: Some(get_explorer_timeout()),
+    timeout: Some(get_convo_timeout()),
     expected_msg: ExplorerToOrchKind(ExplorerToOrchestratorKind::KillExplorerResult),
     fields: {
         explorer_id: ID,

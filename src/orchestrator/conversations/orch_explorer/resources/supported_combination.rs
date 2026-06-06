@@ -1,5 +1,5 @@
 use crate::convo_manager::OrchContextRef;
-use crate::globals::{TIMEOUT, get_explorer_timeout};
+use crate::globals::get_convo_timeout;
 use crate::logging::{LogTarget, log_internal};
 use crate::orchestrator::ChannelsManagerRef;
 use crate::orchestrator::conversations::PossibleExpectedKinds::ExplorerToOrchKind;
@@ -39,7 +39,7 @@ create_request_state!(
     state_name: SendingSupportedCombinationRequest,
     conv_name: SupportedCombinationConversation,
     convo_kind: ConvoKind::SupportedCombination,
-    timeout: Some(TIMEOUT),
+    timeout: Some(get_convo_timeout()),
     expected_msg: None,
     fields: {
         explorer_id: ID,
@@ -93,7 +93,7 @@ create_response_state!(
     state: WaitingSupportedCombinationResult,
     conv: SupportedCombinationConversation,
     convo_kind: ConvoKind::SupportedCombination,
-    timeout: Some(get_explorer_timeout().mul(2)),
+    timeout: Some(get_convo_timeout().mul(2)),
     expected_msg: ExplorerToOrchKind(ExplorerToOrchestratorKind::SupportedCombinationResult),
     fields: {
         explorer_id: ID,

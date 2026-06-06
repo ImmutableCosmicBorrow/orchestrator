@@ -211,7 +211,7 @@ impl ConvoScheduler {
 
         // Register timeout if the conversation has one configured
         if let Some(timeout_duration) = conversation.get_timeout() {
-            let scaled_timeout = if timeout_duration == crate::globals::TIMEOUT {
+            let scaled_timeout = if timeout_duration == crate::globals::get_convo_timeout() {
                 timeout_duration.max(crate::globals::get_game_step() + Duration::from_secs(1))
             } else {
                 timeout_duration
@@ -412,7 +412,7 @@ impl ConvoScheduler {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::globals::TIMEOUT;
+    use crate::globals::get_convo_timeout;
     use crate::orchestrator::conversations::{
         Conversation, PossibleExpectedKinds, PossibleMessage,
     };
@@ -489,7 +489,7 @@ mod tests {
         }
 
         fn get_timeout(&self) -> Option<Duration> {
-            Some(TIMEOUT)
+            Some(get_convo_timeout())
         }
     }
 

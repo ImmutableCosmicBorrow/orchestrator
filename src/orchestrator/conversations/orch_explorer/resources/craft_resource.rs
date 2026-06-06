@@ -1,5 +1,5 @@
 use crate::convo_manager::OrchContextRef;
-use crate::globals::{TIMEOUT, get_explorer_timeout};
+use crate::globals::get_convo_timeout;
 use crate::logging::{LogTarget, log_internal};
 use crate::orchestrator::ChannelsManagerRef;
 use crate::orchestrator::conversations::EntitiesIDTuple;
@@ -57,7 +57,7 @@ create_request_state!(
     state_name: SendingCraftResourceRequest,
     conv_name: CraftResourceConversation,
     convo_kind: ConvoKind::CraftResource,
-    timeout: Some(TIMEOUT),
+    timeout: Some(get_convo_timeout()),
     expected_msg: None,
     fields: {
         explorer_id: ID,
@@ -109,7 +109,7 @@ create_response_state!(
     state: WaitingCraftResourceResult,
     conv: CraftResourceConversation,
     convo_kind: ConvoKind::CraftResource,
-    timeout: Some(get_explorer_timeout().mul(2)), //longer timeout since involves Explorer - Planet Conversation
+    timeout: Some(get_convo_timeout().mul(2)), //longer timeout since involves Explorer - Planet Conversation
     expected_msg: ExplorerToOrchKind(ExplorerToOrchestratorKind::GenerateResourceResponse),
     fields: {
         explorer_id: ID,

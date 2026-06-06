@@ -1,5 +1,5 @@
 use crate::convo_manager::OrchContextRef;
-use crate::globals::{TIMEOUT, get_explorer_timeout};
+use crate::globals::get_convo_timeout;
 use crate::logging::{LogTarget, log_internal};
 use crate::orchestrator::ChannelsManagerRef;
 use crate::orchestrator::conversations::PossibleExpectedKinds::ExplorerToOrchKind;
@@ -58,7 +58,7 @@ create_request_state!(
     state_name: SendingCombineResourceRequest,
     conv_name: CombineResourceConversation,
     convo_kind: ConvoKind::CombineResource,
-    timeout: Some(TIMEOUT),
+    timeout: Some(get_convo_timeout()),
     expected_msg: None,
     fields: {
         explorer_id: ID,
@@ -112,7 +112,7 @@ create_response_state!(
     state: WaitingCombineResourceResult,
     conv: CombineResourceConversation,
     convo_kind: ConvoKind::CombineResource,
-    timeout: Some(get_explorer_timeout().mul(2)),
+    timeout: Some(get_convo_timeout().mul(2)),
     expected_msg: ExplorerToOrchKind(ExplorerToOrchestratorKind::CombineResourceResponse),
     fields: {
         explorer_id: ID,

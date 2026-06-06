@@ -1,4 +1,4 @@
-use crate::globals::TIMEOUT;
+use crate::globals::get_convo_timeout;
 use crate::logging::{LogTarget, log_internal};
 use crate::orchestrator::Duration;
 use crate::orchestrator::conversations::EntitiesIDTuple;
@@ -40,7 +40,7 @@ create_request_state!(
     state_name: SendingPlanetStop,
     conv_name: StopPlanetConversation,
     convo_kind: ConvoKind::StopPlanet,
-    timeout: Some(TIMEOUT),
+    timeout: Some(get_convo_timeout()),
     expected_msg: None,
     fields: {
         planet_id: ID,
@@ -88,7 +88,7 @@ create_response_state!(
     state: WaitingPlanetStopResult,
     conv: StopPlanetConversation,
     convo_kind: ConvoKind::StopPlanet,
-    timeout: Some(TIMEOUT),
+    timeout: Some(get_convo_timeout()),
     expected_msg: PlanetToOrchKind(PlanetToOrchestratorKind::StopPlanetAIResult),
     fields: {
         planet_id: ID

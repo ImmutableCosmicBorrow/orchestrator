@@ -1,5 +1,5 @@
 use crate::convo_manager::OrchContextRef;
-use crate::globals::TIMEOUT;
+use crate::globals::get_convo_timeout;
 use crate::logging::{LogTarget, log_msg_to};
 use crate::orchestrator::ChannelsManagerRef;
 use crate::orchestrator::Duration;
@@ -37,7 +37,7 @@ create_request_state!(
     state_name: SendOutgoingRequest,
     conv_name: MoveToPlanetConversation,
     convo_kind: ConvoKind::OutgoingExplorer,
-    timeout: Some(TIMEOUT),
+    timeout: Some(get_convo_timeout()),
     expected_msg: None,
     fields: {
         explorer_id: ID,
@@ -126,7 +126,7 @@ create_response_state!(
     state: WaitingOutgoingResponse,
     conv: MoveToPlanetConversation,
     convo_kind: ConvoKind::OutgoingExplorer,
-    timeout: Some(TIMEOUT),
+    timeout: Some(get_convo_timeout()),
     expected_msg: PlanetToOrchKind(PlanetToOrchestratorKind::OutgoingExplorerResponse),
     fields: {
         explorer_id: ID,

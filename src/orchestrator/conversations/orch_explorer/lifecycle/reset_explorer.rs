@@ -1,5 +1,5 @@
 use crate::convo_manager::OrchContextRef;
-use crate::globals::{TIMEOUT, get_explorer_timeout};
+use crate::globals::get_convo_timeout;
 use crate::logging::{LogTarget, log_internal};
 use crate::orchestrator::ChannelsManagerRef;
 use crate::orchestrator::conversations::EntitiesIDTuple;
@@ -40,7 +40,7 @@ create_request_state!(
     state_name: SendingExplorerReset,
     conv_name: ResetExplorerConversation,
     convo_kind: ConvoKind::ResetExplorer,
-    timeout: Some(TIMEOUT),
+    timeout: Some(get_convo_timeout()),
     expected_msg: None,
     fields: {
         explorer_id: ID,
@@ -88,7 +88,7 @@ create_response_state!(
     state: WaitingExplorerResetResult,
     conv: ResetExplorerConversation,
     convo_kind: ConvoKind::ResetExplorer,
-    timeout: Some(get_explorer_timeout()),
+    timeout: Some(get_convo_timeout()),
     expected_msg: ExplorerToOrchKind(ExplorerToOrchestratorKind::ResetExplorerAIResult),
     fields: {
         explorer_id: ID

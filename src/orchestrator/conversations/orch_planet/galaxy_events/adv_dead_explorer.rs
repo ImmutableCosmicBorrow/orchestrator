@@ -1,5 +1,5 @@
 use crate::convo_manager::OrchContextRef;
-use crate::globals::TIMEOUT;
+use crate::globals::get_convo_timeout;
 use crate::logging::{LogTarget, log_internal};
 use crate::orchestrator::ChannelsManagerRef;
 use crate::orchestrator::conversations::EntitiesIDTuple;
@@ -53,7 +53,7 @@ create_request_state!(
     state_name: SendingDeadExpAdv,
     conv_name: AdvDeadExplorer,
     convo_kind: ConvoKind::AdvDeadExplorer,
-    timeout: Some(TIMEOUT),
+    timeout: Some(get_convo_timeout()),
     expected_msg: None,
     fields: {
         planet_id: ID,
@@ -99,7 +99,7 @@ create_response_state!(
     state: WaitingDeadAdvResponse,
     conv: AdvDeadExplorer,
     convo_kind: ConvoKind::AdvDeadExplorer,
-    timeout: Some(TIMEOUT),
+    timeout: Some(get_convo_timeout()),
     expected_msg: PlanetToOrchKind(PlanetToOrchestratorKind::OutgoingExplorerResponse),
     fields: {
         planet_id: ID,

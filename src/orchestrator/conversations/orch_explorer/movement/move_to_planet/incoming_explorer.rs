@@ -1,5 +1,5 @@
 use crate::convo_manager::OrchContextRef;
-use crate::globals::TIMEOUT;
+use crate::globals::get_convo_timeout;
 use crate::orchestrator::conversations::orch_explorer::movement::move_to_planet::move_explorer::SendMoveRequest;
 use crate::orchestrator::conversations::orch_explorer::movement::move_to_planet::outgoing_explorer::SendOutgoingRequest;
 use crate::orchestrator::conversations::orch_explorer::movement::move_to_planet::MoveToPlanetConversation;
@@ -28,7 +28,7 @@ create_request_state!(
     state_name: SendIncomingRequest,
     conv_name: MoveToPlanetConversation,
     convo_kind: ConvoKind::IncomingExplorer,
-    timeout: Some(TIMEOUT),
+    timeout: Some(get_convo_timeout()),
     expected_msg: None,
     fields: {
         explorer_id: ID,
@@ -117,7 +117,7 @@ create_response_state!(
     state: WaitingIncomingResponse,
     conv: MoveToPlanetConversation,
     convo_kind: ConvoKind::IncomingExplorer,
-    timeout: Some(TIMEOUT),
+    timeout: Some(get_convo_timeout()),
     expected_msg: PlanetToOrchKind(PlanetToOrchestratorKind::IncomingExplorerResponse),
     fields: {
         explorer_id: ID,
