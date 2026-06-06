@@ -429,13 +429,8 @@ impl Orchestrator {
     fn process_messages(&mut self) {
         let convo_manager = self.convo_manager.clone();
         let orch_context_ref = self.orch_context_ref.clone();
-        let ui_sender = self
-            .orch_context_ref
-            .channels_manager
-            .get_ui_sender()
-            .clone();
-        let planet_threads = self.planet_threads.clone();
         let stop = self.message_processor_stop.clone();
+        let planet_threads = self.planet_threads.clone();
 
         self.message_processor_thread = Some(thread::spawn(move || {
             loop {
@@ -453,6 +448,16 @@ impl Orchestrator {
                 if let Some(convo) = current_convo {
                     let kill_expl_vec = convo.get_kill_explorers_vec();
                     if let Some((vec, handle_outgoing)) = kill_expl_vec {
+                        // Remove the planet from the galaxy and notify the planet thread to stop and remove convos.
+                        if let (Some(planet_id), _) = convo.get_entities_ids() {
+                            if let Ok(mut th_lock) = planet_threads.lock()
+                                && let Some(handle) = th_lock.remove(&planet_id)
+                            {
+                                let _ = handle.join();
+                            }
+                            convo_manager.remove_convos_for_dead_entity(planet_id);
+                        }
+                        
                         for el in vec {
                             explorer_factory::kill_explorer(
                                 &orch_context_ref,
@@ -461,40 +466,6 @@ impl Orchestrator {
                                 Some(el.1),
                                 handle_outgoing,
                             );
-                        }
-
-                        //TODO: ASK to the others, planet is already killed by the convos
-                        //TODO: MAYBE ADD THIS TO THE CONVO
-                        // Remove the planet from the galaxy and notify the planet thread to stop.
-                        if let (Some(planet_id), _) = convo.get_entities_ids() {
-                            let planets_senders_clone = orch_context_ref
-                                .channels_manager
-                                .get_to_planet_senders_struct()
-                                .clone();
-                            let galaxy_clone = orch_context_ref.galaxy.clone();
-                            let planet_threads_clone = planet_threads.clone();
-                            // remove_node_with_stop will remove the node from the PlanetMap and then
-                            // call the provided closure to kill the planet (send KillPlanet and remove sender).
-                            planet::remove_node_with_stop(&galaxy_clone, planet_id, |dead_id| {
-                                // remove and notify sender
-                                if let Some((_, sender)) = planets_senders_clone.remove(&dead_id) {
-                                    let _ = sender.send(OrchestratorToPlanet::KillPlanet);
-                                }
-
-                                // remove and join the planet thread handle if present
-                                if let Ok(mut th_lock) = planet_threads_clone.lock()
-                                    && let Some(handle) = th_lock.remove(&dead_id)
-                                {
-                                    let _ = handle.join();
-                                }
-
-                                let _ = ui_sender.send(OrchestratorToUiUpdate::DeadPlanet(dead_id));
-                                let _ = ui_sender
-                                    .send(OrchestratorToUiUpdate::Galaxy(galaxy_clone.clone()));
-
-                                convo_manager.remove_convos_for_dead_entity(dead_id);
-                                orch_context_ref.channels_manager.remove_planet_channels(dead_id);
-                            });
                         }
                     }
                     let id = convo.get_id();
