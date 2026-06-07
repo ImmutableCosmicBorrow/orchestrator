@@ -83,9 +83,7 @@ impl LogDirectives {
     /// records through that might match a category directive discovered only
     /// after content-based classification.
     pub fn any_module_enables(&self, level: log::Level) -> bool {
-        self.module_levels
-            .values()
-            .any(|&filter| level <= filter)
+        self.module_levels.values().any(|&filter| level <= filter)
     }
 }
 

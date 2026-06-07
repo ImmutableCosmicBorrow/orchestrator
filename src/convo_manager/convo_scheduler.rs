@@ -163,7 +163,7 @@ impl ConvoScheduler {
     /// Given a message kind and entities ids, this method looks for an inactive conversation
     /// that is expecting a message of that kind and is associated with the specified entities.
     /// If such a conversation is found, its id is returned.
-    pub fn find_matching_conversation(
+    fn find_matching_conversation(
         &self,
         message_kind: &PossibleExpectedKinds,
         entity_ids: (Option<ID>, Option<ID>),
@@ -180,6 +180,47 @@ impl ConvoScheduler {
                 }
             }
         }
+        None
+    }
+
+    /// Atomically searches for a matching inactive conversation and, if none is found,
+    /// buffers the message for later draining by `add_conversation`.
+    ///
+    /// This method holds the `pending_msgs` lock throughout the find+buffer sequence
+    /// to prevent a TOCTOU race with `add_conversation`'s drain: without the lock,
+    /// a response arriving between `transition()` and `add_conversation()` could be
+    /// buffered *after* the drain completes, leaving the message stuck forever.
+    pub fn find_matching_or_buffer(
+        &self,
+        message: PossibleMessage,
+        message_kind: &PossibleExpectedKinds,
+        entity_ids: (Option<ID>, Option<ID>),
+    ) -> Option<(ID, PossibleMessage)> {
+        // Hold pending_msgs lock for the entire find-or-buffer operation.
+        // add_conversation also holds this lock while adding to inactive_convos
+        // and draining, so the two operations are mutually exclusive.
+        let mut pending = self.pending_msgs.lock().unwrap();
+
+        if let Some(convo_id) = self.find_matching_conversation(message_kind, entity_ids) {
+            // Drop pending lock before returning — caller will deliver the message
+            drop(pending);
+            return Some((convo_id, message));
+        }
+
+        // No matching conversation yet — buffer for later matching.
+        let msg_kind_dbg = format!("{:?}", message.to_kind_type());
+        let entity_ids_dbg = message.get_entity_ids();
+        log_internal(
+            LogTarget::Conversations,
+            Channel::Debug,
+            payload!(
+                event: "MessageBufferedPending",
+                message_kind: msg_kind_dbg,
+                planet_id: format!("{:?}", entity_ids_dbg.0),
+                explorer_id: format!("{:?}", entity_ids_dbg.1)
+            ),
+        );
+        pending.push(message);
         None
     }
 
@@ -228,8 +269,7 @@ impl ConvoScheduler {
         let entities = conversation.get_entities_ids();
         // Capture expected_kind before the conversation is moved into a map
         let expected_kind = conversation.get_expected_kind();
-        let ready_to_transition =
-            expected_kind.is_none() || self.get_waiting_message(id).is_some();
+        let ready_to_transition = expected_kind.is_none() || self.get_waiting_message(id).is_some();
         log_internal(
             LogTarget::Conversations,
             Channel::Trace,
@@ -245,9 +285,19 @@ impl ConvoScheduler {
         );
         // If the conversation is ready to transition, add it to the active convos.
         // Otherwise, add it to the inactive convos, which are waiting for a match.
+        //
+        // For conversations with an expected_kind, we hold the pending_msgs lock
+        // across both the insertion into inactive_convos AND the pending drain.
+        // This prevents a TOCTOU race with find_matching_or_buffer: without this,
+        // a message could be buffered *after* the drain completes if it arrives
+        // between transition() and add_conversation().
         if ready_to_transition {
             self.active_convos.lock().unwrap().insert(id, conversation);
+            self.queue.push(id, priority);
         } else {
+            // Hold pending_msgs lock for the entire add-to-inactive + drain operation.
+            let mut pending = self.pending_msgs.lock().unwrap();
+
             // Add the expected kind to the expected messages
             if let Some(ref kind) = expected_kind {
                 self.by_expected_msg
@@ -261,23 +311,22 @@ impl ConvoScheduler {
                 .lock()
                 .unwrap()
                 .insert(id, conversation);
-        }
 
-        // Enqueue and log
-        self.queue.push(id, priority);
+            // Enqueue
+            self.queue.push(id, priority);
 
-        // Drain pending messages that match this newly registered conversation.
-        // This closes the race where a response arrives between transition() and
-        // add_conversation() on the processor thread.
-        if let Some(ref kind) = expected_kind {
-            let mut pending = self.pending_msgs.lock().unwrap();
-            if let Some(pos) = pending.iter().position(|msg| {
-                let msg_kind = msg.to_kind_type();
-                let msg_entities = msg.get_entity_ids();
-                msg_kind == *kind
-                    && (msg_entities == entities
-                        || (msg_entities.0 == entities.1 && msg_entities.1 == entities.0))
-            }) {
+            // Drain pending messages that match this newly registered conversation.
+            // This closes the race where a response arrives between transition() and
+            // add_conversation() on the processor thread.
+            if let Some(ref kind) = expected_kind
+                && let Some(pos) = pending.iter().position(|msg| {
+                    let msg_kind = msg.to_kind_type();
+                    let msg_entities = msg.get_entity_ids();
+                    msg_kind == *kind
+                        && (msg_entities == entities
+                            || (msg_entities.0 == entities.1 && msg_entities.1 == entities.0))
+                })
+            {
                 let matched_msg = pending.remove(pos);
                 log_internal(
                     LogTarget::Conversations,
@@ -429,6 +478,11 @@ impl ConvoScheduler {
 
     /// Buffer a message that arrived before its target conversation was registered.
     /// These messages will be drained and matched when `add_conversation()` is called.
+    ///
+    /// NOTE: Prefer using `find_matching_or_buffer` instead, which atomically checks
+    /// for a matching conversation and buffers if none is found. Direct use of this
+    /// method is only for non-conversation-matched messages.
+    #[cfg(test)]
     pub fn buffer_pending_message(&self, message: PossibleMessage) {
         let message_kind = message.to_kind_type();
         let entity_ids = message.get_entity_ids();
@@ -1252,9 +1306,8 @@ mod tests {
     #[test]
     fn pending_message_not_drained_wrong_kind() {
         let scheduler = ConvoScheduler::new();
-        let kind = PossibleExpectedKinds::PlanetToOrchKind(
-            PlanetToOrchestratorKind::StartPlanetAIResult,
-        );
+        let kind =
+            PossibleExpectedKinds::PlanetToOrchKind(PlanetToOrchestratorKind::StartPlanetAIResult);
 
         // Buffer a SunrayAck message
         let msg = make_sunray_ack_msg(42);

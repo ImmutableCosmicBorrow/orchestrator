@@ -108,7 +108,6 @@ pub(crate) fn kill_explorer(
     }
 }
 
-
 fn resolve_planet_id(channels_manager: &ChannelsManagerRef, spawn_planet: Option<ID>) -> ID {
     spawn_planet
         .filter(|id| channels_manager.to_planet_senders_contains(*id))

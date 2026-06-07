@@ -40,7 +40,7 @@ create_request_state!(
     state_name: SendingExplorerReset,
     conv_name: ResetExplorerConversation,
     convo_kind: ConvoKind::ResetExplorer,
-    timeout: Some(get_convo_timeout()),
+    timeout: None,
     expected_msg: None,
     fields: {
         explorer_id: ID,

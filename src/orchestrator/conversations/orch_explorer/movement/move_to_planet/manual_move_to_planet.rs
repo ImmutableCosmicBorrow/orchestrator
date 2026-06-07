@@ -10,7 +10,6 @@ use crate::orchestrator::conversations::{ChannelsContext, Conversation, Possible
 use crate::orchestrator::conversations::params::ConvoKind;
 use common_game::utils::ID;
 use crate::create_request_state;
-use crate::globals::get_convo_timeout;
 use crate::orchestrator::ChannelsManagerRef;
 use crate::orchestrator::conversations::orch_explorer::movement::move_to_planet::incoming_explorer::SendIncomingRequest;
 
@@ -25,7 +24,7 @@ create_request_state!(
     state_name: SendManualMoveRequest,
     conv_name: MoveToPlanetConversation,
     convo_kind: ConvoKind::ManualMoveToPlanet,
-    timeout: Some(get_convo_timeout()),
+    timeout: None,
     expected_msg: None,
     fields: {
         explorer_id: ID,

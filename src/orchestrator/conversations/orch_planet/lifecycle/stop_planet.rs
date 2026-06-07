@@ -40,7 +40,7 @@ create_request_state!(
     state_name: SendingPlanetStop,
     conv_name: StopPlanetConversation,
     convo_kind: ConvoKind::StopPlanet,
-    timeout: Some(get_convo_timeout()),
+    timeout: None,
     expected_msg: None,
     fields: {
         planet_id: ID,

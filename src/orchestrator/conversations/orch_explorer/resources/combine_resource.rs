@@ -58,7 +58,7 @@ create_request_state!(
     state_name: SendingCombineResourceRequest,
     conv_name: CombineResourceConversation,
     convo_kind: ConvoKind::CombineResource,
-    timeout: Some(get_convo_timeout()),
+    timeout: None,
     expected_msg: None,
     fields: {
         explorer_id: ID,

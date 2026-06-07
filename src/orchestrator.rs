@@ -76,10 +76,9 @@ impl OrchContext {
         self.explorers_location.clone()
     }
 
-    pub(crate) fn insert_explorer_location(&self, explorer_id : ID, planet_id : ID) {
+    pub(crate) fn insert_explorer_location(&self, explorer_id: ID, planet_id: ID) {
         self.explorers_location.insert(explorer_id, planet_id);
     }
-
 }
 
 pub struct Orchestrator {
@@ -457,7 +456,7 @@ impl Orchestrator {
                             }
                             convo_manager.remove_convos_for_dead_entity(planet_id);
                         }
-                        
+
                         for el in vec {
                             explorer_factory::kill_explorer(
                                 &orch_context_ref,

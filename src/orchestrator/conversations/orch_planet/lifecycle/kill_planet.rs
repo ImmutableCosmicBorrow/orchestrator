@@ -39,7 +39,7 @@ create_request_state!(
     state_name: SendPlanetKill,
     conv_name: KillPlanetConversation,
     convo_kind: ConvoKind::KillPlanet,
-    timeout: Some(get_convo_timeout()),
+    timeout: None,
     expected_msg: None,
     fields: {
         planet_id: ID,
@@ -126,13 +126,31 @@ fn wait_planet_kill_res_transition(
     })) = msg
     {
         // remove_node_with_stop will remove the node from the PlanetMap
-        planet::remove_node_with_stop(&this.state.orch_context.get_galaxy(), planet_id, |dead_id| {
+        planet::remove_node_with_stop(
+            &this.state.orch_context.get_galaxy(),
+            planet_id,
+            |dead_id| {
+                let _ = this
+                    .state
+                    .orch_context
+                    .get_channels_manager()
+                    .get_ui_sender()
+                    .send(OrchestratorToUiUpdate::DeadPlanet(dead_id));
+                let _ = this
+                    .state
+                    .orch_context
+                    .get_channels_manager()
+                    .get_ui_sender()
+                    .send(OrchestratorToUiUpdate::Galaxy(
+                        this.state.orch_context.get_galaxy(),
+                    ));
 
-            let _ = this.state.orch_context.get_channels_manager().get_ui_sender().send(OrchestratorToUiUpdate::DeadPlanet(dead_id));
-            let _ = this.state.orch_context.get_channels_manager().get_ui_sender().send(OrchestratorToUiUpdate::Galaxy(this.state.orch_context.get_galaxy()));
-
-            this.state.orch_context.get_channels_manager().remove_planet_channels(dead_id);
-        });
+                this.state
+                    .orch_context
+                    .get_channels_manager()
+                    .remove_planet_channels(dead_id);
+            },
+        );
 
         log_internal(
             LogTarget::Conversations,

@@ -46,7 +46,7 @@ create_request_state!(
     state_name: SendingExplorerKill,
     conv_name: KillExplorerConversation,
     convo_kind: ConvoKind::KillExplorer,
-    timeout: Some(get_convo_timeout()),
+    timeout: None,
     expected_msg: None,
     fields: {
         explorer_id: ID,
@@ -129,7 +129,9 @@ fn wait_exp_kill_res_transition(
     {
         //Delete killed explorer from the explorer location list
         this.state.delete_dead_explorer();
-        this.state.get_channels_manager().remove_explorer_channels(explorer_id);
+        this.state
+            .get_channels_manager()
+            .remove_explorer_channels(explorer_id);
 
         log_internal(
             LogTarget::Conversations,

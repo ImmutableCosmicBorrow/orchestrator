@@ -37,7 +37,7 @@ create_request_state!(
     state_name: SendingBagContentRequest,
     conv_name: BagContentConversation,
     convo_kind: ConvoKind::BagContentScenario,
-    timeout: Some(get_convo_timeout()),
+    timeout: None,
     expected_msg: None,
     fields: {
         explorer_id: ID,

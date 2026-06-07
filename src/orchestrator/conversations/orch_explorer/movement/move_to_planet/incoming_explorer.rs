@@ -28,7 +28,7 @@ create_request_state!(
     state_name: SendIncomingRequest,
     conv_name: MoveToPlanetConversation,
     convo_kind: ConvoKind::IncomingExplorer,
-    timeout: Some(get_convo_timeout()),
+    timeout: None,
     expected_msg: None,
     fields: {
         explorer_id: ID,

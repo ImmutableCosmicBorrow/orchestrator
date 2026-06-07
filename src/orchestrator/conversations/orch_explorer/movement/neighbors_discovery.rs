@@ -43,7 +43,7 @@ create_request_state!(
     state_name: SendingNeighbors,
     conv_name: NeighborsDiscoveryConversation,
     convo_kind: ConvoKind::NeighborsDiscovery,
-    timeout: Some(get_convo_timeout()),
+    timeout: None,
     expected_msg: None,
     fields: {
         explorer_id: ID,

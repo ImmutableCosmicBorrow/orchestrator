@@ -53,7 +53,7 @@ create_request_state!(
     state_name: SendingDeadExpAdv,
     conv_name: AdvDeadExplorer,
     convo_kind: ConvoKind::AdvDeadExplorer,
-    timeout: Some(get_convo_timeout()),
+    timeout: None,
     expected_msg: None,
     fields: {
         planet_id: ID,

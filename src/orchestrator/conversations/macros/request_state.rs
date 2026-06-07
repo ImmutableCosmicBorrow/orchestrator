@@ -15,7 +15,8 @@
 /// * `state_name` - The identifier of the state struct to be generated.
 /// * `conv_name` - The wrapper conversation type that will hold this state.
 /// * `convo_kind` - The conversation kind used to derive execution priority.
-/// * `timeout` - An expression yielding an `Option<Duration>` for the state's timeout.
+/// * `timeout` - **Ignored.** Request states always return `None` from `get_timeout()`
+///   because they execute immediately without waiting for a message.
 /// * `expected_msg` - Typically `None` since this state is not waiting for a message.
 /// * `fields` - A block defining the specific fields of the generated state struct.
 /// * `entities_id_fn` - A closure mapping `&self` to an `EntitiesIDTuple` returning the IDs of the entities involved in the state.
@@ -64,7 +65,7 @@ macro_rules! create_request_state {
         impl Conversation for $conv<$state> {
             fn get_id(&self) -> ID { self.id }
             fn get_priority(&self) -> i32 { self.state.convo_kind.priority().as_i32() }
-            fn get_timeout(&self) -> Option<Duration> { $timeout }
+            fn get_timeout(&self) -> Option<Duration> { None }
             fn get_expected_kind(&self) -> Option<PossibleExpectedKinds> { $expected_msg }
             fn get_entities_ids(&self) -> EntitiesIDTuple {
                 ($entities_id_logic) (self)

@@ -39,7 +39,7 @@ create_request_state!(
     state_name: SendingSupportedResourcesRequest,
     conv_name: SupportedResourcesConversation,
     convo_kind: ConvoKind::SupportedResources,
-    timeout: Some(get_convo_timeout()),
+    timeout: None,
     expected_msg: None,
     fields: {
         explorer_id: ID,

@@ -30,7 +30,7 @@ create_request_state!(
     state_name: SendSunray,
     conv_name: SunrayConversation,
            convo_kind: ConvoKind::Sunray,
-    timeout: Some(get_convo_timeout()),
+    timeout: None,
     expected_msg: None,
     fields: {
         planet_id: ID,
@@ -231,8 +231,8 @@ mod tests {
         assert_eq!(conv.get_entities_ids(), (Some(PLANET_ID), None));
         // get_expected_kind (should be None in SendSunray state)
         assert_eq!(conv.get_expected_kind(), None);
-        // send state should have a timeout configured
-        assert_eq!(conv.get_timeout(), Some(get_convo_timeout()));
+        // send state should not have a timeout - it's not waiting for messages
+        assert_eq!(conv.get_timeout(), None);
         // get_priority
         assert_eq!(conv.get_priority(), ConvoKind::Sunray.priority().as_i32());
     }

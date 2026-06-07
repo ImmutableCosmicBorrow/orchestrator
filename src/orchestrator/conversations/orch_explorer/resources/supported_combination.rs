@@ -39,7 +39,7 @@ create_request_state!(
     state_name: SendingSupportedCombinationRequest,
     conv_name: SupportedCombinationConversation,
     convo_kind: ConvoKind::SupportedCombination,
-    timeout: Some(get_convo_timeout()),
+    timeout: None,
     expected_msg: None,
     fields: {
         explorer_id: ID,

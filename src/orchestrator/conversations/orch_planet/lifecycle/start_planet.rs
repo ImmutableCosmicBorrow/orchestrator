@@ -41,7 +41,7 @@ create_request_state!(
     state_name: SendingPlanetStart,
     conv_name: StartPlanetConversation,
     convo_kind: ConvoKind::StartPlanet,
-    timeout: Some(get_convo_timeout()),
+    timeout: None,
     expected_msg: None,
     fields: {
         planet_id: ID,
