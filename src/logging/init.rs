@@ -176,11 +176,33 @@ fn build_file_log(file: std::fs::File) -> Box<dyn log::Log + Send + Sync> {
     log
 }
 
+struct TerminalLogger;
+
+impl log::Log for TerminalLogger {
+    fn enabled(&self, _metadata: &log::Metadata) -> bool {
+        true
+    }
+
+    fn log(&self, record: &log::Record) {
+        let msg = format!("{}", record.args());
+        #[allow(clippy::collapsible_if)]
+        if let Ok(mut lock) = super::EXTERNAL_PRINTER.lock() {
+            if let Some(printer) = lock.as_mut() {
+                let _ = printer.print(msg);
+                return;
+            }
+        }
+        eprintln!("{msg}");
+    }
+
+    fn flush(&self) {}
+}
+
 fn build_terminal_log() -> Box<dyn log::Log + Send + Sync> {
     let (_, log) = fern::Dispatch::new()
         .level(log::LevelFilter::Trace)
         .format(terminal_format)
-        .chain(std::io::stderr())
+        .chain(Box::new(TerminalLogger) as Box<dyn log::Log>)
         .into_log();
     log
 }

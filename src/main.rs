@@ -15,7 +15,7 @@ fn main() {
             cli.explorer2.map(Into::into),
             cli.spawn_planet,
             cli.game_step,
-            false,
+            true,
             cli.enable_background_events,
         );
 

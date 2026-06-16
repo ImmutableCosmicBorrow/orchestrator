@@ -14,6 +14,13 @@ pub fn run_repl(ui_to_orch_sender: &Sender<UiToOrchestratorCommand>) {
     let mut rl = DefaultEditor::new().expect("failed to initialize command line editor");
     let _ = rl.load_history(history_path);
 
+    #[allow(clippy::collapsible_if)]
+    if let Ok(printer) = rl.create_external_printer() {
+        if let Ok(mut lock) = orchestrator::logging::EXTERNAL_PRINTER.lock() {
+            *lock = Some(Box::new(printer));
+        }
+    }
+
     let mut end_sent = false;
 
     loop {
@@ -233,4 +240,8 @@ pub fn run_repl(ui_to_orch_sender: &Sender<UiToOrchestratorCommand>) {
     }
 
     let _ = rl.save_history(history_path);
+
+    if let Ok(mut lock) = orchestrator::logging::EXTERNAL_PRINTER.lock() {
+        *lock = None;
+    }
 }

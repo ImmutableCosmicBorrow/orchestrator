@@ -30,6 +30,23 @@ pub fn print_help() {
     println!("  supported-combinations | comb <explorer_id>");
 }
 
+fn print_line(msg: String) {
+    #[allow(clippy::collapsible_if)]
+    if let Ok(mut lock) = orchestrator::logging::EXTERNAL_PRINTER.lock() {
+        if let Some(printer) = lock.as_mut() {
+            let _ = printer.print(msg);
+            return;
+        }
+    }
+    std::println!("{msg}");
+}
+
+macro_rules! println {
+    ($($arg:tt)*) => {
+        print_line(format!($($arg)*));
+    };
+}
+
 pub fn print_ui_update(update: OrchestratorToUiUpdate) {
     match update {
         OrchestratorToUiUpdate::Galaxy(galaxy) => {

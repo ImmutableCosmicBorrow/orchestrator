@@ -6,6 +6,9 @@ mod routing;
 mod targets;
 
 pub use targets::LogTarget;
+use std::sync::Mutex;
+
+pub static EXTERNAL_PRINTER: Mutex<Option<Box<dyn rustyline::ExternalPrinter + Send>>> = Mutex::new(None);
 
 use common_game::logging::{ActorType, Channel, EventType, LogEvent, Participant, Payload};
 use common_game::utils::ID;
