@@ -1264,7 +1264,7 @@ mod tests {
     // Pending Message Buffer Tests
     // ============================================================================
 
-    /// Helper: create a PlanetToOrch SunrayAck message for a given planet_id
+    /// Helper: create a `PlanetToOrch` `SunrayAck` message for a given `planet_id`
     fn make_sunray_ack_msg(planet_id: ID) -> PossibleMessage {
         PossibleMessage::PlanetToOrch(
             common_game::protocols::orchestrator_planet::PlanetToOrchestrator::SunrayAck {
@@ -1273,7 +1273,7 @@ mod tests {
         )
     }
 
-    /// Helper: create a PlanetToOrch StartPlanetAIResult message for a given planet_id
+    /// Helper: create a `PlanetToOrch` `StartPlanetAIResult` message for a given `planet_id`
     fn make_start_planet_ai_result_msg(planet_id: ID) -> PossibleMessage {
         PossibleMessage::PlanetToOrch(
             common_game::protocols::orchestrator_planet::PlanetToOrchestrator::StartPlanetAIResult {
