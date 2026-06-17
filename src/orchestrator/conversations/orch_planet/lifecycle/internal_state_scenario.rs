@@ -18,8 +18,6 @@ use common_game::protocols::orchestrator_planet::{
 };
 use common_game::utils::ID;
 
-// TODO: Change ontimeout
-
 //**Internal State Conversation**
 //
 // This module manages the conversation between the Orchestrator and a Planet regarding its internal state.

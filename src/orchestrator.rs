@@ -82,7 +82,6 @@ impl OrchContext {
 }
 
 pub struct Orchestrator {
-    //TODO: MIGHT DELETE THIS
     orch_context_ref: OrchContextRef,
     convo_manager: Arc<ConvoManager>,
     planet_threads: Arc<Mutex<HashMap<ID, JoinHandle<()>>>>,
@@ -256,7 +255,7 @@ impl Orchestrator {
 
                 // Periodic check to determine if there are any explorers left.
                 // If none remain, shut the game down.
-                recv(timeout) -> _ => { //  TODO: send message to UI
+                recv(timeout) -> _ => {
                     if self.orch_context_ref.explorers_location.is_empty() {
                         log_internal(
                             LogTarget::General,
@@ -424,7 +423,6 @@ impl Orchestrator {
         background_events::disable_asteroids();
     }
 
-    //TODO: EXPLORERS_SENDERS AND PLANETS_SENDERS ARE NEEDED TO BE OWNED?
     fn process_messages(&mut self) {
         let convo_manager = self.convo_manager.clone();
         let orch_context_ref = self.orch_context_ref.clone();
@@ -445,6 +443,7 @@ impl Orchestrator {
 
                 let current_convo = convo_manager.convo_scheduler.get_next_conversation();
                 if let Some(convo) = current_convo {
+                    // Only present if we gget a KillPlanetConveersation, we need to also kill all explorers on it
                     let kill_expl_vec = convo.get_kill_explorers_vec();
                     if let Some((vec, handle_outgoing)) = kill_expl_vec {
                         // Remove the planet from the galaxy and notify the planet thread to stop and remove convos.

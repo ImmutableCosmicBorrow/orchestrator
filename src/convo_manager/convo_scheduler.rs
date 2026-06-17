@@ -8,7 +8,6 @@ use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
-//TODO: MIGHT CHANGE THIS IN ALL DASHMAPS
 pub struct ConvoScheduler {
     queue: PQueue,
     active_convos: ConversationMap,
@@ -499,6 +498,7 @@ impl ConvoScheduler {
         self.pending_msgs.lock().unwrap().push(message);
     }
 
+    /// Retrieve and remove a waiting message for a specific conversation ID.
     pub fn get_waiting_message(&self, convo_id: ID) -> Option<PossibleMessage> {
         self.waiting_msgs.lock().unwrap().remove(&convo_id)
     }
@@ -643,11 +643,6 @@ mod tests {
             }
         }
 
-        // TODO: add tests that actually trigger the transition and check that the state is updated accordingly, to verify that the conversations retrieved from the scheduler are the same ones that were added and that their methods work as expected.
-        #[allow(dead_code)]
-        fn transitions(&self) -> usize {
-            self.state.lock().unwrap().transitions
-        }
     }
 
     // ============================================================================
@@ -979,11 +974,6 @@ mod tests {
             }
         }
 
-        // TODO: add tests that trigger the timeout and check that the on_timeout logic is executed as expected, by checking that the on_timeout_called flag is set to true after handling timeouts.
-        #[allow(dead_code)]
-        fn was_timeout_called(&self) -> bool {
-            *self.on_timeout_called.lock().unwrap()
-        }
     }
 
     impl Conversation for TimeoutMockConversation {

@@ -1,5 +1,3 @@
-//TODO: LOOK IF EXPECETED_MSG CAN BE REMOVED FROM THE STATE STRUCT, SINCE IT'S ALWAYS NONE FOR THIS KIND OF STATES. IF SO, ALSO REMOVE IT FROM THE MACRO PARAMETERS
-
 /// A macro for defining conversation "request" states.
 ///
 /// Request states are meant to execute an action (e.g., sending a message) without

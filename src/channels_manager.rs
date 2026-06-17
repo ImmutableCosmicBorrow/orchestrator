@@ -8,7 +8,6 @@ use common_game::protocols::planet_explorer::{ExplorerToPlanet, PlanetToExplorer
 use common_game::utils::ID;
 use crossbeam_channel::{Receiver, Sender};
 use dashmap::DashMap;
-//TODO: ADD DOCUMENTATION
 
 pub(crate) type OrchPlanSenderMap = DashMap<ID, Sender<OrchestratorToPlanet>>;
 pub(crate) type OrchToExplorerSenders = DashMap<ID, Sender<OrchestratorToExplorer>>;

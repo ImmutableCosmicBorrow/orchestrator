@@ -5,14 +5,12 @@ use crate::orchestrator::ExplorersLocationRef;
 use crate::planet::PlanetMap;
 use std::sync::{Arc, Mutex};
 
-//TODO: MAYBE SIMPLIFY AND JUST TAKE CONVO_MANAGER?
 pub(super) struct WorldCtx {
     pub(super) galaxy: PlanetMap,
     pub(super) explorers_location: ExplorersLocationRef,
 }
 
 pub(super) struct DispatchCtx {
-    //TODO: MAYBE DELETE MUTEX
     pub(super) convo_manager: Arc<Mutex<ConvoManager>>,
 }
 

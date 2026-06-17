@@ -29,7 +29,6 @@ use std::time::Duration;
 /// The conversation flow starts by sending a [`OrchestratorToExplorer::CombineResourceRequest`] to the explorer and terminates
 /// once the [`ExplorerToOrchestrator::CombineResourceResponse`] is received.
 /// Custom error type for when an explorer fails to craft the requested complex resource.
-//TODO: SEND RESULT TO UI?
 struct CombineFailed {
     /// ID of the explorer who attempted the craft.
     explorer_id: ID,

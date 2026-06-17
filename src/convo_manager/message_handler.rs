@@ -45,7 +45,7 @@ impl ConvoManager {
 
         // Atomically: find a matching inactive conversation OR buffer for later.
         // Holding the pending_msgs lock during find+buffer prevents
-        // add_conversation's drain from missing this message (TOCTOU fix).
+        // add_conversation's drain from missing this message.
         if let Some((id, message)) =
             self.convo_scheduler
                 .find_matching_or_buffer(message, &message_kind, entities_ids)

@@ -22,12 +22,6 @@ impl ConvoManager {
         }
     }
 
-    // TODO: remove the allow dead_code once these getters are used in the convo states.
-    #[allow(dead_code)]
-    pub(crate) fn get_convo_scheduler(&self) -> &ConvoScheduler {
-        &self.convo_scheduler
-    }
-
     pub(crate) fn get_orch_context(&self) -> Arc<OrchContext> {
         self.orch_context.clone()
     }

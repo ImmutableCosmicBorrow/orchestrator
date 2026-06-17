@@ -140,7 +140,7 @@ pub fn galaxy_loader(
         std::fs::create_dir_all(parent).expect("Failed to create directory path");
     }
 
-    // ✅ Create the shared PlanetMap FIRST (empty).
+    // Create the shared PlanetMap FIRST (empty).
     let planet_map: PlanetMap = Arc::new(std::sync::RwLock::new(HashMap::new()));
 
     let mut planet_threads: PlanetThreadMap = HashMap::new();

@@ -17,8 +17,6 @@ use common_game::protocols::orchestrator_planet::{
 use common_game::utils::ID;
 use std::time::Duration;
 
-// TODO: Chaneg ontimeout
-
 // --- CONVERSATION FSM WRAPPER DEFINITION ---
 
 define_conversation!(
