@@ -40,13 +40,18 @@ impl Orchestrator {
             }
 
             UiCmd::AddExplorer(explorer_type, into_planet) => {
-                explorer_factory::spawn_explorer(
+                let explorer_id = explorer_factory::spawn_explorer(
                     &self.orch_context_ref,
                     &self.convo_manager,
                     &mut self.explorer_threads,
                     explorer_type,
                     into_planet,
                 );
+
+                if !self.manual_mode {
+                    self.convo_manager
+                        .create_start_explorer_conversation(explorer_id);
+                }
             }
 
             UiCmd::SwitchGameMode => {

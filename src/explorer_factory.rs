@@ -25,7 +25,7 @@ pub(crate) fn spawn_explorer(
     explorers_threads: &mut HashMap<ID, JoinHandle<()>>,
     explorer_type: ExplorerType,
     spawn_planet: ID,
-) {
+) -> ID {
     let id = get_id_manager().get_next_explorer_id_by_type(explorer_type);
 
     // Create Explorer
@@ -52,6 +52,8 @@ pub(crate) fn spawn_explorer(
 
     // Move Manually the explorer to the planet
     convo_manager.create_send_manual_move_conversation(id, None, spawn_planet);
+
+    id
 }
 
 // Spawns the first one (or two) Explorer(s)
