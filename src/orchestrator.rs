@@ -276,9 +276,11 @@ impl Orchestrator {
                     "Game terminated by user".to_string()
                 };
                 self.shutdown();
-                let _ = self.orch_context_ref.channels_manager.get_ui_sender().send(
-                    OrchestratorToUiUpdate::GameOver(msg)
-                );
+                let _ = self
+                    .orch_context_ref
+                    .channels_manager
+                    .get_ui_sender()
+                    .send(OrchestratorToUiUpdate::GameOver(msg));
                 return;
             }
         }
