@@ -145,7 +145,6 @@ pub fn print_ui_update(update: OrchestratorToUiUpdate) {
             std::println!("{reason}");
             let _ = std::io::Write::flush(&mut std::io::stdout());
             std::thread::sleep(std::time::Duration::from_millis(100));
-            std::process::exit(0);
         }
     }
 }

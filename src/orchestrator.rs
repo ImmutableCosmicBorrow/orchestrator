@@ -270,11 +270,7 @@ impl Orchestrator {
             }
 
             if self.shutdown_requested {
-                let msg = if self.orch_context_ref.explorers_location.is_empty() {
-                    "No remaining explorers: GAME OVER".to_string()
-                } else {
-                    "Game terminated by user".to_string()
-                };
+                let msg = "GAME OVER".to_string();
                 self.shutdown();
                 let _ = self
                     .orch_context_ref
