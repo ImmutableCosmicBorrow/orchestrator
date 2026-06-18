@@ -642,7 +642,6 @@ mod tests {
                 })),
             }
         }
-
     }
 
     // ============================================================================
@@ -973,7 +972,6 @@ mod tests {
                 on_timeout_called: Arc::new(Mutex::new(false)),
             }
         }
-
     }
 
     impl Conversation for TimeoutMockConversation {

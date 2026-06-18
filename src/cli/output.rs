@@ -72,7 +72,7 @@ pub fn print_ui_update(update: OrchestratorToUiUpdate) {
         OrchestratorToUiUpdate::ExplorersPosition(loc) => {
             // `loc` is a DashMap of explorer_id -> planet_id. Iterate its entries.
             if loc.is_empty() {
-                println!("Explorers by planet: none");
+                println!("No explorers found");
                 return;
             }
 
@@ -83,18 +83,16 @@ pub fn print_ui_update(update: OrchestratorToUiUpdate) {
                 by_planet.entry(planet_id).or_default().push(explorer_id);
             }
 
-            let mut chunks = Vec::new();
             for (planet_id, mut explorers) in by_planet {
                 explorers.sort_unstable();
                 let explorers_str = explorers
                     .iter()
                     .map(ToString::to_string)
                     .collect::<Vec<_>>()
-                    .join(",");
-                chunks.push(format!("{planet_id}:[{explorers_str}]"));
-            }
+                    .join(", ");
 
-            println!("Explorers by planet -> {}", chunks.join(" "));
+                println!("Explorers on planet {} -> {}", planet_id, explorers_str);
+            }
         }
         OrchestratorToUiUpdate::PlanetSnapshot(id, snapshot) => {
             println!(
@@ -106,13 +104,10 @@ pub fn print_ui_update(update: OrchestratorToUiUpdate) {
             );
         }
         OrchestratorToUiUpdate::ExplorerSnapshot(id, bag) => {
-            let total: u64 = bag.resources_amounts.values().sum();
-            println!(
-                "Explorer {} status: total_resources={}, resource_kinds={}",
-                id,
-                total,
-                bag.resources_amounts.len()
-            );
+            println!("Explorer {} status", id);
+            for (resource, amount) in &bag.resources_amounts {
+                println!("{:?}: {}", resource, amount);
+            }
         }
         OrchestratorToUiUpdate::SupportedCombinations(id, combinations) => {
             let mut values = combinations
