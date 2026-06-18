@@ -50,4 +50,8 @@ pub struct Cli {
     /// Enable background events (asteroids and sunrays).
     #[arg(short = 'b', long = "enable-background-events", default_value_t = true, action = clap::ArgAction::Set)]
     pub enable_background_events: bool,
+
+    /// Disable logging to the console.
+    #[arg(long = "no-log", default_value_t = true)]
+    pub no_log: bool,
 }

@@ -141,5 +141,11 @@ pub fn print_ui_update(update: OrchestratorToUiUpdate) {
         OrchestratorToUiUpdate::SendAutoSunray(_) | OrchestratorToUiUpdate::SendAutoAsteroid(_) => {
             // Ignored in CLI mode (background events are disabled).
         }
+        OrchestratorToUiUpdate::GameOver(reason) => {
+            std::println!("{reason}");
+            let _ = std::io::Write::flush(&mut std::io::stdout());
+            std::thread::sleep(std::time::Duration::from_millis(100));
+            std::process::exit(0);
+        }
     }
 }

@@ -66,4 +66,7 @@ pub enum OrchestratorToUiUpdate {
     // asteroid/sunrays commands
     SendAutoSunray(ID),
     SendAutoAsteroid(ID),
+
+    // game lifecycle commands
+    GameOver(String),
 }
