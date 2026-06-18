@@ -110,7 +110,7 @@ pub fn print_ui_update(update: OrchestratorToUiUpdate) {
                 println!("Resources: none");
             } else {
                 for (resource, amount) in &bag.resources_amounts {
-                    if *amount > 0{
+                    if *amount > 0 {
                         println!("{:?}: {}", resource, amount);
                     }
                 }
