@@ -17,12 +17,19 @@ pub fn run(
 ) {
     let ui_printer_thread = thread::spawn(move || {
         while let Ok(update) = orch_to_ui_receiver.recv() {
+            let is_game_over = matches!(update, OrchestratorToUiUpdate::GameOver(_));
             print_ui_update(update);
+            if is_game_over {
+                break;
+            }
         }
     });
 
     if !cli_args.no_repl {
-        run_repl(&ui_to_orch_sender);
+        let sender_clone = ui_to_orch_sender.clone();
+        thread::spawn(move || {
+            run_repl(&sender_clone);
+        });
     }
 
     drop(ui_to_orch_sender);
