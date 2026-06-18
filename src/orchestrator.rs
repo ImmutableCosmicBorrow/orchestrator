@@ -253,20 +253,20 @@ impl Orchestrator {
                     self.handle_ui_receiver_message(msg);
                 }
 
-                // Periodic check to determine if there are any explorers left.
-                // If none remain, shut the game down.
-                recv(timeout) -> _ => {
-                    if self.orch_context_ref.explorers_location.is_empty() {
-                        log_internal(
-                            LogTarget::General,
-                            Channel::Info,
-                            payload!(
-                                action : "No explorers left. Shutting down orchestrator",
-                            )
-                        );
-                        self.shutdown_requested = true;
-                    }
-                }
+                // Polling to be sure to check explorers alive
+                recv(timeout) -> _ => {}
+            }
+
+            // Check alive explorers
+            if self.orch_context_ref.explorers_location.is_empty() {
+                log_internal(
+                    LogTarget::General,
+                    Channel::Info,
+                    payload!(
+                        action : "No explorers left. Shutting down orchestrator",
+                    ),
+                );
+                self.shutdown_requested = true;
             }
 
             if self.shutdown_requested {
@@ -276,9 +276,11 @@ impl Orchestrator {
                     "Game terminated by user".to_string()
                 };
                 self.shutdown();
-                let _ = self.orch_context_ref.channels_manager.get_ui_sender().send(
-                    OrchestratorToUiUpdate::GameOver(msg)
-                );
+                let _ = self
+                    .orch_context_ref
+                    .channels_manager
+                    .get_ui_sender()
+                    .send(OrchestratorToUiUpdate::GameOver(msg));
                 return;
             }
         }

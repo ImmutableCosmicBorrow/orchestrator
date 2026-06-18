@@ -86,6 +86,15 @@ fn send_explorer_kill_transition(
             Some(Box::new(next_conv))
         }
         Err(err) => {
+            // Delete killed explorer from the explorer location list and remove channels
+            this.state
+                .orch_context
+                .explorers_location
+                .remove(&this.state.explorer_id);
+            this.state
+                .get_channels_manager()
+                .remove_explorer_channels(this.state.explorer_id);
+
             let error_state = ErrorState::new(Box::new(err), this.id);
             Some(Box::new(error_state) as Box<dyn Conversation + Send + Sync>)
         }
@@ -108,9 +117,27 @@ create_response_state!(
     entities_id_closure: |this: &KillExplorerConversation<WaitingKillExplorerResult>| { (None, Some(this.state.explorer_id)) },
     transition: wait_exp_kill_res_transition,
     methods_settings: {
-
+        on_timeout: kill_explorer_timeout_handling
     },
 );
+
+fn kill_explorer_timeout_handling(this: Box<KillExplorerConversation<WaitingKillExplorerResult>>) {
+    // If the conversation times out, the explorer is dead or unreachable. Clean up its location and channels.
+    this.state.delete_dead_explorer();
+    this.state
+        .get_channels_manager()
+        .remove_explorer_channels(this.state.explorer_id);
+
+    log_internal(
+        LogTarget::Conversations,
+        Channel::Warning,
+        payload!(
+            action: "KillExplorer conversation timed out. Cleaning up explorer location and channels.",
+            explorer_id: this.state.explorer_id,
+            conversation_id: this.id
+        ),
+    );
+}
 
 /// Transition Function for [`WaitingKillExplorerResult`] state:
 ///
